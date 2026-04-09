@@ -9,7 +9,8 @@ $user = currentUser();
 <?php require APP_ROOT . '/templates/layouts/header.php'; ?>
 
 <div class="admin-layout">
-    <aside class="admin-sidebar">
+    <button class="mobile-menu-toggle" onclick="document.querySelector('.admin-sidebar').classList.toggle('open')" aria-label="Menu">&#9776;</button>
+    <aside class="admin-sidebar" id="adminSidebar">
         <div class="admin-sidebar-brand">
             <h2><span class="brand-tch">TCH</span> Admin</h2>
             <small>Placement Management</small>
@@ -30,6 +31,7 @@ $user = currentUser();
             </li>
         </ul>
     </aside>
+    <div class="sidebar-overlay" onclick="document.getElementById('adminSidebar').classList.remove('open')"></div>
 
     <main class="admin-content">
         <div class="admin-header">
