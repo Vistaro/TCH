@@ -23,7 +23,7 @@
         </div>
         <div class="footer-bottom">
             <span>&copy; <?= date('Y') ?> TCH Placements. All rights reserved.</span>
-            <span>A <a href="https://intelligentae.co.uk" style="color:#10B2B4">Vistaro / Intelligentae</a> investment</span>
+            <span>An <a href="https://intelligentae.co.uk" style="color:#10B2B4">Intelligentae</a> Platform Partner</span>
         </div>
     </div>
 </footer>
