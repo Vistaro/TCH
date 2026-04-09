@@ -7,7 +7,10 @@
       "Bash(where python:*)",
       "Bash(choco install:*)",
       "Bash(grep -iE '\\(color|colour|hex|rgb|font|#[0-9a-fA-F]{3,6}|tuniti|care|hero|brand|primary|secondary|accent\\)')",
-      "Bash(py:*)"
+      "Bash(py:*)",
+      "Bash(rsync -avz --exclude='.git' --exclude='docs/Brand' --exclude='brand.pdf' --exclude='Chat History' --exclude='.env' --exclude='vendor' --exclude='node_modules' -e \"ssh -i ~/.ssh/id_rsa\" ./ intelligentae.co.uk@ssh.gb.stackcp.com:~/public_html/tch/)",
+      "Bash(where scp:*)",
+      "WebFetch(domain:tch.intelligentae.co.uk)"
     ]
   }
 }
