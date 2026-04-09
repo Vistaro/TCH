@@ -525,11 +525,11 @@ for ($r = 4; $r <= $clientSummaryWs->getHighestRow(); $r++) {
 
     for ($c = 2; $c <= 7; $c++) {
         $cell = $clientSummaryWs->getCell([$c, $r]);
-        $comment = $cell->getComment();
+        $cellRef = $cell->getCoordinate();
+        $comment = $clientSummaryWs->getComment($cellRef);
         if ($comment && $comment->getText()->getPlainText()) {
             $commentText = trim($comment->getText()->getPlainText());
             $month = $csMonths[$c] ?? '';
-            $cellRef = $cell->getCoordinate();
 
             // Extract source sheet from comment
             $sourceSheet = '';
@@ -579,11 +579,11 @@ for ($r = 4; $r <= $cgSummaryWs->getHighestRow(); $r++) {
 
     for ($c = 2; $c <= 7; $c++) {
         $cell = $cgSummaryWs->getCell([$c, $r]);
-        $comment = $cell->getComment();
+        $cellRef = $cell->getCoordinate();
+        $comment = $cgSummaryWs->getComment($cellRef);
         if ($comment && $comment->getText()->getPlainText()) {
             $commentText = trim($comment->getText()->getPlainText());
             $month = $cgMonths[$c] ?? '';
-            $cellRef = $cell->getCoordinate();
 
             $sourceSheet = '';
             if (preg_match("/Source:\s*'([^']+)'/", $commentText, $m)) {

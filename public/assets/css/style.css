@@ -637,6 +637,269 @@ h3 { font-size: 1.35rem; }
     border-left: 4px solid #10B2B4;
 }
 
+/* ── Sidebar nav headings & separators ─────────── */
+
+.admin-nav .nav-heading {
+    padding: 1.25rem 1.5rem 0.4rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.35);
+    font-weight: 600;
+}
+
+.admin-nav .nav-separator {
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 0.5rem;
+}
+
+/* ── Report filters ────────────────────────────── */
+
+.report-filters {
+    background: #FFFFFF;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #eee;
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.report-filters .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.report-filters label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.report-filters select,
+.report-filters input[type="month"],
+.report-filters input[type="text"] {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    min-width: 160px;
+    background: #fff;
+}
+
+.report-filters select:focus,
+.report-filters input:focus {
+    outline: none;
+    border-color: #10B2B4;
+}
+
+.report-filters .btn {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.875rem;
+}
+
+/* ── Report tables ─────────────────────────────── */
+
+.report-table-wrap {
+    background: #FFFFFF;
+    border-radius: 10px;
+    border: 1px solid #eee;
+    overflow: hidden;
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.report-table th {
+    background: #F7F8F9;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #666;
+    border-bottom: 2px solid #eee;
+    white-space: nowrap;
+}
+
+.report-table td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #f0f0f0;
+    color: #3A3839;
+}
+
+.report-table tr:last-child td {
+    border-bottom: none;
+}
+
+.report-table tr:hover td {
+    background: #FAFBFC;
+}
+
+.report-table .number {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.report-table .total-row td {
+    font-weight: 700;
+    background: #F7F8F9;
+    border-top: 2px solid #ddd;
+}
+
+.report-table .drill-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+.report-table .drill-toggle:hover td {
+    background: #EFF9F9;
+}
+
+.report-table .drill-toggle td:first-child::before {
+    content: '\25B6';
+    display: inline-block;
+    margin-right: 0.5rem;
+    font-size: 0.7rem;
+    color: #10B2B4;
+    transition: transform 0.2s;
+}
+
+.report-table .drill-toggle.open td:first-child::before {
+    transform: rotate(90deg);
+}
+
+.report-table .drill-row {
+    display: none;
+}
+
+.report-table .drill-row.show {
+    display: table-row;
+}
+
+.report-table .drill-row td {
+    background: #FAFBFC;
+    padding-left: 2.5rem;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.report-table .drill-row:hover td {
+    background: #F0F4F4;
+}
+
+/* ── Name reconciliation ───────────────────────── */
+
+.name-card {
+    background: #FFFFFF;
+    border-radius: 10px;
+    border: 1px solid #eee;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.name-card-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.name-card-header h3 {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-warning {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.badge-success {
+    background: #D1FAE5;
+    color: #065F46;
+}
+
+.badge-muted {
+    background: #F3F4F6;
+    color: #6B7280;
+}
+
+.name-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.name-table th {
+    background: #F7F8F9;
+    padding: 0.6rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #666;
+    border-bottom: 1px solid #eee;
+}
+
+.name-table td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.name-table tr:hover td {
+    background: #FAFBFC;
+}
+
+.name-table select {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    width: 100%;
+}
+
+.name-table .score {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.name-table .score-high { color: #059669; }
+.name-table .score-med  { color: #D97706; }
+.name-table .score-low  { color: #DC2626; }
+
+.name-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.name-actions .btn {
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8rem;
+}
+
 /* ── 404 Page ──────────────────────────────────── */
 
 .error-page {

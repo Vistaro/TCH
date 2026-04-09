@@ -2,6 +2,55 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.4.0] - 2026-04-09
+
+### Added — Reports & Name Reconciliation
+
+**Three reports under Reports menu** (all login-gated, with filters and drill-down):
+
+1. **Caregiver Earnings by Month** (`/admin/reports/caregiver-earnings`)
+   - Summary: caregiver name, tranche, month, days worked, daily rate, total amount
+   - Drill-down: click any row to see each day worked — date, day of week, client, rate
+   - Filters: caregiver name, tranche, date range (from/to month)
+
+2. **Client Billing by Month** (`/admin/reports/client-billing`)
+   - Summary: client name, account number, month, income, expense, margin
+   - Drill-down: click any row to see caregivers who worked for that client — date, name, rate
+   - Filters: client name, date range
+
+3. **Days Worked by Caregiver** (`/admin/reports/days-worked`)
+   - Summary: caregiver, tranche, month, days worked, clients served, avg rate, total value
+   - Drill-down: each shift date, client assigned, daily rate
+   - Filters: caregiver, client, tranche, date range
+
+**Name Reconciliation screen** (`/admin/names`):
+- Table showing all 140 name lookup records: canonical, training, PDF/legal, billing names with match scores
+- Colour-coded scores (green >90%, amber >70%, red <70%)
+- Approve/Revoke workflow per row — nothing goes live without human approval
+- Unmatched billing names panel at top with dropdown to assign to canonical name
+- Filters: status (pending/approved), tranche, free-text search across all name fields
+- Stats cards: pending count, approved count, unmatched count
+
+**Updated admin layout:**
+- Shared sidebar layout (`templates/layouts/admin.php`) — DRY, consistent nav across all admin pages
+- Sidebar now has Reports submenu and Data section with Name Reconciliation
+- Dashboard updated: shows total revenue, gross margin, link to name review
+
+**Bug fix:** Fixed PhpSpreadsheet `getComment()` call in ingestion script (use worksheet method, not cell method)
+
+### Files changed
+- `public/index.php` — added 5 new routes
+- `public/assets/css/style.css` — report tables, filters, drill-down, name reconciliation styles
+- `templates/layouts/admin.php` (new) — shared admin sidebar layout
+- `templates/layouts/admin_footer.php` (new) — shared admin page close
+- `templates/admin/dashboard.php` — refactored to use shared layout, added revenue/margin cards
+- `templates/admin/reports/caregiver_earnings.php` (new)
+- `templates/admin/reports/client_billing.php` (new)
+- `templates/admin/reports/days_worked.php` (new)
+- `templates/admin/names.php` (new) — name reconciliation screen
+- `templates/admin/names_assign.php` (new) — billing name assignment handler
+- `database/seeds/ingest.php` — fixed comment extraction for PhpSpreadsheet compatibility
+
 ## [0.3.0] - 2026-04-09
 
 ### Added — Landing Page, Admin Login & Dashboard

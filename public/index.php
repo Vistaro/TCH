@@ -34,6 +34,31 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/dashboard.php';
         break;
 
+    case 'admin/reports/caregiver-earnings':
+        requireAuth();
+        require APP_ROOT . '/templates/admin/reports/caregiver_earnings.php';
+        break;
+
+    case 'admin/reports/client-billing':
+        requireAuth();
+        require APP_ROOT . '/templates/admin/reports/client_billing.php';
+        break;
+
+    case 'admin/reports/days-worked':
+        requireAuth();
+        require APP_ROOT . '/templates/admin/reports/days_worked.php';
+        break;
+
+    case 'admin/names':
+        requireAuth();
+        require APP_ROOT . '/templates/admin/names.php';
+        break;
+
+    case 'admin/names/assign':
+        requireAuth();
+        require APP_ROOT . '/templates/admin/names_assign.php';
+        break;
+
     default:
         http_response_code(404);
         require APP_ROOT . '/templates/errors/404.php';
