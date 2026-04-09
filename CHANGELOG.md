@@ -2,6 +2,57 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.3.0] - 2026-04-09
+
+### Added — Landing Page, Admin Login & Dashboard
+
+**Front controller** (`public/index.php`):
+- Routes all requests: home, login, logout, admin/dashboard, 404
+
+**Public landing page** (`templates/public/home.php`):
+- On-brand design using Tuniti Care Hero colour palette (Teal #10B2B4, Charcoal #3A3839, Dark Charcoal #242424)
+- Hero section with dual CTA (caregivers / clients)
+- Stats bar (140+ caregivers, 60+ clients, Gauteng, QCTO)
+- Services grid: Recruitment & Vetting, Certified Training, Placement & Matching
+- Split CTA blocks for caregivers and clients
+- How It Works 3-step flow
+- Contact section, footer with Vistaro/Intelligentae credit
+- Fully responsive (mobile-friendly)
+
+**Admin login** (`templates/auth/login.php`):
+- CSRF-protected login form
+- Styled auth card matching brand
+- Error/success alerts, logout confirmation
+
+**Admin dashboard** (`templates/admin/dashboard.php`):
+- Sidebar navigation (Dashboard, Caregivers, Clients, Roster, Revenue, Name Reconciliation)
+- Live stats cards that pull from DB when available, fall back to placeholders
+- Getting Started info panel
+
+**User management foundation** (`database/002_seed_admin.sql`, `database/seeds/create_admin.php`):
+- `users` table with username, password_hash (bcrypt), role, active flag
+- `login_log` table for audit trail
+- CLI script to create Ross as admin user with configurable password
+
+**Shared assets**:
+- `public/assets/css/style.css` — complete stylesheet with all brand colours
+- `templates/layouts/header.php` / `footer.php` — shared layout
+- `templates/errors/404.php` / `403.php` — error pages
+
+### Files changed
+- `public/index.php` (new) — front controller
+- `public/assets/css/style.css` (new) — main stylesheet
+- `templates/layouts/header.php` (new) — shared HTML head
+- `templates/layouts/footer.php` (new) — shared footer
+- `templates/public/home.php` (new) — landing page
+- `templates/auth/login.php` (new) — login page
+- `templates/admin/dashboard.php` (new) — admin dashboard
+- `templates/errors/404.php` (new) — 404 page
+- `templates/errors/403.php` (new) — 403 page
+- `database/002_seed_admin.sql` (new) — users + login_log tables
+- `database/seeds/create_admin.php` (new) — admin user creation script
+- `CHANGELOG.md` — updated
+
 ## [0.2.0] - 2026-04-09
 
 ### Added — Phase 1: Data Layer & Ingestion
