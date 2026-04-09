@@ -1,0 +1,24 @@
+# Environment & secrets
+.env
+*.env
+config.local.php
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Chat History (local only — never commit)
+Chat History/
+
+# Brand assets staging
+brand.pdf
+
+# Dependencies
+vendor/
+node_modules/

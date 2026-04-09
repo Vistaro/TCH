@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(ls /c/Python*/python.exe)",
+      "Bash(ls /c/Users/Intel/AppData/Local/Programs/Python/*/python.exe)",
+      "Bash(where python:*)",
+      "Bash(choco install:*)",
+      "Bash(grep -iE '\\(color|colour|hex|rgb|font|#[0-9a-fA-F]{3,6}|tuniti|care|hero|brand|primary|secondary|accent\\)')",
+      "Bash(py:*)"
+    ]
+  }
+}
