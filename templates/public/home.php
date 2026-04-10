@@ -47,20 +47,27 @@ $enquiryResult = $_GET['enquiry'] ?? null;
 ?>
 <?php require APP_ROOT . '/templates/layouts/header.php'; ?>
 
+<button class="public-menu-toggle"
+        aria-label="Open menu"
+        aria-controls="publicNav"
+        aria-expanded="false"
+        onclick="document.body.classList.toggle('public-menu-open');this.setAttribute('aria-expanded',document.body.classList.contains('public-menu-open'))">&#9776;</button>
+
 <nav class="navbar">
     <div class="container">
         <a href="<?= APP_URL ?>/" class="navbar-brand">
             <span class="brand-tch">TCH</span> Placements
         </a>
-        <ul class="navbar-nav">
-            <li><a href="#services">Care Services</a></li>
-            <li><a href="#why-tch">Why TCH</a></li>
-            <li><a href="#how-it-works">How It Works</a></li>
-            <li><a href="#enquire">Find a Caregiver</a></li>
+        <ul class="navbar-nav" id="publicNav">
+            <li><a href="#services" onclick="document.body.classList.remove('public-menu-open')">Care Services</a></li>
+            <li><a href="#why-tch" onclick="document.body.classList.remove('public-menu-open')">Why TCH</a></li>
+            <li><a href="#how-it-works" onclick="document.body.classList.remove('public-menu-open')">How It Works</a></li>
+            <li><a href="#enquire" onclick="document.body.classList.remove('public-menu-open')">Find a Caregiver</a></li>
             <li><a href="<?= APP_URL ?>/login" class="btn btn-sm btn-primary">Admin</a></li>
         </ul>
     </div>
 </nav>
+<div class="public-menu-overlay" onclick="document.body.classList.remove('public-menu-open')"></div>
 
 <!-- ============================================================
      Hero

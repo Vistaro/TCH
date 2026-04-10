@@ -966,10 +966,6 @@ h3 { font-size: 1.35rem; }
         text-align: center;
     }
 
-    .navbar-nav {
-        gap: 1rem;
-    }
-
     .grid-2 {
         grid-template-columns: 1fr;
     }
@@ -1479,5 +1475,122 @@ h3 { font-size: 1.35rem; }
     }
     .trust-block h2 {
         font-size: 1.6rem;
+    }
+}
+
+/* ============================================================
+   Public navbar — mobile hamburger menu
+   Hamburger sits fixed top-left. Clicking it slides a left
+   drawer in over the page. Click overlay or any nav link to close.
+   ============================================================ */
+.public-menu-toggle {
+    display: none;
+}
+.public-menu-overlay {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .public-menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 0.85rem;
+        left: 1rem;
+        z-index: 201;
+        background: #10B2B4;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        width: 46px;
+        height: 46px;
+        font-size: 1.55rem;
+        cursor: pointer;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+        line-height: 1;
+    }
+    .public-menu-toggle:hover,
+    .public-menu-toggle:focus {
+        background: #0D8E90;
+        outline: none;
+    }
+
+    /* On mobile, push the brand right so it doesn't sit under
+       the fixed hamburger button. */
+    .navbar .container {
+        justify-content: flex-end;
+    }
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+
+    /* Drawer: navbar-nav becomes a left-edge slide-in panel */
+    .navbar-nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 82%;
+        max-width: 320px;
+        background: #fff;
+        flex-direction: column;
+        align-items: stretch;
+        padding: 5rem 1.5rem 2rem;
+        gap: 0;
+        margin: 0;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 200;
+        box-shadow: 2px 0 18px rgba(0,0,0,0.18);
+        overflow-y: auto;
+    }
+    .navbar-nav li {
+        width: 100%;
+        border-bottom: 1px solid #f3f4f6;
+        list-style: none;
+    }
+    .navbar-nav li:last-child {
+        border-bottom: none;
+        margin-top: 1rem;
+    }
+    .navbar-nav a {
+        display: block;
+        padding: 1rem 0;
+        font-size: 1.05rem;
+        color: #07595B;
+    }
+    .navbar-nav a.btn {
+        display: block;
+        text-align: center;
+        padding: 0.85rem 1rem;
+    }
+
+    body.public-menu-open .navbar-nav {
+        transform: translateX(0);
+    }
+
+    /* Backdrop overlay shown when drawer is open */
+    .public-menu-overlay {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 199;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease;
+    }
+    body.public-menu-open .public-menu-overlay {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Lock background scroll while drawer is open */
+    body.public-menu-open {
+        overflow: hidden;
     }
 }
