@@ -1043,3 +1043,137 @@ h3 { font-size: 1.35rem; }
         grid-template-columns: 1fr 1fr;
     }
 }
+
+/* ============================================================
+   Person Review — card view styled to mirror the Tuniti
+   intake PDF layout (photo top-left, two-column field block,
+   NoK, attachments, import notes, action buttons).
+   ============================================================ */
+.person-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.person-card-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.person-photo {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #f3f4f6;
+}
+.person-photo-placeholder {
+    background: #f3f4f6;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+}
+.person-card-title h2 {
+    margin: 0 0 0.25rem 0;
+    color: #6b7280;
+    font-size: 1.85rem;
+    font-weight: 700;
+}
+.person-card-tch-id {
+    font-size: 1.25rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+    font-family: monospace;
+}
+.person-card-meta {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+.person-card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+.person-card-section h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.person-card-section dl {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 0.5rem 1rem;
+    margin: 0;
+}
+.person-card-section dt {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+.person-card-section dd {
+    margin: 0;
+    color: #111827;
+    font-size: 0.9rem;
+    word-break: break-word;
+}
+.attachment-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.attachment-list li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 0.9rem;
+}
+.attachment-list li:last-child {
+    border-bottom: none;
+}
+.import-notes {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 1rem;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+    color: #78350f;
+    overflow-x: auto;
+}
+.person-card-actions {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1.5rem;
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+}
+.btn-danger {
+    background: #DC2626;
+    color: #fff;
+    border: 1px solid #DC2626;
+}
+.btn-danger:hover {
+    background: #B91C1C;
+    border-color: #B91C1C;
+}
+
+@media (max-width: 768px) {
+    .person-card-grid {
+        grid-template-columns: 1fr;
+    }
+    .person-card-header {
+        flex-direction: column;
+        text-align: center;
+    }
+}

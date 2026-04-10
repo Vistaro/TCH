@@ -2,6 +2,65 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.5.1] - 2026-04-10
+
+### Added — Tranche 1 enrichment + admin review page
+
+**Tranche 1 imported and enriched** against the existing 14 caregivers
+(ids 1–14):
+
+* All 14 Tranche 1 candidates from the Tuniti PDF were already in the
+  caregivers table as name-only stubs (12 of 14) or with workbook data
+  that conflicted with the PDF (Jolie / Mukuna). Per Ross's decision the
+  Tuniti PDF data was adopted as canonical and the workbook values were
+  preserved verbatim in `import_notes` for audit.
+* Special handling for id 5 (Jovani Mukuna Tshibingu): the DB full_name
+  "Jovani" was kept because the PDF title spells it "Jonvai" — a typo
+  confirmed by the PDF's own Known As field.
+* All 14 enriched rows set to `import_review_state = 'pending'` so they
+  appear in the new admin review queue.
+* 28 attachments inserted: 14 Original Data Entry Sheet rows pointing
+  to the source PDF page, 14 Profile Photo rows pointing to the cropped
+  portraits.
+
+**Tranche label standardisation** (system-wide):
+
+* `1st Intake` → `Tranche 1`, `2nd Intake` → `Tranche 2`, … `9th Intake`
+  → `Tranche 9`. Affects 113 caregivers across all 9 cohorts. The `N/K`
+  label is left alone — unknown remains unknown.
+
+**New admin page: Person Review** (`/admin/people/review`):
+
+* Lists all caregivers in `import_review_state = 'pending'`, filterable
+  by tranche, with photo thumbnail, TCH ID, full name, known_as,
+  student_id, attachment count and a notes flag.
+* Detail view (`?id=N`) renders a person card styled to mirror the
+  Tuniti intake PDF layout: photo top-left, two-column field grid
+  (Personal / Contact / Address / Emergency Contact), attachments list,
+  import-notes panel and human-notes panel.
+* Approve / Reject actions, CSRF-protected. Approve clears
+  `import_review_state` and appends an audit line; Reject sets the
+  state to `rejected` and appends an audit line.
+* Sidebar nav updated with "Person Review" entry under Data.
+
+**Migration patches:**
+
+* `database/003a_finish_migration.sql` — completes migration 003 after
+  the original `tch_id` GENERATED column failed under MariaDB 10.6
+  (auto-increment columns can't be referenced by generated columns).
+  `tch_id` is now a regular VARCHAR(20) populated by application code,
+  with a unique index. Existing 140 rows backfilled.
+* `database/003b_tranche_1_enrichment.sql` — the one-shot enrichment
+  script described above.
+
+**Deployed to dev** (`https://dev.tch.intelligentae.co.uk/`):
+
+* Migration 003 + 003a + 003b applied to the shared dev/prod database
+* 14 photos uploaded to `public/uploads/people/TCH-NNNNNN/photo.png`
+* Source PDF uploaded to `public/uploads/intake/Tranche 1 - Intake 1.pdf`
+* Pre-migration backup of caregivers table preserved at
+  `/tmp/caregivers_pre_migration_003.sql` on the server
+
 ## [0.5.0] - 2026-04-10
 
 ### Added — Person Database (foundation for unified caregiver record)

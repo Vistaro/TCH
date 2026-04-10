@@ -24,6 +24,7 @@ $user = currentUser();
             <li><a href="<?= APP_URL ?>/admin/reports/days-worked" class="<?= ($activeNav ?? '') === 'report-days-worked' ? 'active' : '' ?>">&#9632; Days Worked</a></li>
 
             <li class="nav-heading">Data</li>
+            <li><a href="<?= APP_URL ?>/admin/people/review" class="<?= ($activeNav ?? '') === 'people-review' ? 'active' : '' ?>">&#9632; Person Review</a></li>
             <li><a href="<?= APP_URL ?>/admin/names" class="<?= ($activeNav ?? '') === 'names' ? 'active' : '' ?>">&#9632; Name Reconciliation</a></li>
 
             <li class="nav-separator">

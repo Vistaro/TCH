@@ -59,6 +59,11 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/names_assign.php';
         break;
 
+    case 'admin/people/review':
+        requireAuth();
+        require APP_ROOT . '/templates/admin/people_review.php';
+        break;
+
     default:
         http_response_code(404);
         require APP_ROOT . '/templates/errors/404.php';
