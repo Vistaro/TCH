@@ -25,16 +25,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
     $action    = $_POST['action'] ?? '';
     $personId  = (int)($_POST['person_id'] ?? 0);
 
-    if ($personId > 0 && in_array($action, ['approve', 'reject'], true)) {
+    if ($personId > 0 && in_array($action, ['approve', 'reject'], true) && userCan('people_review', 'edit')) {
         $newState = $action === 'approve' ? null : 'rejected';
         $stmt = $db->prepare('UPDATE caregivers SET import_review_state = ? WHERE id = ?');
         $stmt->execute([$newState, $personId]);
 
         // Append an audit line to import_notes
+        $actorLabel = $user['email'] ?? $user['username'] ?? 'unknown';
         $auditLine = sprintf(
             "Review action: %s by %s at %s.",
             $action,
-            $user['username'] ?? 'unknown',
+            $actorLabel,
             date('Y-m-d H:i:s')
         );
         $stmt = $db->prepare(
@@ -43,6 +44,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
              WHERE id = ?"
         );
         $stmt->execute([$auditLine, $personId]);
+
+        logActivity(
+            $action === 'approve' ? 'person_approved' : 'person_rejected',
+            'people_review',
+            'caregivers',
+            $personId,
+            ucfirst($action) . " caregiver #" . $personId,
+            ['import_review_state' => 'pending'],
+            ['import_review_state' => $newState]
+        );
     }
 
     // After acting, return to whichever view we came from

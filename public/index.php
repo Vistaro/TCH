@@ -1,6 +1,14 @@
 <?php
 /**
  * Front controller — all requests route through here.
+ *
+ * Routes are matched in two passes:
+ *   1. Parametric routes (e.g. /admin/users/123) via preg_match
+ *   2. Static routes via switch
+ *
+ * Permission gating: existing pages still call requireAuth() (legacy shim);
+ * new admin pages call requirePagePermission($pageCode, $action) which
+ * also calls requireAuth() internally.
  */
 
 define('APP_ROOT', dirname(__DIR__));
@@ -11,7 +19,39 @@ require APP_ROOT . '/includes/auth.php';
 
 $route = trim($_GET['route'] ?? '', '/');
 
-// Public routes
+// ─── Parametric admin routes ────────────────────────────────────────────
+// Matched before the static switch so /admin/users/123 doesn't fall through.
+
+if (preg_match('#^admin/users/(\d+)$#', $route, $m)) {
+    $_GET['user_id'] = (int)$m[1];
+    requirePagePermission('users', 'read');
+    require APP_ROOT . '/templates/admin/users_detail.php';
+    exit;
+}
+
+if (preg_match('#^admin/users/(\d+)/impersonate$#', $route, $m)) {
+    $_GET['user_id'] = (int)$m[1];
+    requirePagePermission('users', 'edit');
+    require APP_ROOT . '/templates/admin/users_impersonate.php';
+    exit;
+}
+
+if (preg_match('#^admin/roles/(\d+)/permissions$#', $route, $m)) {
+    $_GET['role_id'] = (int)$m[1];
+    requirePagePermission('roles', 'edit');
+    require APP_ROOT . '/templates/admin/roles_permissions.php';
+    exit;
+}
+
+if (preg_match('#^admin/email-log/(\d+)$#', $route, $m)) {
+    $_GET['email_id'] = (int)$m[1];
+    requirePagePermission('email_log', 'read');
+    require APP_ROOT . '/templates/admin/email_log_detail.php';
+    exit;
+}
+
+// ─── Static routes ──────────────────────────────────────────────────────
+
 switch ($route) {
     case '':
     case 'home':
@@ -42,43 +82,78 @@ switch ($route) {
 
     case 'admin':
     case 'admin/dashboard':
-        requireAuth();
+        requirePagePermission('dashboard', 'read');
         require APP_ROOT . '/templates/admin/dashboard.php';
         break;
 
     case 'admin/reports/caregiver-earnings':
-        requireAuth();
+        requirePagePermission('reports_caregiver_earnings', 'read');
         require APP_ROOT . '/templates/admin/reports/caregiver_earnings.php';
         break;
 
     case 'admin/reports/client-billing':
-        requireAuth();
+        requirePagePermission('reports_client_billing', 'read');
         require APP_ROOT . '/templates/admin/reports/client_billing.php';
         break;
 
     case 'admin/reports/days-worked':
-        requireAuth();
+        requirePagePermission('reports_days_worked', 'read');
         require APP_ROOT . '/templates/admin/reports/days_worked.php';
         break;
 
     case 'admin/names':
-        requireAuth();
+        requirePagePermission('names_reconcile', 'read');
         require APP_ROOT . '/templates/admin/names.php';
         break;
 
     case 'admin/names/assign':
-        requireAuth();
+        requirePagePermission('names_reconcile', 'edit');
         require APP_ROOT . '/templates/admin/names_assign.php';
         break;
 
     case 'admin/people/review':
-        requireAuth();
+        requirePagePermission('people_review', 'read');
         require APP_ROOT . '/templates/admin/people_review.php';
         break;
 
     case 'admin/enquiries':
-        requireAuth();
+        requirePagePermission('enquiries', 'read');
         require APP_ROOT . '/templates/admin/enquiries.php';
+        break;
+
+    // ─── User management ───────────────────────────────────────────────
+    case 'admin/users':
+        requirePagePermission('users', 'read');
+        require APP_ROOT . '/templates/admin/users_list.php';
+        break;
+
+    case 'admin/users/invite':
+        requirePagePermission('users', 'create');
+        require APP_ROOT . '/templates/admin/users_invite.php';
+        break;
+
+    case 'admin/impersonate/stop':
+        requireAuth();
+        stopImpersonation();
+        header('Location: ' . APP_URL . '/admin');
+        exit;
+
+    // ─── Roles + permissions matrix ────────────────────────────────────
+    case 'admin/roles':
+        requirePagePermission('roles', 'read');
+        require APP_ROOT . '/templates/admin/roles_list.php';
+        break;
+
+    // ─── Activity log ──────────────────────────────────────────────────
+    case 'admin/activity':
+        requirePagePermission('activity_log', 'read');
+        require APP_ROOT . '/templates/admin/activity_log.php';
+        break;
+
+    // ─── Email outbox ──────────────────────────────────────────────────
+    case 'admin/email-log':
+        requirePagePermission('email_log', 'read');
+        require APP_ROOT . '/templates/admin/email_log_list.php';
         break;
 
     case 'enquire':

@@ -35,9 +35,16 @@ if (!$lookup) {
     exit;
 }
 
+$oldBilling = $lookup['billing_name'];
+
 // Update the billing name on the lookup record
 $stmt = $db->prepare('UPDATE name_lookup SET billing_name = ?, updated_at = NOW() WHERE id = ?');
 $stmt->execute([$billingName, $lookupId]);
+
+logActivity('name_lookup_assigned', 'names_reconcile', 'name_lookup', $lookupId,
+    "Assigned billing name: " . ($oldBilling ?? '(empty)') . " -> " . $billingName,
+    ['billing_name' => $oldBilling],
+    ['billing_name' => $billingName]);
 
 // If this lookup has a linked caregiver_id, update caregiver_costs records
 if ($lookup['caregiver_id']) {

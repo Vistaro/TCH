@@ -1594,3 +1594,48 @@ h3 { font-size: 1.35rem; }
         overflow: hidden;
     }
 }
+
+/* ============================================================
+   User management additions (v0.8.0 — Session B)
+   ============================================================ */
+
+/* Persistent impersonation banner — appears at the very top of admin
+   pages whenever a Super Admin is impersonating another user. */
+.impersonation-banner {
+    background: #DC2626;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    text-align: center;
+    font-size: 0.9rem;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.impersonation-banner-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.impersonation-stop {
+    color: #fff;
+    text-decoration: underline;
+    margin-left: 1rem;
+    font-weight: 600;
+}
+.impersonation-stop:hover {
+    color: #FEE2E2;
+}
+
+/* Additional badge variant for failed states */
+.badge-danger {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
+/* Info-style alert (used on dev fallback link blocks etc.) */
+.alert-info {
+    background: #DBEAFE;
+    color: #1E40AF;
+    border: 1px solid #BFDBFE;
+}
+

@@ -2,6 +2,216 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.8.0] - 2026-04-10
+
+### Added — Admin UIs, Impersonation, Permission Retrofit (Session B of 3)
+
+Second session of the locked 3-session User Management + RBAC + Audit +
+Impersonation build. Session B ships the admin user-management UIs, the
+roles/permissions matrix editor, the activity log + email outbox viewers,
+the full impersonation flow with persistent banner, and retrofits all
+existing handlers to use `requirePagePermission()` and `logActivity()`.
+
+**Front controller (`public/index.php`):**
+
+* Two-pass routing: parametric routes (`/admin/users/{id}`,
+  `/admin/users/{id}/impersonate`, `/admin/roles/{id}/permissions`,
+  `/admin/email-log/{id}`) matched via preg_match BEFORE the static switch.
+* New static routes: `/admin/users`, `/admin/users/invite`,
+  `/admin/impersonate/stop`, `/admin/roles`, `/admin/activity`,
+  `/admin/email-log`.
+* Every existing admin route migrated from `requireAuth()` to
+  `requirePagePermission($pageCode, $action)`. Manager logins now correctly
+  hit 403 on `/admin/users` and `/admin/roles` while still being able to
+  access `/admin`, `/admin/people/review`, `/admin/enquiries`, etc.
+
+**Admin layout (`templates/layouts/admin.php`):**
+
+* Sidebar nav is now fully permission-driven via `userCan()` — users only
+  see the pages they actually have access to. New "Admin" section appears
+  for users with `users`, `roles`, `activity_log`, or `email_log` access.
+* Persistent impersonation banner injected at the very top of every admin
+  page when `isImpersonating()` returns true. Shows the real user's email,
+  the impersonated user's identity + role, and a one-click "End impersonation"
+  link. Sticky-positioned, red background, z-index above the sidebar.
+* `admin-user` block in the header now falls back gracefully to
+  email/username when `full_name` is empty.
+
+**`/admin/users` — `templates/admin/users_list.php`:**
+
+* Lists every user visible via `getVisibleUserIds()` (Super Admin/Admin
+  see all; Manager sees their hierarchy).
+* Filters: search by email/name, role dropdown, active/inactive status.
+* Stats cards: active user count, pending invite count.
+* Per-row actions: View / Deactivate (or Reactivate). Self-deactivation
+  is blocked with a flash message.
+* Status badges: Active / Locked / Unverified / Inactive.
+* "Invite User" button visible only to users with `users.create`.
+* Every mutation logs via `logActivity()`.
+
+**`/admin/users/invite` — `templates/admin/users_invite.php`:**
+
+* Form: email, full name, role, optional manager, optional linked
+  caregiver/client IDs.
+* Refuses if an active user with that email already exists.
+* Generates a SHA-256 token, INSERTs into `user_invites`, calls
+  `Mailer::send('invite', ...)`. 72-hour expiry.
+* On success, displays the dev fallback link (the raw setup-password URL)
+  inline so the developer can copy it directly even if shared-host
+  `mail()` drops the message.
+* `logActivity('user_invited', ...)` records the invite.
+
+**`/admin/users/{id}` — `templates/admin/users_detail.php`:**
+
+* Profile section: edit full name, role, manager, linked caregiver/client.
+  Save uses transactional UPDATE with before/after JSON snapshots in the
+  audit log.
+* Account actions:
+    - Send Password Reset Email (creates `password_resets` row, calls
+      mailer, sets `must_reset_password=1`, shows dev fallback URL)
+    - Unlock (clears `failed_login_count` and `locked_until`, only shown
+      when the account is currently locked)
+    - Impersonate User (Super Admin only, hidden when target is the
+      current user or inactive)
+* Recent Activity panel: 20 most recent rows from `activity_log` where
+  this user was either the actor (real_user_id) OR the target of
+  impersonation (impersonator_user_id).
+* Email column is read-only in the UI — email changes are not supported
+  in v1.
+
+**`/admin/users/{id}/impersonate` — `templates/admin/users_impersonate.php`:**
+
+* Two-step flow: GET renders the re-auth form, POST calls `startImpersonation()`.
+* Hard pre-checks before showing the form: must be Super Admin, must not
+  already be impersonating, target cannot be self.
+* Re-auth: Super Admin must enter their own current password.
+* On success: redirects to `/admin` where the persistent banner appears.
+* `/admin/impersonate/stop` route handles ending the session and redirects
+  back to `/admin`. Both start and stop log to activity_log.
+
+**`/admin/roles` + `/admin/roles/{id}/permissions` — roles UI:**
+
+* `roles_list.php` — lists all 5 system roles with user count, "pages with
+  any access" count, and Edit Permissions button. Role creation/deletion
+  is intentionally not exposed in v1 — the 5 system roles are fixed; only
+  the matrix is editable.
+* `roles_permissions.php` — full pages × CRUD checkbox grid (17 × 4 = 68
+  checkboxes). UPSERTs every row in a single transaction. Captures
+  before/after via SELECT...PIVOT for the audit log.
+* Hard guard: the Super Admin role (id 1) cannot have its permissions
+  modified through this UI even if `roles.edit` is granted. The form
+  renders read-only (disabled inputs) and POSTs against role_id=1 are
+  rejected with a flash error. This prevents anyone from accidentally
+  locking themselves (and everyone else) out of the system.
+
+**`/admin/activity` — `templates/admin/activity_log.php`:**
+
+* Filters: action dropdown (populated from DISTINCT actions), entity_type
+  dropdown, user_id (matches both real and impersonator), date range.
+* Pagination: 50 entries per page.
+* Columns: When, Actor, Impersonator (badge), Action, Page, Entity, Summary, IP.
+* The Impersonator column makes it visually obvious which actions
+  happened under impersonation — answers the "who really did this?"
+  question at a glance.
+
+**`/admin/email-log` + `/admin/email-log/{id}` — email outbox:**
+
+* List view: filterable by status (queued/sent/failed) and template.
+  Pagination 50/page. Status badges. Click to view the full body.
+* Detail view: full envelope (from/to/subject/template/status/timing) +
+  the email body verbatim in a `<pre>` block. Reset and invite links can
+  be copied directly from here when shared-host `mail()` fails to deliver.
+
+**Existing handler retrofit:**
+
+* `templates/admin/enquiries.php` — both POST handlers now gate on
+  `userCan('enquiries', 'edit')` and call `logActivity()` with action
+  `enquiry_status_changed` (with old/new status snapshot) or
+  `enquiry_note_added`. Replaced legacy `$user['username']` with
+  `$user['email']`.
+* `templates/admin/people_review.php` — approve/reject mutations gated
+  on `userCan('people_review', 'edit')` and log as `person_approved` /
+  `person_rejected` with before/after import_review_state.
+* `templates/admin/names_assign.php` — name lookup updates log as
+  `name_lookup_assigned` with before/after billing_name snapshot.
+
+**CSS additions (`public/assets/css/style.css`):**
+
+* `.impersonation-banner` + `.impersonation-banner-inner` +
+  `.impersonation-stop` — sticky red banner.
+* `.badge-danger` — for failed email statuses.
+* `.alert-info` — for the dev fallback link blocks on the invite form.
+
+### End-to-end verification on dev
+
+Smoke tests run during the deploy:
+
+* All 9 new admin pages return 200 as ross (Super Admin):
+  `/admin/users`, `/admin/users/invite`, `/admin/users/1`,
+  `/admin/roles`, `/admin/roles/1/permissions`, `/admin/roles/2/permissions`,
+  `/admin/activity`, `/admin/email-log`, `/admin/email-log/1`
+* All 7 existing admin pages still return 200 (legacy handlers under
+  `requirePagePermission()`): `/admin`, `/admin/people/review`,
+  `/admin/enquiries`, `/admin/names`, three reports.
+
+End-to-end invite + permission gating + impersonation:
+
+1. Created Test Manager user via `/admin/users/invite` (role_id=3)
+2. Extracted `setup-password` URL from `email_log`
+3. Walked through `/setup-password?token=...` → password set → "account is ready"
+4. Logged in as `testmanager@example.com` / `TestMgr2026Pwd`
+5. Manager session: `/admin` → 200, `/admin/people/review` → 200,
+   `/admin/enquiries` → 200, `/admin/activity` → 200,
+   **`/admin/users` → 403, `/admin/roles` → 403** ← permission gating works
+6. Logged back in as ross (Super Admin)
+7. `GET /admin/users/2/impersonate` → re-auth form
+8. `POST` with ross's password → 302 to `/admin`
+9. `GET /admin` → 200 with **"Impersonation active" banner present**
+10. While impersonating Manager: `GET /admin/users` → **403** (Manager
+    doesn't have that page — impersonation correctly inherits the target's
+    permissions)
+11. `GET /admin/impersonate/stop` → 302 → back to ross
+12. `GET /admin/users` → 200 (Super Admin again)
+
+Activity log final state (12 rows):
+
+| id | action                  | real | imp  |
+|---:|-------------------------|-----:|-----:|
+| 11 | impersonate_stop        | 1    | NULL |
+| 10 | impersonate_start       | 2    | 1    | ← real_user_id = effective (mgr), imp = ross
+|  9 | login                   | 2    | NULL |
+|  8 | user_invite_accepted    | NULL | NULL |
+|  7 | user_invited            | 1    | NULL |
+| 1-6| (Session A test events) |      |      |
+
+The audit convention works: row 10 records the impersonated session
+correctly with `real_user_id=2` (the effective identity, Test Manager)
+and `impersonator_user_id=1` (the human at the keyboard, Ross). A query
+of `WHERE real_user_id = 2 OR impersonator_user_id = 2` returns
+"everything that happened to/as Test Manager" including the impersonation
+session.
+
+### Test data left on dev
+
+The Test Manager user (`testmanager@example.com` / `TestMgr2026Pwd`) was
+left on the dev database so Ross can try the impersonation flow himself.
+Delete via SQL or the deactivate button on `/admin/users` whenever convenient.
+
+### Deployment
+
+* Files uploaded to `~/public_html/dev-TCH/dev/` via scp
+* No new schema migrations (all schema work landed in 005 in Session A)
+* NOT yet promoted to prod — held until Session C completes the final
+  audit-log integration sweep
+
+### Out of scope this session (deferred to Session C)
+
+* Audit-log integration sweep across the database seed scripts and any
+  remaining mutation paths Session B didn't touch
+* Hierarchy filtering on additional list pages — currently a no-op since
+  the only users are Super Admin/Admin who bypass hierarchy. Will be
+  retrofitted if/when real Manager users are invited.
+
 ## [0.7.0] - 2026-04-10
 
 ### Added — User Management Foundation (Session A of 3)

@@ -19,22 +19,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
     $action = $_POST['action'] ?? '';
     $allowedStatuses = ['new', 'contacted', 'converted', 'spam', 'closed'];
 
-    if ($enqId > 0 && $action === 'set_status') {
+    if ($enqId > 0 && $action === 'set_status' && userCan('enquiries', 'edit')) {
         $newStatus = $_POST['status'] ?? '';
         if (in_array($newStatus, $allowedStatuses, true)) {
+            // Snapshot old status for audit
+            $oldRow = $db->prepare('SELECT status FROM enquiries WHERE id = ?');
+            $oldRow->execute([$enqId]);
+            $oldStatus = $oldRow->fetchColumn() ?: null;
+
             $stmt = $db->prepare(
                 "UPDATE enquiries
                  SET status = ?, handled_by = ?, handled_at = NOW()
                  WHERE id = ?"
             );
-            $stmt->execute([$newStatus, $user['username'] ?? null, $enqId]);
+            $stmt->execute([$newStatus, $user['email'] ?? $user['username'] ?? null, $enqId]);
+
+            logActivity('enquiry_status_changed', 'enquiries', 'enquiries', $enqId,
+                "Status: {$oldStatus} -> {$newStatus}",
+                ['status' => $oldStatus],
+                ['status' => $newStatus]);
         }
-    } elseif ($enqId > 0 && $action === 'add_note') {
+    } elseif ($enqId > 0 && $action === 'add_note' && userCan('enquiries', 'edit')) {
         $note = trim((string)($_POST['note'] ?? ''));
         if ($note !== '') {
             $auditLine = sprintf("[%s by %s] %s",
                 date('Y-m-d H:i'),
-                $user['username'] ?? 'unknown',
+                $user['email'] ?? $user['username'] ?? 'unknown',
                 $note
             );
             $stmt = $db->prepare(
@@ -43,6 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
                  WHERE id = ?"
             );
             $stmt->execute([$auditLine, $enqId]);
+
+            logActivity('enquiry_note_added', 'enquiries', 'enquiries', $enqId,
+                'Note added: ' . substr($note, 0, 80));
         }
     }
 
