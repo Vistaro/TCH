@@ -44,6 +44,86 @@ Decisions locked in this session for unifying student/caregiver into a single Pe
 | 17 | **`tch_id` immutable identifier** | DONE in migration 003 | Format `TCH-000001`. Auto-assigned on insert. Used in URLs and as the human-facing person identifier. Survives marriage / name changes. |
 | 18 | **Replace placeholder portraits with full-quality photos** | LOW | Current portraits are crops from the Tuniti intake PDFs — adequate but low resolution. Source higher-quality originals from Tuniti or re-photograph. Each replacement lands as a NEW `profile_photo` attachment (history preserved). |
 
+## Locked Build Plan: User Management + RBAC + Audit + Impersonation
+
+**Decided 2026-04-10. Build will run across 3 sessions starting next session.**
+
+### Locked decisions
+
+| # | Decision | Value |
+|---|---|---|
+| 1 | Email delivery | PHP `mail()` initially. Real provider later. |
+| 2 | Login identifier | Email throughout. `ross@intelligentae.co.uk` is the seed super admin. |
+| 3 | Permission verbs | CRUD: Read / Create / Edit / Delete |
+| 4 | Hierarchy applies to records | Yes — managers see only their hierarchy's caregivers/clients/billing/roster data |
+| 5 | Hierarchy applies to admin pages | No — anyone with permission sees everything on admin pages (Enquiries, Name Reconciliation, Config) |
+| 6 | Caregiver/client login self-edit | Can edit own contact details (mobile, secondary, email, address, NoK). Cannot edit identity (name, ID, DOB) or training/billing. |
+| 7 | Initial roles seed | Super Admin, Admin, Manager, Caregiver, Client (5) |
+| 8 | Manager role permissions | Same as Admin minus user-management and role-management |
+| 9 | Audit log scope | Mutations only by default (login, logout, create, edit, delete, status change, approve, reject, impersonation). Page-view forensics deferred. |
+| 10 | Impersonation | Super admin only. Re-auth (own password) required. Persistent banner while active. Audit log records both real_user_id and impersonator_user_id. |
+| 11 | Caregiver/client user account creation | Build the infrastructure + invite button. Don't blast 123 invites. Ross invites individuals as needed. |
+| 12 | Existing `ross` user | Migrate in place: rename username → email, keep password, mark verified. |
+| 13 | Page-level access | Action-level (CRUD) per role per page. Configurable via admin matrix. |
+
+### Three-session build plan
+
+**Session A — Schema, auth, mailer, public flows**
+- Migration `005_users_roles_hierarchy.sql`:
+  - Update `users` table (email, verification, lockout, hierarchy via `manager_id`, `linked_caregiver_id`, `linked_client_id`)
+  - New tables: `roles`, `pages`, `role_permissions`, `user_invites`, `password_resets`, `email_log`, `activity_log`
+  - Seed: 5 default roles, all current pages registered, default permission matrix, migrate `ross` row
+- `includes/auth.php` + new `includes/permissions.php`:
+  - Login by email
+  - `requirePagePermission($pageCode, $action)` helper
+  - `getVisibleUserIds()`, `getVisibleCaregiverIds()`, `getVisibleClientIds()` recursive helpers
+  - Impersonation start/stop helpers (with re-auth)
+  - `currentEffectiveUser()` vs `currentRealUser()`
+  - `logActivity()` helper
+- `includes/mailer.php`:
+  - `Mailer::send()` writes to `email_log`, then attempts PHP `mail()`
+  - Templates: invitation, password reset, password set confirmation
+- Public auth flows:
+  - `/setup-password?token=…`
+  - `/forgot-password`
+  - `/reset-password?token=…`
+  - Update `/login` to use email field
+- Deploy to dev. Verify `ross@intelligentae.co.uk` login works. Verify reset flow.
+
+**Session B — Admin UIs, impersonation, integration**
+- `/admin/users` — list, filter, invite button, deactivate
+- `/admin/users/invite` — invite form
+- `/admin/users/N` — detail, edit role/manager, force reset, impersonate button
+- `/admin/roles` — list of roles, edit permissions matrix per role
+- `/admin/roles/N/permissions` — pages × CRUD checkbox grid
+- `/admin/activity` — activity log viewer with filters
+- `/admin/email-log` — outbox view (so invite/reset links can be copied during dev when mail() fails)
+- Impersonation flow:
+  - Re-auth modal
+  - Session updated with both real and impersonated user IDs
+  - Persistent banner across all pages
+  - End-impersonation button
+- Update `public/index.php` and every existing route handler to call `requirePagePermission()` and `logActivity()`
+- Apply hierarchy filtering to list pages that show caregiver/client records
+- Deploy to dev. Test all flows. Push to prod when verified.
+
+**Session C — Audit log integration sweep**
+- Mechanical pass through every existing handler in `templates/admin/` and `database/seeds/`
+- Add `logActivity()` calls for every mutation
+- Add detailed before/after JSON for edits
+- Verify audit page shows everything
+- Deploy to dev → push to prod
+
+### Out of scope for these 3 sessions (deferred)
+
+- Real email provider (Mailgun / SendGrid / SES) — wire when Ross has signed up
+- Caregiver self-service portal UI (the dedicated page caregivers see when they log in) — schema and permissions ready, full UI in a future session
+- Client self-service portal UI — same
+- Bulk caregiver invitation — single invites per individual is the v1 pattern
+- Page-view audit logging — only mutations are logged in v1
+- Action-level permissions deeper than CRUD (e.g. "approve" as a separate verb)
+- Role assignment cascading (e.g. promoting someone changes their reports)
+
 ## Requires Tuniti Approval / Clarification
 
 **Context:** All 123 caregivers in `import_review_state = 'pending'` were enriched
@@ -123,6 +203,17 @@ in one metro is recorded with a city in a different metro:
 * **Gauteng as a city** (it's a province): TCH-000019
 
 → **Tuniti to clean up addresses with each candidate** and re-issue the form data.
+
+### Person Review queue itself
+
+The 123 caregivers in `import_review_state = 'pending'` at
+`/admin/people/review` need to be reviewed and approved one by one. This is
+**Tuniti's job, not Ross's** — the data came from Tuniti's intake forms and
+they're the only ones who can confirm whether each record is correct or
+needs further action with the candidate.
+
+→ **Tuniti to walk through the queue and approve / reject each record**,
+referencing the import_notes panel on each card.
 
 ### Generic "Social_media" lead source
 
