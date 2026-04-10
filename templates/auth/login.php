@@ -8,23 +8,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
         $error = 'Invalid form submission. Please try again.';
     } else {
-        $username = trim($_POST['username'] ?? '');
+        $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
 
-        if ($username === '' || $password === '') {
-            $error = 'Please enter both username and password.';
+        if ($email === '' || $password === '') {
+            $error = 'Please enter both email and password.';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Please enter a valid email address.';
         } else {
-            $user = attemptLogin($username, $password);
+            $user = attemptLogin($email, $password);
             if ($user) {
                 header('Location: ' . APP_URL . '/admin');
                 exit;
             }
-            $error = 'Invalid username or password.';
+            $error = 'Invalid email or password.';
         }
     }
 }
 
 $loggedOut = isset($_GET['logged_out']);
+$timedOut  = isset($_GET['timeout']);
+$resetOk   = isset($_GET['reset']);
 ?>
 <?php require APP_ROOT . '/templates/layouts/header.php'; ?>
 
@@ -37,6 +41,14 @@ $loggedOut = isset($_GET['logged_out']);
             <div class="alert alert-success">You have been logged out.</div>
         <?php endif; ?>
 
+        <?php if ($timedOut): ?>
+            <div class="alert alert-error">Your session timed out. Please sign in again.</div>
+        <?php endif; ?>
+
+        <?php if ($resetOk): ?>
+            <div class="alert alert-success">Your password was set. You can now sign in.</div>
+        <?php endif; ?>
+
         <?php if ($error): ?>
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
@@ -44,16 +56,20 @@ $loggedOut = isset($_GET['logged_out']);
         <form method="POST" action="<?= APP_URL ?>/login">
             <?= csrfField() ?>
             <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" class="form-control"
-                       value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" autocomplete="username" autofocus>
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" class="form-control"
+                       value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" autocomplete="username" autofocus required>
             </div>
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" class="form-control" autocomplete="current-password">
+                <input type="password" id="password" name="password" class="form-control" autocomplete="current-password" required>
             </div>
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Sign In</button>
         </form>
+
+        <p style="text-align:center;margin-top:1rem;">
+            <a href="<?= APP_URL ?>/forgot-password" style="font-size:0.9rem;color:#666;">Forgot your password?</a>
+        </p>
 
         <p style="text-align:center;margin-top:1.5rem;">
             <a href="<?= APP_URL ?>/" style="font-size:0.9rem;color:#666;">&larr; Back to site</a>

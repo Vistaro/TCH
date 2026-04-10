@@ -2,6 +2,196 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.7.0] - 2026-04-10
+
+### Added — User Management Foundation (Session A of 3)
+
+First session of the locked 3-session User Management + RBAC + Audit +
+Impersonation build. This session ships the schema, auth library, mailer,
+and public auth flows. Admin UIs land in Session B; the audit-log integration
+sweep across existing handlers lands in Session C.
+
+**New schema (`database/005_users_roles_hierarchy.sql`):**
+
+* `roles` table — 5 seeded system roles: Super Admin, Admin, Manager, Caregiver,
+  Client. `is_system=1` flag prevents UI deletion.
+* `pages` table — 17 pages registered (dashboard, caregivers, clients, roster,
+  billing, people_review, names_reconcile, enquiries, three reports, users,
+  roles, activity_log, email_log, config, self_service). Each page is the
+  unit of permission gating.
+* `role_permissions` table — page × role × CRUD verb (read / create / edit / delete).
+  Default matrix seeded: Super Admin and Admin get full CRUD on everything;
+  Manager gets full CRUD on everything except `users` and `roles`; Caregiver
+  and Client get read+edit on `self_service` only. 51 rows total.
+* `users` table extended (additive) with: `role_id` (FK roles), `manager_id`
+  (self-FK for hierarchy), `linked_caregiver_id` (FK caregivers), `linked_client_id`
+  (FK clients), `email_verified_at`, `failed_login_count`, `locked_until`,
+  `must_reset_password`. Email made `NOT NULL UNIQUE`. Legacy `username` and
+  `role` columns retained for back-compat.
+* `user_invites` table — pending invitations. Token stored as SHA-256 hash;
+  raw token only ever appears in the email body. Includes `manager_id`,
+  `linked_caregiver_id`, `linked_client_id` so an invite carries the full
+  identity setup forward into the created user row.
+* `password_resets` table — same SHA-256 hash pattern. `requested_ip` recorded
+  for forensics. Single-use: `used_at` is set on success, plus all other
+  outstanding tokens for the same user are invalidated in the same transaction.
+* `email_log` table — outbox. Every send attempt is INSERTed as `queued`
+  before `mail()` is called, then flipped to `sent` or `failed`. Guarantees
+  the developer can always retrieve the link from the table even when
+  shared-host `mail()` silently drops messages.
+* `activity_log` table — mutation audit log. Records action, page_code,
+  entity_type, entity_id, summary, before/after JSON, IP, user agent. Both
+  `real_user_id` (effective identity / actor as logged) AND `impersonator_user_id`
+  (the human at the keyboard, only set when impersonation is active) are
+  stored, so impersonated actions trace back to the real human. Page views
+  are NOT logged in v1 — mutations only.
+* Migration is idempotent: every column add is conditional via INFORMATION_SCHEMA
+  checks, every INSERT uses `INSERT IGNORE`, every constraint add is conditional.
+  Safe to re-run on the shared dev/prod database.
+* Existing `ross` user row migrated in place: `role_id=1` (Super Admin),
+  `email_verified_at=NOW()`. Password and email unchanged.
+
+**New auth library (`includes/auth.php` — rewritten):**
+
+* `attemptLogin($email, $password)` — email is now the canonical login identifier.
+  Lockout enforcement: 10 failed attempts in a row → 15-minute lockout. Super
+  Admin (role_id 1) is exempt from lockout per the spec. Resets failed counter
+  and `locked_until` on success.
+* `fetchUserById()` / `fetchUserByEmail()` helpers — both join to `roles` for
+  role_slug + role_name.
+* Session keys added: `real_user_id`, `impersonator_user_id`, `email`, `role_id`,
+  `role_slug`, `role_name`. Legacy `username` and `role` keys retained so the
+  existing `requireAuth()` and `requireRole()` shims continue to work for the
+  pages built before this session.
+* `currentUser()` is now an alias for `currentEffectiveUser()` (returns the
+  impersonated identity when impersonation is active).
+* `currentRealUser()` always returns the human at the keyboard regardless of
+  impersonation, by re-fetching from the DB using `real_user_id`.
+* `isImpersonating()`, `startImpersonation($targetUserId, $reauthPassword)`,
+  `stopImpersonation()` — full impersonation lifecycle. `startImpersonation()`
+  enforces:
+    - real user must be Super Admin (role_id 1)
+    - cannot already be impersonating
+    - cannot impersonate yourself
+    - re-auth: caller must supply their own current password (`password_verify`)
+    - target user must exist and be active
+* `logout()` records a `logout` action to `activity_log` before destroying
+  the session.
+
+**New permissions library (`includes/permissions.php`):**
+
+* `userCan($pageCode, $action)` — looks up the role × page × verb in
+  `role_permissions`. Returns false for unauthenticated users or unknown
+  pages.
+* `requirePagePermission($pageCode, $action)` — calls `requireAuth()` first,
+  then enforces the CRUD verb. Returns 403 if missing.
+* `isSuperAdmin()` — gate for impersonation. Always checks the REAL user,
+  never the effective one, so an impersonated session cannot start a
+  nested impersonation.
+* `getVisibleUserIds($forUserId)` — recursive BFS down `users.manager_id`.
+  Super Admin and Admin (role_id 1, 2) bypass the hierarchy and see every
+  user. Returns the manager + every direct/indirect report.
+* `getVisibleCaregiverIds($forUserId)` — Super Admin/Admin see all; Caregiver
+  (role_id 4) sees only their own `linked_caregiver_id`; Manager sees
+  caregivers linked to any user in their visible-user set.
+* `getVisibleClientIds($forUserId)` — same pattern as caregivers, mirrored
+  for the Client role.
+* `logActivity($action, $pageCode, $entityType, $entityId, $summary, $before, $after)` —
+  central audit recorder. Wraps the INSERT in try/catch so an audit failure
+  never breaks the user-facing flow. JSON-encodes before/after snapshots.
+  Captures real_user_id + impersonator_user_id correctly under all session states.
+
+**New mailer (`includes/mailer.php`):**
+
+* `Mailer::send($template, $toEmail, $toName, $vars, $relatedUserId)` —
+  outbox-first design. Always INSERTs into `email_log` as `queued` BEFORE
+  attempting `mail()`. Updates row to `sent` or `failed` based on result.
+* Template renderer: loads `templates/emails/<name>.php`, extracts vars
+  into the local scope, the template defines `$subject` and `$body`.
+* `From:` address comes from `MAIL_FROM_EMAIL` / `MAIL_FROM_NAME` env vars,
+  with sensible defaults derived from `APP_URL`.
+* RFC 2047 encoded-word for non-ASCII subjects.
+* No HTML in v1 — text/plain only. Real provider (Mailgun / SES) is wired
+  in a future session.
+* Three templates seeded: `invite.php`, `reset.php`, `reset_confirm.php`.
+
+**New public auth flows (`templates/auth/`):**
+
+* `login.php` — REWRITTEN. Email field replaces username field. Validates
+  email format. Shows distinct success messages for `?logged_out=1`,
+  `?timeout=1`, and `?reset=1` (post-reset). New "Forgot your password?"
+  link below the form.
+* `forgot_password.php` — accepts email, INSERTs into `password_resets`,
+  calls `Mailer::send('reset', ...)`. **Anti-enumeration**: always shows
+  the same "if an account exists" success message regardless of whether
+  the email matches a real user, so attackers cannot probe for valid
+  accounts. Reset tokens expire in 2 hours.
+* `reset_password.php` — accepts `?token=` from the email, validates
+  (exists, not used, not expired, user still active), shows the password
+  form. On submit: enforces 10-char minimum + match, hashes with bcrypt,
+  resets `failed_login_count` and `locked_until`, marks the token used,
+  invalidates all other outstanding reset tokens for the same user in the
+  same transaction, sends a confirmation email, redirects to login with
+  `?reset=1` flag.
+* `setup_password.php` — same flow but for `user_invites` instead of
+  `password_resets`. On accept, creates the user row with the role_id,
+  manager_id, linked_caregiver_id, linked_client_id captured at invite
+  time. Handles the rare case where a user with that email already exists
+  (updates in place) so the invite is robust against races.
+* All four templates use the existing CSRF token machinery and the existing
+  `auth-card` styles, so they look native to the existing /login design.
+
+**Front controller (`public/index.php`):**
+
+* Four new public routes wired: `/login` (already existed), `/forgot-password`,
+  `/reset-password`, `/setup-password`. None of these require authentication.
+
+### End-to-end verification on dev
+
+Smoke tests run during the deploy:
+
+* `GET /login` → 200
+* `GET /forgot-password` → 200
+* `GET /reset-password?token=invalid` → 200 (shows "invalid or expired" alert)
+* `GET /setup-password?token=invalid` → 200 (shows "invalid or expired" alert)
+* `GET /admin` (unauthenticated) → 302 to /login
+* `POST /login` with `email=ross@intelligentae.co.uk` + existing password
+  → 302 to /admin; subsequent `GET /admin` → 200
+* `POST /forgot-password` with ross's email → 200, success message rendered,
+  `email_log` row id 1 created with status `sent`
+* Reset link extracted from `email_log.body_text`, visited, new password
+  POSTed → 200 with success alert
+* `POST /login` with NEW password → 302 to /admin
+* Password restored to documented `TchAdmin2026x` via existing `database/seeds/create_admin.php`
+* `POST /login` with original password → 302 to /admin
+* `GET /admin/people/review` and `GET /admin/enquiries` (authed) → both 200
+* `activity_log` shows 5 entries spanning the test cycle: login, password_reset_requested,
+  password_reset_completed, login (temp pass), login (restored pass)
+
+### Backups taken
+
+* `database/backups/users_pre_migration_005.sql` on dev — `users` + `login_log`
+  table dumps before migration ran. 90 lines.
+
+### Deployment
+
+* Files uploaded to `~/public_html/dev-TCH/dev/` via scp. NOT yet promoted to prod.
+* Migration ran against the shared dev/prod database, so the schema changes are
+  also visible to prod — but prod still has the OLD `auth.php` / `index.php` /
+  `templates/auth/login.php`, so prod login still uses the username field. Prod
+  promotion is held back until Session B is complete and the admin user-mgmt
+  pages are also tested.
+* CDN cache purge not required — only dev was touched at the file level.
+
+### Out of scope this session (deferred to B / C per the locked plan)
+
+* Admin UIs: `/admin/users`, `/admin/roles`, `/admin/activity`, `/admin/email-log`,
+  the impersonate button + banner. Session B.
+* Wiring `requirePagePermission()` calls into existing handlers (dashboard,
+  enquiries, people_review, names_reconcile, reports). Session B.
+* Hierarchy filtering on caregiver/client list pages. Session B.
+* Audit-log mutation sweep across every existing handler. Session C.
+
 ## [0.6.0] - 2026-04-10
 
 ### Added — Public-facing homepage rebuild

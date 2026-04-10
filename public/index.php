@@ -22,6 +22,18 @@ switch ($route) {
         require APP_ROOT . '/templates/auth/login.php';
         break;
 
+    case 'forgot-password':
+        require APP_ROOT . '/templates/auth/forgot_password.php';
+        break;
+
+    case 'reset-password':
+        require APP_ROOT . '/templates/auth/reset_password.php';
+        break;
+
+    case 'setup-password':
+        require APP_ROOT . '/templates/auth/setup_password.php';
+        break;
+
     case 'logout':
         initSession();
         logout();
