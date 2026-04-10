@@ -92,6 +92,11 @@ try {
         $ipAddress,
         $referrer,
     ]);
+    $enquiryId = (int)$db->lastInsertId();
+
+    // Audit: anonymous public submission (real_user_id = NULL)
+    logActivity('enquiry_submitted', 'enquiries', 'enquiries', $enquiryId,
+        'Public enquiry from ' . $fullName . ' (' . $careType . ')');
 
     header('Location: ' . APP_URL . '/?enquiry=success#enquire');
     exit;

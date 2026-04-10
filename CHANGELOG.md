@@ -2,6 +2,98 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.0] - 2026-04-10
+
+### Added — Audit Log Integration Sweep (Session C of 3)
+
+Final session of the locked 3-session User Management + RBAC + Audit +
+Impersonation build. Session C closes the audit-log integration gap by
+mechanically sweeping every remaining mutation path that Sessions A and
+B did not already cover.
+
+**Sweep methodology:**
+
+* Grepped every PHP file in the repo for `INSERT|UPDATE|DELETE` statements
+* Cross-referenced against files that already contain `logActivity()` calls
+* Three uncovered mutation paths identified:
+  1. `templates/public/enquire_handler.php` — public form submission
+  2. `templates/admin/names.php` — name lookup approve/reject
+  3. `database/seeds/create_admin.php` — CLI admin password upsert
+
+**`templates/public/enquire_handler.php`:**
+
+* Added `logActivity('enquiry_submitted', ...)` after the INSERT.
+* Anonymous submission — `real_user_id=NULL` (the form is public, no
+  session). The summary captures the submitter's name and care type so
+  the audit log is useful even without a user link.
+
+**`templates/admin/names.php`:**
+
+* Added `logActivity('name_lookup_approved', ...)` and
+  `logActivity('name_lookup_rejected', ...)` with before/after JSON
+  snapshots of the `approved` flag.
+* Mutation block now gates on `userCan('names_reconcile', 'edit')`.
+* **Latent bug fixed**: the file referenced `$user['username']` to set
+  `name_lookup.approved_by`, but `$user` was never defined in this template
+  (it's only set in `templates/layouts/admin.php`, which is included AFTER
+  the mutation block runs). The bug caused approved_by to be silently
+  populated as null/undefined for every approval. Replaced with
+  `currentEffectiveUser()` returning a proper email-or-fallback label.
+
+**`database/seeds/create_admin.php`:**
+
+* Added `require auth.php` so `logActivity()` is available in the CLI context.
+* Logs `admin_password_set_cli` when updating an existing user, or
+  `admin_user_created_cli` when creating from scratch. Both anonymous
+  (no session in CLI), with `entity_type='users'` and `entity_id=ross_id`.
+* Fixed a pre-existing issue where the INSERT path didn't set `role_id`
+  or `email_verified_at` — now correctly creates ross as Super Admin
+  (role_id=1) with `email_verified_at=NOW()`.
+
+**Out of scope (deferred — see session notes):**
+
+* `database/seeds/ingest.php` and `database/seeds/reconcile.php` are
+  one-shot historical bulk ingest scripts. They already provide their
+  own provenance via the existing `audit_trail` table and `import_notes`
+  columns. Adding `logActivity()` per row would generate tens of
+  thousands of entries from a single ingest run with no operational value.
+  These scripts have done their job and are unlikely to run again.
+
+### End-to-end audit verification
+
+Triggered one mutation of each new type on dev and verified the
+`activity_log` captured them with the right actor / entity / summary:
+
+| id | action                  | real | imp  | entity      | summary                                  |
+|---:|-------------------------|-----:|-----:|-------------|------------------------------------------|
+| 15 | enquiry_status_changed  | 1    | NULL | enquiries#1 | Status: new -> contacted                 |
+| 14 | admin_password_set_cli  | NULL | NULL | users#1     | create_admin.php CLI updated ross pw     |
+| 13 | enquiry_submitted       | NULL | NULL | enquiries#1 | Public enquiry from Audit Sweep Test     |
+
+The activity log viewer (`/admin/activity`) renders all three new entries
+and the action filter dropdown picks up the new action types automatically.
+
+### Distinct action types currently exercised
+
+10 distinct actions captured in the dev log after Sessions A + B + C testing:
+`admin_password_set_cli`, `enquiry_status_changed`, `enquiry_submitted`,
+`impersonate_start`, `impersonate_stop`, `login`, `password_reset_completed`,
+`password_reset_requested`, `user_invite_accepted`, `user_invited`.
+
+The remaining defined action types (`logout`, `user_edited`, `user_deactivated`,
+`user_reactivated`, `user_unlocked`, `password_reset_forced`, `person_approved`,
+`person_rejected`, `enquiry_note_added`, `name_lookup_assigned`,
+`name_lookup_approved`, `name_lookup_rejected`, `role_permissions_updated`,
+`admin_user_created_cli`) all have `logActivity()` calls in their handlers
+and will appear in the log when their UI actions are triggered.
+
+### Deployment
+
+* Files uploaded to `~/public_html/dev-TCH/dev/` via scp.
+* No new schema migrations.
+* **Held from prod deploy pending Ross sign-off.** v0.7.0 + v0.8.0 + v0.9.0
+  are now ready to ship to prod as a single block via dev → prod rsync.
+
 ## [0.8.0] - 2026-04-10
 
 ### Added — Admin UIs, Impersonation, Permission Retrofit (Session B of 3)

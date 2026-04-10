@@ -3,21 +3,34 @@ $pageTitle = 'Name Reconciliation';
 $activeNav = 'names';
 
 $db = getDB();
+$currentUserData = currentEffectiveUser();
 
 // Handle approve/reject actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_token'] ?? '')) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_token'] ?? '') && userCan('names_reconcile', 'edit')) {
     $action = $_POST['action'] ?? '';
     $lookupId = (int)($_POST['lookup_id'] ?? 0);
 
     if ($lookupId > 0) {
+        $actorLabel = $currentUserData['email'] ?? $currentUserData['username'] ?? 'unknown';
+
         if ($action === 'approve') {
             $stmt = $db->prepare(
                 "UPDATE name_lookup SET approved = 1, approved_by = ?, approved_at = NOW() WHERE id = ?"
             );
-            $stmt->execute([$user['username'] ?? 'ross', $lookupId]);
+            $stmt->execute([$actorLabel, $lookupId]);
+
+            logActivity('name_lookup_approved', 'names_reconcile', 'name_lookup', $lookupId,
+                'Approved name lookup #' . $lookupId,
+                ['approved' => 0],
+                ['approved' => 1, 'approved_by' => $actorLabel]);
         } elseif ($action === 'reject') {
             $stmt = $db->prepare("UPDATE name_lookup SET approved = 0, approved_by = NULL, approved_at = NULL WHERE id = ?");
             $stmt->execute([$lookupId]);
+
+            logActivity('name_lookup_rejected', 'names_reconcile', 'name_lookup', $lookupId,
+                'Rejected name lookup #' . $lookupId,
+                ['approved' => 1],
+                ['approved' => 0]);
         }
     }
 
