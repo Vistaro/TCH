@@ -10,6 +10,11 @@
  * Sources:
  *   - docs/TCH_Data_Workbook.xlsx   (cleaned, structured data)
  *   - docs/TCH_Payroll_Analysis_v5.xlsx (raw source with audit comments)
+ *
+ * NOTE (migration 003 — 10 April 2026):
+ *   Schema changed: caregivers.source dropped, caregivers.status replaced with
+ *   status_id FK → person_statuses. This script has been updated to match.
+ *   Source values from the workbook are preserved in import_notes for audit.
  */
 
 declare(strict_types=1);
@@ -204,11 +209,17 @@ echo "\n── Ingesting Caregivers ──\n";
 $cgSheet = sheetToArray($dataWb->getSheetByName('Caregivers'));
 $cgIdMap = []; // full_name => db id
 
+// Build status code → id map for the legacy ENUM values we still write here.
+$statusMap = [];
+foreach ($db->query("SELECT id, code FROM person_statuses") as $r) {
+    $statusMap[$r['code']] = (int)$r['id'];
+}
+
 $cgStmt = $db->prepare(
-    'INSERT INTO caregivers (full_name, student_id, known_as, tranche, source, gender, dob, nationality,
+    'INSERT INTO caregivers (full_name, student_id, known_as, tranche, gender, dob, nationality,
      id_passport, home_language, other_language, mobile, email, street_address, suburb, city, province,
      postal_code, nok_name, nok_relationship, nok_contact, course_start, available_from, avg_score,
-     qualified, total_billed, status)
+     qualified, total_billed, status_id, import_notes)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 );
 
@@ -223,17 +234,26 @@ foreach ($cgSheet as $row) {
         $gender = null;
     }
 
-    $status = clean((string)($row['status'] ?? 'In Training'));
-    if (!in_array($status, ['In Training', 'Available', 'Placed', 'Inactive'])) {
-        $status = 'In Training';
+    // Map legacy ENUM-style status string ("In Training" etc.) to the lookup code.
+    $statusRaw  = clean((string)($row['status'] ?? 'In Training'));
+    $statusCode = strtolower(str_replace(' ', '_', $statusRaw));
+    if (!isset($statusMap[$statusCode])) {
+        $statusCode = 'in_training';
     }
+    $statusId = $statusMap[$statusCode];
+
+    // The legacy `source` column has been dropped. Preserve any value from the
+    // workbook in import_notes so the original data is not lost.
+    $sourceVal = clean((string)($row['source'] ?? ''));
+    $importNotes = $sourceVal !== ''
+        ? "Legacy `source` value from workbook: {$sourceVal}"
+        : null;
 
     $cgStmt->execute([
         $fullName,
         clean((string)($row['student_id'] ?? '')),
         clean((string)($row['known_as'] ?? '')),
         clean((string)($row['tranche'] ?? '')),
-        clean((string)($row['source'] ?? '')),
         $gender,
         parseDate($row['dob'] ?? null),
         clean((string)($row['nationality'] ?? '')),
@@ -255,7 +275,8 @@ foreach ($cgSheet as $row) {
         parseNum((string)($row['avg_score'] ?? '')),
         clean((string)($row['qualified'] ?? '')),
         parseNum((string)($row['total_billed'] ?? '0')),
-        $status
+        $statusId,
+        $importNotes
     ]);
 
     $cgIdMap[$fullName] = (int)$db->lastInsertId();

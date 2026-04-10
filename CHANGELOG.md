@@ -2,6 +2,107 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.5.0] - 2026-04-10
+
+### Added — Person Database (foundation for unified caregiver record)
+
+This release lays the foundation for collapsing student / caregiver / lookup-name
+records into a single canonical Person record per individual. Goal: eliminate
+the multi-name lookup as soon as the new model is fully populated.
+
+**Schema migration `database/003_person_database.sql`** (additive where possible):
+
+* New lookup tables (replace hard-coded ENUMs, ready for the future config admin page):
+  * `person_statuses` — seeded with: Lead, Applicant, Student, In Training,
+    Qualified, Available, Placed, Inactive
+  * `lead_sources` — seeded with: Facebook, TikTok, Instagram, LinkedIn,
+    Walked In, Phoned Us, Emailed Us, Referral, Word of Mouth, Other, Unknown
+  * `attachment_types` — seeded with: Original Data Entry Sheet, Profile Photo,
+    ID Document, Passport, Proof of Address, Qualification Certificate, Other
+* New `attachments` table — files attached to a person (PDFs, ID copies,
+  photos), typed via `attachment_types`. Files live on disk under
+  `public/uploads/people/<tch_id>/`.
+* `caregivers` table extended with all Tuniti intake fields:
+  * Personal: `title`, `initials`
+  * Contact: `secondary_number`, `complex_estate`
+  * NoK: `nok_email`, plus full `nok_2_*` block for multi-value rows
+  * Lead source: `lead_source_id` FK + `referred_by_name` / `referred_by_contact`
+* `caregivers.tch_id` — immutable, human-facing person identifier (`TCH-000001`),
+  generated column derived from `id`. Survives marriage / name corrections.
+  Replaces `full_name` as the practical identity field.
+* `caregivers.status` ENUM replaced with `status_id` FK → `person_statuses`.
+  Existing values backfilled before drop.
+* `caregivers.import_notes` (machine-generated) and `caregivers.notes` (human)
+  added — split deliberately so audit data and human commentary stay separate.
+* `caregivers.import_review_state` ENUM (`pending` / `approved` / `rejected`) —
+  filters the import review queue. NULL for records not from import.
+* Legacy `caregivers.source` column dropped per session decision (option C).
+  Existing values are preserved into `import_notes` immediately before the drop.
+
+**Tuniti intake PDF parser** (`tools/intake_parser/parse_intake.py`):
+
+* Python + PyMuPDF, runs locally. Reads a Tuniti intake PDF and emits:
+  JSON records, SQL load file, cropped portrait per candidate, full-page
+  reference render per candidate.
+* Auto mode tries text extraction; falls back to scaffold mode if the PDF has
+  no text layer (current Tuniti exports are image-only).
+* `--from-json` mode reads a hand-built or scaffolded records JSON, still
+  renders photos and emits SQL.
+* Output goes to `tools/intake_parser/output/`.
+
+**Tranche 1 imported** (14 candidates):
+
+* All 14 land with `status_id = 'lead'` and `import_review_state = 'pending'`,
+  ready for human review on the new admin page before promotion to a real status.
+* Each gets two attachments: Original Data Entry Sheet (PDF page reference)
+  and Profile Photo (cropped portrait).
+* `import_notes` flags the assumptions made during extraction: typos
+  (Preotia, Johnnesburg, Pretoira West, Zimbabwan), geographic
+  inconsistencies, the off-tranche student `202603-1`, the Akhona Mkize
+  multi-NoK split, and three records with the generic "Social_media" lead
+  source that needs follow-up.
+
+**Updated dependent code** to match the new schema:
+
+* `templates/admin/dashboard.php` — `placed` count now joins `person_statuses`
+* `templates/admin/names.php` — `cg_status` display joins `person_statuses`
+* `database/seeds/ingest.php` — INSERT no longer references the dropped
+  `source` column; uses `status_id` lookup; preserves any workbook `source`
+  value into `import_notes`
+
+### Added — TODOs
+
+Logged in `docs/TCH_Ross_Todo.md` (items 11–18):
+
+* Config admin page for managing all lookups
+* Status promotion gates (validation per status)
+* Referrer / affiliate model
+* Field-level role-based edit permissions
+* Person record card view (mirroring the PDF layout)
+* Retire `name_lookup` table once unified person model is complete
+* `tch_id` immutable identifier (DONE in this release)
+* Replace placeholder portraits with full-quality photos
+
+### Manual rollback notes
+
+If migration 003 needs to be rolled back without git:
+
+1. The migration is wrapped in `SET FOREIGN_KEY_CHECKS = 0` / `1` blocks but
+   not in a transaction (DDL in MySQL auto-commits). To revert manually:
+   * `DROP TABLE attachments, attachment_types, lead_sources, person_statuses;`
+   * `ALTER TABLE caregivers DROP COLUMN tch_id;`
+   * `ALTER TABLE caregivers DROP COLUMN status_id;`
+   * `ALTER TABLE caregivers ADD COLUMN status ENUM('In Training','Available','Placed','Inactive') NOT NULL DEFAULT 'In Training';`
+   * `ALTER TABLE caregivers ADD COLUMN source VARCHAR(50) DEFAULT NULL;`
+   * Drop the new caregivers columns: `title`, `initials`, `secondary_number`,
+     `complex_estate`, `nok_email`, `nok_2_name`, `nok_2_relationship`,
+     `nok_2_contact`, `nok_2_email`, `lead_source_id`, `referred_by_name`,
+     `referred_by_contact`, `import_notes`, `notes`, `import_review_state`
+2. Source values that were preserved into `import_notes` cannot be split back
+   out automatically — they remain visible in the notes column.
+3. Backfilled `status_id` mapping is reversible by reading the
+   `person_statuses` codes before dropping the lookup table.
+
 ## [0.4.0] - 2026-04-09
 
 ### Added — Reports & Name Reconciliation

@@ -17,7 +17,11 @@ $stats = [
 
 try {
     $stats['caregivers']     = (int)$db->query('SELECT COUNT(*) FROM caregivers')->fetchColumn();
-    $stats['placed']         = (int)$db->query("SELECT COUNT(*) FROM caregivers WHERE status = 'Placed'")->fetchColumn();
+    $stats['placed']         = (int)$db->query(
+        "SELECT COUNT(*) FROM caregivers cg
+         JOIN person_statuses ps ON ps.id = cg.status_id
+         WHERE ps.code = 'placed'"
+    )->fetchColumn();
     $stats['clients']        = (int)$db->query('SELECT COUNT(*) FROM clients')->fetchColumn();
     $stats['active_clients'] = (int)$db->query("SELECT COUNT(*) FROM clients WHERE status = 'Active'")->fetchColumn();
     $stats['roster_shifts']  = (int)$db->query('SELECT COUNT(*) FROM daily_roster')->fetchColumn();

@@ -55,9 +55,10 @@ if ($filterSearch !== '') {
 
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-$sql = "SELECT nl.*, cg.status AS cg_status
+$sql = "SELECT nl.*, ps.label AS cg_status
         FROM name_lookup nl
-        LEFT JOIN caregivers cg ON nl.caregiver_id = cg.id
+        LEFT JOIN caregivers cg     ON nl.caregiver_id = cg.id
+        LEFT JOIN person_statuses ps ON ps.id = cg.status_id
         $whereSQL
         ORDER BY nl.approved ASC, nl.canonical_name";
 
