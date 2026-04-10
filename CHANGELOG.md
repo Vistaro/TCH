@@ -2,7 +2,46 @@
 
 All notable changes to the TCH Placements project.
 
-## [0.9.1] - 2026-04-10
+## [0.9.1] - 2026-04-10 — SHIPPED TO PROD
+
+### Prod deploy
+
+**Production deploy of v0.7.0 + v0.8.0 + v0.9.0 + v0.9.1 as a single block.**
+First prod release of the new email-based login + RBAC + audit system.
+
+Deploy steps executed:
+1. Cleaned up test data on shared DB (deleted testmanager user, related
+   user_invites row, "Audit Sweep Test" enquiry). activity_log and
+   email_log left intact as audit/forensic data.
+2. Server-side prod files backup:
+   `~/public_html/tch_backup_pre_v0.9.1_2026-04-10/` (18MB).
+3. DB tables backup:
+   `~/public_html/dev-TCH/dev/database/backups/user_mgmt_pre_v0.9.1_prod_2026-04-10.sql`
+   (users, roles, pages, role_permissions, user_invites, password_resets,
+   email_log, activity_log — 329 lines).
+4. Fast-forward `main` from `4b4ad0f` (v0.6.0+hamburger) to `966755a`
+   (v0.9.1). 36 files, +5,437/-67 lines. Pushed.
+5. Tagged `v0.9.1` on the merged commit, pushed tag to GitHub.
+6. Server-side rsync `~/public_html/dev-TCH/dev/` → `~/public_html/tch/`
+   excluding `.env`, `database/backups/`, `tools/intake_parser/output/`,
+   `.git/`. 26 templates updated/created.
+7. Smoke tests on prod (https://tch.intelligentae.co.uk):
+   - `/`, `/login`, `/forgot-password`, `/reset-password?token=invalid`,
+     `/setup-password?token=invalid` → all 200
+   - `/admin` (unauthed) → 302 to /login
+   - `/login` form contains `name="email"` (not username — confirms new code is live)
+   - POST `/login` with `ross@intelligentae.co.uk` / `TchAdmin2026x` → 302 → /admin
+   - All 14 authed admin pages → 200:
+     `/admin`, `/admin/users`, `/admin/users/invite`, `/admin/users/1`,
+     `/admin/roles`, `/admin/roles/2/permissions`, `/admin/activity`,
+     `/admin/email-log`, `/admin/people/review`, `/admin/enquiries`,
+     `/admin/names`, three reports
+
+**OUTSTANDING POST-DEPLOY ACTION FOR ROSS:**
+* **Purge CDN cache** via StackCP > CDN > Edge Caching, or use Development
+  Mode. Until purged, anonymous browsers may see the cached old `/login`
+  page with the username field. Edge cache typically clears within
+  minutes anyway, but a manual purge accelerates it.
 
 ### Added — Activity Log Field-Level Diff View
 

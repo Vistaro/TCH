@@ -1,6 +1,20 @@
 # Ross — Action Items
 
-**As of:** 10 April 2026
+**As of:** 10 April 2026 (end of day, post v0.9.1 prod deploy)
+
+---
+
+## Status snapshot (end of 2026-04-10)
+
+- ✅ **v0.6.0** (homepage rebuild + enquiry form + regions config) — LIVE on prod
+- ✅ **v0.7.0 → v0.9.1** (User mgmt + RBAC + audit + impersonation + field-level diff viewer) — LIVE on prod as of this evening
+- ✅ Locked 3-session User Management plan: **complete**
+- ✅ Schema migration 005 applied to shared dev/prod DB
+- ✅ All 14 admin pages live on https://tch.intelligentae.co.uk/
+- ✅ Email-based login (`ross@intelligentae.co.uk` / `TchAdmin2026x`) live on prod
+
+**Pending action from Ross right now:**
+- Purge CDN cache (StackCP > CDN > Edge Caching) so anonymous users hit the new `/login` page
 
 ---
 
