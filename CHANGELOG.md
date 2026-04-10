@@ -2,6 +2,60 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.5.2] - 2026-04-10
+
+### Added — Tranches 2–9 enrichment (109 caregivers)
+
+The remaining 8 Tuniti intake PDFs (Tranches 2–9) have been read, cross-matched
+against the existing 109 caregivers in those tranches, and enriched with PDF
+data. All 109 records now have:
+
+* Full PDF data (title, initials, ID/passport, DOB, gender, nationality, home
+  and other languages, mobile, secondary mobile where present, email, complex
+  estate, full address, NoK details, lead source) adopted as canonical per
+  Ross's locked-in decision.
+* `import_review_state = 'pending'` so they appear in the admin review page.
+* Two attachments per person — the source PDF page and the cropped portrait.
+
+**New lead sources surfaced and added to the lookup:**
+
+* `website` — used by 9 candidates across multiple tranches
+* `advertisement` — used by 3 Tranche 3 candidates
+
+**Cross-tranche observations flagged in `import_notes`:**
+
+* Two records named "Nelly", three records with similar names ("Siphilisiwe",
+  "Siphathisiwe", "Sthenjisiwe"), two "Thandi"s — confirmed as different people
+  by DOB/ID, no merge.
+* One record (Ntombifikile Octavia Mhlongo, id 103) had a clearly invalid PDF
+  DOB of `0005-08-03` — DOB left as the existing DB value, flagged.
+* Several records share addresses or nok contact numbers with other records —
+  flagged for review (possible household links).
+* Generic "Social_media" lead source on ~15 records left blank for review with
+  a note (TODO: ask each candidate which platform).
+* Numerous typos preserved verbatim (Pretoira, Pretroia, Johnesburg, Sweto,
+  Acradia, Mamalodi, Bryaston, Spedi, Speed, Setswane, Yoryba, Xitsongo,
+  Xitsomga, Hammenskraal, etc.) — each one flagged in `import_notes`.
+
+**Schema/data files added:**
+
+* `database/003c_tranches_2_9_enrichment.sql` — the one-shot enrichment script
+  for all 8 tranches. Each tranche is its own transaction so a failure in one
+  does not block the others.
+* `tools/intake_parser/upload_photos.py` — staging script that reorganises the
+  rendered portraits into per-person folders ready for SCP.
+
+**Deployed to dev:**
+
+* Migration 003c applied to the shared dev/prod database (109 UPDATEs + 218
+  attachment INSERTs).
+* All 9 source PDFs uploaded to `public/uploads/intake/`.
+* All 109 cropped portraits uploaded to `public/uploads/people/TCH-NNNNNN/photo.png`.
+* Pre-enrichment backup of `caregivers` and `attachments` tables preserved at
+  `database/backups/caregivers_pre_tranches_2_9.sql` on the server.
+* Post-load verification: 123 caregivers in `pending` review state, 246
+  attachments total, all 9 tranches consistently labelled.
+
 ## [0.5.1] - 2026-04-10
 
 ### Added — Tranche 1 enrichment + admin review page

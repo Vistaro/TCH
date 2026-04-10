@@ -26,3 +26,6 @@ node_modules/
 # Intake parser output — contains PII (personal IDs, contact details, photos)
 # The parser script itself IS committed; only its output is excluded.
 tools/intake_parser/output/
+
+# Source intake PDFs — contain PII, must not be committed
+docs/PDF Imports/
