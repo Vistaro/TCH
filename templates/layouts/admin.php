@@ -23,6 +23,9 @@ $user = currentUser();
             <li><a href="<?= APP_URL ?>/admin/reports/client-billing" class="<?= ($activeNav ?? '') === 'report-client-billing' ? 'active' : '' ?>">&#9632; Client Billing</a></li>
             <li><a href="<?= APP_URL ?>/admin/reports/days-worked" class="<?= ($activeNav ?? '') === 'report-days-worked' ? 'active' : '' ?>">&#9632; Days Worked</a></li>
 
+            <li class="nav-heading">Inbox</li>
+            <li><a href="<?= APP_URL ?>/admin/enquiries" class="<?= ($activeNav ?? '') === 'enquiries' ? 'active' : '' ?>">&#9632; Enquiries</a></li>
+
             <li class="nav-heading">Data</li>
             <li><a href="<?= APP_URL ?>/admin/people/review" class="<?= ($activeNav ?? '') === 'people-review' ? 'active' : '' ?>">&#9632; Person Review</a></li>
             <li><a href="<?= APP_URL ?>/admin/names" class="<?= ($activeNav ?? '') === 'names' ? 'active' : '' ?>">&#9632; Name Reconciliation</a></li>

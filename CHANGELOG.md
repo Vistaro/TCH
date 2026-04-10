@@ -2,6 +2,80 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.6.0] - 2026-04-10
+
+### Added — Public-facing homepage rebuild
+
+The TCH public homepage has been rewritten to be a real customer-facing
+landing page rather than the placeholder marketing skeleton it was before.
+
+**New schema (`database/004_regions_and_enquiries.sql`):**
+
+* `regions` table — one row per geographic region TCH operates in.
+  Holds phone numbers, emails, physical address, postal code, service-area
+  description, hero headline override, office hours, and social URLs.
+  Seeded with Gauteng (placeholder phone `XXX XXX XXXX`, placeholder email).
+  The public homepage now loads its primary region from this table, so
+  contact details are configurable without code changes. Future per-region
+  pages (Western Cape, KZN, etc.) will reuse the same template with a
+  different region row.
+* `enquiries` table — captures public form submissions with full audit
+  metadata (IP, user agent, referrer, source page), POPIA consent fields,
+  and a status workflow (`new` → `contacted` → `converted`/`closed`/`spam`).
+  Free-text notes append-only with audit stamps.
+
+**New homepage (`templates/public/home.php`):**
+
+* Hero — "Trusted Caregivers, Placed Where You Need Them" with the placeholder
+  Tuniti-style hero background image (CSS gradient fallback when image is absent).
+* Stats bar driven by live caregivers/clients counts.
+* **Care Services** block — six cards covering the five named Tuniti services
+  (Full-Time, Post-Op, Palliative, Respite, Errand) plus a "Not Sure" CTA.
+* **Why TCH** block — four differentiators: Verified/Vetted/Trained,
+  Matched-not-just-Sent, Cover When Life Happens, One Trusted Brand.
+* **How It Works** — three-step process.
+* **Trust block** — gradient panel: "You're not just hiring a person, you're
+  joining a network."
+* **Enquiry form** — full POPIA-compliant inquiry form with CSRF token,
+  honeypot for bots, required-field validation, dropdown for care type,
+  urgency selector, free-text message, mandatory consent checkbox.
+* **Contact section** — phone / email / area, all from the regions table.
+
+**Form handler (`templates/public/enquire_handler.php`):**
+
+* Validates CSRF, drops bot submissions silently, server-side sanitises and
+  truncates inputs, validates care type against an allow-list, captures
+  audit metadata, writes to `enquiries`, redirects back to the homepage
+  with `?enquiry=success#enquire` (or `?enquiry=error`).
+
+**Admin enquiries inbox (`templates/admin/enquiries.php`):**
+
+* List view filterable by status with badge counts dashboard.
+* Detail view with full submitter details, audit metadata, status workflow
+  (set status, add audit-stamped notes).
+* New sidebar entry under "Inbox".
+
+**Footer refresh:**
+
+* Footer now reads phone, email, and service area from the regions table
+  via `$footerRegion` variable. Falls back gracefully on standalone pages.
+
+**Image prompts (`docs/Brand_Image_Prompts.md`):**
+
+* Eight ChatGPT/DALL-E prompts for the imagery the homepage needs (hero +
+  five service tiles + two optional support images). Each prompt includes
+  the South African demographic guidance (caregivers predominantly Black,
+  clients typically older White Afrikaans), tone guidance, anti-cliché
+  rules, exact filenames, and aspect ratios. Page works without the images
+  thanks to CSS gradient fallbacks — imagery is an upgrade not a blocker.
+
+**Deployed to dev:**
+
+* Migration 004 applied to the shared dev/prod DB
+* New homepage live at `https://dev.tch.intelligentae.co.uk/`
+* Admin enquiries inbox live at `/admin/enquiries`
+* Form submission tested via route — POST handler responding correctly
+
 ## [0.5.2] - 2026-04-10
 
 ### Added — Tranches 2–9 enrichment (109 caregivers)

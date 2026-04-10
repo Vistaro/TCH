@@ -64,6 +64,15 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/people_review.php';
         break;
 
+    case 'admin/enquiries':
+        requireAuth();
+        require APP_ROOT . '/templates/admin/enquiries.php';
+        break;
+
+    case 'enquire':
+        require APP_ROOT . '/templates/public/enquire_handler.php';
+        break;
+
     default:
         http_response_code(404);
         require APP_ROOT . '/templates/errors/404.php';

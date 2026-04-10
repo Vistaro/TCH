@@ -1177,3 +1177,307 @@ h3 { font-size: 1.35rem; }
         text-align: center;
     }
 }
+
+/* ============================================================
+   Public homepage — care services, why-TCH, trust block,
+   enquiry form, contact grid.
+   ============================================================ */
+
+/* Hero with background image. The image itself goes in
+   public/assets/img/site/hero-care.jpg — until that file exists,
+   the gradient overlay alone is enough to be presentable. */
+.hero.hero-image {
+    position: relative;
+    background:
+        linear-gradient(135deg, rgba(16, 178, 180, 0.92) 0%, rgba(7, 89, 91, 0.92) 100%),
+        url('../img/site/hero-care.jpg') center/cover no-repeat;
+    color: #fff;
+    padding: 6rem 0 5rem;
+}
+.hero.hero-image h1 {
+    font-size: 3rem;
+    line-height: 1.15;
+    margin-bottom: 1.25rem;
+    max-width: 850px;
+}
+.hero.hero-image p {
+    font-size: 1.15rem;
+    line-height: 1.6;
+    max-width: 720px;
+    margin-bottom: 2rem;
+}
+.hero.hero-image .highlight {
+    color: #FFE66D;
+}
+.btn-lg {
+    padding: 0.95rem 2rem;
+    font-size: 1.05rem;
+}
+
+/* Service cards */
+.services-grid .service-card {
+    padding: 2rem 1.75rem;
+    text-align: left;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.services-grid .service-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+}
+.service-icon {
+    font-size: 2rem;
+    color: #10B2B4;
+    margin-bottom: 1rem;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    background: rgba(16, 178, 180, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.service-card h3 {
+    font-size: 1.25rem;
+    margin: 0 0 0.75rem 0;
+    color: #07595B;
+}
+.service-card p {
+    color: #4b5563;
+    line-height: 1.55;
+    margin-bottom: 1.25rem;
+}
+.service-card-highlight {
+    background: linear-gradient(135deg, #07595B 0%, #10B2B4 100%);
+    color: #fff;
+}
+.service-card-highlight h3,
+.service-card-highlight p {
+    color: #fff;
+}
+.service-card-highlight .service-icon {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+}
+
+/* Why-TCH grid */
+.grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+}
+.why-card {
+    padding: 1.75rem 1.5rem;
+    text-align: left;
+}
+.why-icon {
+    font-size: 1.75rem;
+    color: #10B2B4;
+    margin-bottom: 0.75rem;
+}
+.why-card h3 {
+    font-size: 1.1rem;
+    color: #07595B;
+    margin: 0 0 0.5rem 0;
+}
+.why-card p {
+    color: #4b5563;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+
+/* How-it-works step circles */
+.how-card {
+    text-align: center;
+    padding: 2rem 1.5rem;
+}
+.how-step {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #10B2B4;
+    color: #fff;
+    font-size: 1.5rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.25rem;
+}
+
+/* Trust block — wide gradient panel */
+.section-trust {
+    background: linear-gradient(135deg, #07595B 0%, #10B2B4 100%);
+    color: #fff;
+    padding: 5rem 0;
+}
+.trust-block {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+}
+.trust-block h2 {
+    font-size: 2.25rem;
+    line-height: 1.2;
+    margin-bottom: 1.25rem;
+    color: #fff;
+}
+.trust-block .highlight {
+    color: #FFE66D;
+}
+.trust-block p {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+    color: #e6f7f7;
+}
+
+/* Enquiry form */
+.enquiry-form {
+    max-width: 760px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.enquiry-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.enquiry-form .form-group {
+    margin-bottom: 1rem;
+}
+.enquiry-form label {
+    display: block;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.4rem;
+    font-size: 0.92rem;
+}
+.enquiry-form input[type=text],
+.enquiry-form input[type=email],
+.enquiry-form input[type=tel],
+.enquiry-form select,
+.enquiry-form textarea {
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: #fff;
+    box-sizing: border-box;
+}
+.enquiry-form input:focus,
+.enquiry-form select:focus,
+.enquiry-form textarea:focus {
+    outline: none;
+    border-color: #10B2B4;
+    box-shadow: 0 0 0 3px rgba(16, 178, 180, 0.15);
+}
+.enquiry-form .req {
+    color: #DC2626;
+}
+.enquiry-form .form-checkbox label {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    font-weight: 400;
+    font-size: 0.88rem;
+    color: #4b5563;
+    line-height: 1.5;
+}
+.enquiry-form .form-checkbox input[type=checkbox] {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+}
+.enquiry-form .form-actions {
+    text-align: center;
+    margin-top: 1.5rem;
+}
+.enquiry-form .form-note {
+    margin-top: 1rem;
+    color: #6b7280;
+    font-size: 0.85rem;
+}
+
+/* Alerts */
+.alert {
+    max-width: 760px;
+    margin: 0 auto 1.5rem;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+.alert-success {
+    background: #d1fae5;
+    border: 1px solid #10b981;
+    color: #065f46;
+}
+.alert-error {
+    background: #fee2e2;
+    border: 1px solid #DC2626;
+    color: #7f1d1d;
+}
+
+/* Contact grid */
+.contact-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    text-align: center;
+}
+.contact-grid h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b7280;
+    margin-bottom: 0.75rem;
+}
+.contact-big {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #07595B;
+    margin: 0 0 0.5rem;
+}
+.contact-big a {
+    color: #07595B;
+    text-decoration: none;
+}
+.contact-big a:hover {
+    color: #10B2B4;
+}
+.muted {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+    .grid-4 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@media (max-width: 768px) {
+    .hero.hero-image h1 {
+        font-size: 2rem;
+    }
+    .hero.hero-image p {
+        font-size: 1rem;
+    }
+    .grid-4 {
+        grid-template-columns: 1fr;
+    }
+    .enquiry-form .form-row {
+        grid-template-columns: 1fr;
+    }
+    .contact-grid {
+        grid-template-columns: 1fr;
+    }
+    .trust-block h2 {
+        font-size: 1.6rem;
+    }
+}
