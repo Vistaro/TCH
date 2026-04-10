@@ -124,11 +124,12 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <th>Entity</th>
                 <th>Summary</th>
                 <th>IP</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($rows)): ?>
-                <tr><td colspan="8" style="text-align:center;color:#999;padding:2rem;">No log entries match the filter.</td></tr>
+                <tr><td colspan="9" style="text-align:center;color:#999;padding:2rem;">No log entries match the filter.</td></tr>
             <?php else: ?>
                 <?php foreach ($rows as $r): ?>
                     <tr>
@@ -153,8 +154,16 @@ require APP_ROOT . '/templates/layouts/admin.php';
                             <?= htmlspecialchars($r['entity_type'] ?? '—') ?>
                             <?= $r['entity_id'] ? '#' . (int)$r['entity_id'] : '' ?>
                         </td>
-                        <td><?= htmlspecialchars($r['summary'] ?? '') ?></td>
+                        <td>
+                            <?= htmlspecialchars($r['summary'] ?? '') ?>
+                            <?php if (!empty($r['before_json']) || !empty($r['after_json'])): ?>
+                                <br><small style="color:#666;">(field-level diff available)</small>
+                            <?php endif; ?>
+                        </td>
                         <td><?= htmlspecialchars($r['ip_address'] ?? '—') ?></td>
+                        <td>
+                            <a href="<?= APP_URL ?>/admin/activity/<?= (int)$r['id'] ?>" class="btn btn-outline btn-sm">View</a>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

@@ -36,13 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
                     $stmt = $db->prepare('UPDATE users SET is_active = 0 WHERE id = ?');
                     $stmt->execute([$targetId]);
                     logActivity('user_deactivated', 'users', 'users', $targetId,
-                        'Deactivated ' . $target['email']);
+                        'Deactivated ' . $target['email'],
+                        ['is_active' => 1],
+                        ['is_active' => 0]);
                     $flash = 'User deactivated.';
                 } elseif ($action === 'reactivate' && (int)$target['is_active'] === 0) {
                     $stmt = $db->prepare('UPDATE users SET is_active = 1, failed_login_count = 0, locked_until = NULL WHERE id = ?');
                     $stmt->execute([$targetId]);
                     logActivity('user_reactivated', 'users', 'users', $targetId,
-                        'Reactivated ' . $target['email']);
+                        'Reactivated ' . $target['email'],
+                        ['is_active' => 0, 'failed_login_count' => (int)$target['failed_login_count'], 'locked_until' => $target['locked_until']],
+                        ['is_active' => 1, 'failed_login_count' => 0, 'locked_until' => null]);
                     $flash = 'User reactivated.';
                 }
             }

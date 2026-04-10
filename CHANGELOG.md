@@ -2,6 +2,89 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.1] - 2026-04-10
+
+### Added — Activity Log Field-Level Diff View
+
+Ross noticed the activity log captured `before_json` / `after_json` columns
+but the viewer didn't render them. This patch adds a per-entry detail page
+that renders mutations as a field-by-field diff (Field / Was / Now), and
+backfills the three remaining mutations that didn't yet capture proper
+before/after snapshots.
+
+**New: `/admin/activity/{id}` detail page (`templates/admin/activity_detail.php`):**
+
+* Full row metadata: when, action, real actor, impersonator (when set),
+  page, entity (with click-through to /admin/users/{id} or /admin/enquiries?id=
+  when applicable), summary, IP, user agent.
+* **Changes section** — decodes `before_json` and `after_json`, computes
+  the set of changed fields, and renders them as a 3-column table:
+
+  | Field      | Was            | Now                       |
+  |------------|----------------|---------------------------|
+  | full_name  | Test Manager   | Test Manager (Renamed)    |
+  | users.read | 0              | 1                         |
+
+* Smart value rendering: nulls show as `(empty)`, booleans as `true`/`false`,
+  arrays/objects as inline JSON, long strings escaped.
+* Identical-snapshot detection: if before == after the page says "no fields
+  actually changed" instead of an empty table.
+* For events without before/after (login, logout, public submission,
+  token-based flows): the page explicitly says "did not capture a
+  field-level diff" so it's clear it's a known intentional gap.
+* Collapsible "Raw JSON snapshots" `<details>` block at the bottom for
+  forensic inspection (pretty-printed JSON of both snapshots).
+
+**Front controller:** new parametric route
+`^admin/activity/(\d+)$ → activity_detail.php`, gated on `activity_log.read`.
+
+**Activity log list (`templates/admin/activity_log.php`):**
+
+* New "View" button on every row → links to `/admin/activity/{id}`.
+* Summary cell shows a small "(field-level diff available)" hint when the
+  row has a non-empty before_json or after_json, so users know which entries
+  are worth clicking through.
+* Existing colspan adjusted from 8 to 9 for the empty state.
+
+### Backfilled before/after captures
+
+Three mutations that previously logged only a summary string now capture
+proper field-level diffs:
+
+* **`users_list.php` deactivate/reactivate** — captures `is_active` flip.
+  Reactivate also includes `failed_login_count` and `locked_until` reset.
+* **`enquiries.php` add_note** — captures the appended note line as
+  `note_appended: null → "<text>"`. Notes are append-only on the column,
+  so the diff records *what was added*, not the full growing notes blob.
+* **`roles_permissions.php` matrix update** — previously stored a placeholder
+  string ("see role_permissions") in `after_json` instead of the actual
+  diff. Replaced with a flat snapshot of the form `{pagecode}.{verb} → 0|1`,
+  so the activity detail page renders one row per *changed* permission
+  (e.g. `users.read: 0 → 1`, `enquiries.create: 1 → 0`, etc).
+  - Also fixed a latent bug: the previous snapshot used `PDO::FETCH_KEY_PAIR`
+    which only captures 2 columns, so the original `$before` array would
+    have been malformed even if it had been used. The new
+    `$snapshotMatrix()` closure pulls all 4 verbs per page properly.
+  - Summary line now reports the change count, e.g. "Updated permission
+    matrix for Manager (3 field changes)".
+
+### End-to-end verification on dev
+
+* Edited Test Manager's full_name from "Test Manager" → "Test Manager (Renamed)"
+  via /admin/users/2.
+* Activity row 19 (action=user_edited) → /admin/activity/19 renders:
+  ```
+  Field        Was             Now
+  full_name    Test Manager    Test Manager (Renamed)
+  ```
+* Submitted a permission matrix change for the Manager role enabling
+  users/roles read across the board. Activity row 20
+  (action=role_permissions_updated) → /admin/activity/20 renders ~16
+  rows of `{page}.{verb}: 0 → 1` diffs. Summary says "16 field changes".
+* Verified the Manager role permissions restore round-trip: after putting
+  Manager perms back, `GET /admin/users` as testmanager returns 403 again.
+* Restored Test Manager's full_name back to "Test Manager".
+
 ## [0.9.0] - 2026-04-10
 
 ### Added — Audit Log Integration Sweep (Session C of 3)

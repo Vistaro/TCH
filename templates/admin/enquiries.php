@@ -54,8 +54,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
             );
             $stmt->execute([$auditLine, $enqId]);
 
+            // Notes are append-only — capture the appended line itself in the diff
+            // so "Was: (empty)  Now: <text>" is meaningful, instead of duplicating
+            // the entire growing notes column.
             logActivity('enquiry_note_added', 'enquiries', 'enquiries', $enqId,
-                'Note added: ' . substr($note, 0, 80));
+                'Note added: ' . substr($note, 0, 80),
+                ['note_appended' => null],
+                ['note_appended' => $auditLine]);
         }
     }
 

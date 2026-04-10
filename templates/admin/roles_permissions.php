@@ -46,14 +46,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $perms = $_POST['perm'] ?? [];
         $pages = $db->query('SELECT id, code FROM pages')->fetchAll();
 
-        // Snapshot before
-        $beforeStmt = $db->prepare(
-            'SELECT p.code, rp.can_read, rp.can_create, rp.can_edit, rp.can_delete
-             FROM pages p LEFT JOIN role_permissions rp ON rp.page_id = p.id AND rp.role_id = ?
-             ORDER BY p.id'
-        );
-        $beforeStmt->execute([$roleId]);
-        $before = $beforeStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        /**
+         * Snapshot the current matrix as a flat dict of "pagecode.verb" → 0|1
+         * so the activity log diff can render one row per changed permission.
+         */
+        $snapshotMatrix = function(PDO $db, int $roleId): array {
+            $stmt = $db->prepare(
+                'SELECT p.code,
+                        COALESCE(rp.can_read,   0) AS can_read,
+                        COALESCE(rp.can_create, 0) AS can_create,
+                        COALESCE(rp.can_edit,   0) AS can_edit,
+                        COALESCE(rp.can_delete, 0) AS can_delete
+                 FROM pages p
+                 LEFT JOIN role_permissions rp
+                     ON rp.page_id = p.id AND rp.role_id = ?
+                 ORDER BY p.sort_order, p.id'
+            );
+            $stmt->execute([$roleId]);
+            $flat = [];
+            foreach ($stmt->fetchAll() as $row) {
+                $flat[$row['code'] . '.read']   = (int)$row['can_read'];
+                $flat[$row['code'] . '.create'] = (int)$row['can_create'];
+                $flat[$row['code'] . '.edit']   = (int)$row['can_edit'];
+                $flat[$row['code'] . '.delete'] = (int)$row['can_delete'];
+            }
+            return $flat;
+        };
+
+        $before = $snapshotMatrix($db, $roleId);
 
         $db->beginTransaction();
         try {
@@ -81,18 +101,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw $e;
         }
 
-        $afterStmt = $db->prepare(
-            'SELECT p.code, rp.can_read, rp.can_create, rp.can_edit, rp.can_delete
-             FROM pages p LEFT JOIN role_permissions rp ON rp.page_id = p.id AND rp.role_id = ?
-             ORDER BY p.id'
-        );
-        $afterStmt->execute([$roleId]);
-        $after = $afterStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        $after = $snapshotMatrix($db, $roleId);
+
+        // Count actual diffs for the summary line
+        $changeCount = 0;
+        foreach ($after as $k => $v) {
+            if (($before[$k] ?? null) !== $v) {
+                $changeCount++;
+            }
+        }
 
         logActivity('role_permissions_updated', 'roles', 'roles', $roleId,
-            'Updated permission matrix for ' . $role['name'],
-            ['role_id' => $roleId],
-            ['role_id' => $roleId, 'changes' => 'see role_permissions']);
+            sprintf('Updated permission matrix for %s (%d field changes)', $role['name'], $changeCount),
+            $before,
+            $after);
 
         $flash = 'Permissions updated.';
     }

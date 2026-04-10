@@ -50,6 +50,13 @@ if (preg_match('#^admin/email-log/(\d+)$#', $route, $m)) {
     exit;
 }
 
+if (preg_match('#^admin/activity/(\d+)$#', $route, $m)) {
+    $_GET['activity_id'] = (int)$m[1];
+    requirePagePermission('activity_log', 'read');
+    require APP_ROOT . '/templates/admin/activity_detail.php';
+    exit;
+}
+
 // ─── Static routes ──────────────────────────────────────────────────────
 
 switch ($route) {
