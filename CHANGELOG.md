@@ -2,6 +2,97 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.4-dev] - 2026-04-11
+
+### Added — Activity log single-field revert (A2, Level 1)
+
+The activity log now supports **reverting a single field** of a record back
+to the value it held before a specific logged change. This is the first
+of three undo levels Ross scoped (A2 single-field, A3 whole-record
+rollback, A4 undelete).
+
+**What the user sees on `/admin/activity/{id}`:**
+
+- When the log entry's entity_type is one we support and the user has
+  `activity_log.edit` permission, the Changes table gains a fourth
+  column — **Action** — with a **Revert** button next to every changed
+  field.
+- Clicking Revert triggers a JS confirm dialog, then POSTs back to the
+  same URL. On success, a green flash appears: "Field X reverted. A new
+  audit entry was created recording the revert."
+- If the field has been changed *again* since the logged action (the
+  intermediate-edit check), the revert is refused with a red flash
+  explaining what the current value is vs what we expected to find.
+  No overwrite of newer work.
+- The original log entry is never mutated — the revert is recorded as a
+  *new* `field_reverted` entry so both events are part of the audit trail.
+
+**Entity types supported (whitelist in `includes/activity_log_revert.php`,
+`activity_revert_supported_entity_types()`):**
+
+- `users` → users.{field}
+- `enquiries` → enquiries.{field}
+- `caregivers` → caregivers.{field}
+- `name_lookup` → name_lookup.{field}
+
+Synthetic entity types (role permission matrix, user invites, email_log,
+activity_log itself) are **excluded** — reverting a matrix cell or a
+cached audit row doesn't make semantic sense. To add a new entity, extend
+the whitelist map.
+
+**Safety layers:**
+
+1. **Permission gate** — `userCan('activity_log', 'edit')` is checked in
+   the POST handler. Super Admin and Admin have it by default; Manager
+   does not (they can read the activity log but not revert from it).
+2. **CSRF token** — enforced via the existing `validateCsrfToken()` helper.
+3. **Entity whitelist** — only the four entity_types above can be reverted.
+4. **Column whitelist** — the field name is validated against
+   `INFORMATION_SCHEMA.COLUMNS` for the target table. Synthetic diff fields
+   like `note_appended` on enquiries are rejected with a plain-English
+   reason.
+5. **Intermediate-edit check** — live record's current value must match
+   the "Now" value in the log. If not, the revert refuses.
+6. **Record-exists check** — if the target row has been deleted, the
+   revert refuses and points Ross at the undelete feature (A4, not yet
+   built).
+7. **Revert-of-revert suppression** — a log entry with action
+   `field_reverted` does not show Revert buttons, to avoid chained-revert
+   UX confusion. Users can still revert the *original* entry if they
+   change their mind.
+
+**What changed in the code:**
+
+- `includes/activity_log_revert.php` (new) — helper module with
+  `activity_revert_supported_entity_types()`,
+  `activity_revert_entity_is_supported()`,
+  `activity_field_is_valid_column()`, and
+  `activity_revert_field(int $logId, string $field): array`.
+- `templates/admin/activity_detail.php` — POST handler at the top of the
+  page for `action=revert_field`, new Action column in the Changes table
+  rendered only when all gates pass, flash-message block for success /
+  error.
+
+**Explicitly NOT changed:**
+
+- `activity_log` table schema — no new columns.
+- `logActivity()` signature.
+- The detail page route and permission gate
+  (`requirePagePermission('activity_log', 'read')`) — the revert gate is
+  a separate, additional check inside the POST handler, so read-only
+  users still see the page but don't see the Revert column.
+- No changes to the list view (`/admin/activity`). Revert is detail-page
+  only — the list view intentionally stays scannable.
+
+### Deployment
+
+- Files uploaded to `~/public_html/dev-TCH/dev/` via scp:
+  `includes/activity_log_revert.php`,
+  `templates/admin/activity_detail.php`.
+- Server-side `php -l` clean.
+- No schema migrations.
+- Not yet promoted to prod.
+
 ## [0.9.3-dev] - 2026-04-11
 
 ### Changed — Activity log coverage gaps closed (A1.5)
