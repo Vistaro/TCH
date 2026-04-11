@@ -2,6 +2,85 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.3-dev] - 2026-04-11
+
+### Changed — Activity log coverage gaps closed (A1.5)
+
+Followup to v0.9.2-dev. Ross accepted the coverage audit recommendations and
+authorised the three high-value gap closures plus the two cosmetic
+backfills. The standing rule for this project (and all future projects) is
+now: **every user-triggered mutation on a transactional site must be
+captured in the activity log with a field-level before/after snapshot.**
+Added to `C:\ClaudeCode\CLAUDE.md` as a top-level standing order.
+
+**Gaps closed:**
+
+1. **Failed logins now appear in `activity_log`** (`includes/auth.php`,
+   `attemptLogin()`):
+   - Unknown email / inactive account → `login_failed` with reason in
+     summary. entity_id is the matched user id if any, else null.
+   - Already-locked account attempt → `login_failed` with the existing
+     `locked_until` in the summary.
+   - Wrong password → `login_failed` with `failed_login_count` before/after
+     in the diff. Super Admin (role_id 1) is still exempt from the count
+     increment per the existing lockout spec but the attempt is still
+     logged.
+   - The existing `login_log` table is untouched — it still carries every
+     attempt and is used by the lockout logic. `activity_log` is now a
+     superset so admins can answer "I didn't do that" from the main audit
+     UI in one place.
+
+2. **Account lockouts now emit a dedicated `account_locked` entry** in
+   addition to the `login_failed` entry (`includes/auth.php`,
+   `attemptLogin()`). Separating them makes lockouts filterable and gives
+   a clean hook for future alerting. Before/after snapshots the
+   `locked_until` field.
+
+3. **Every email send now emits an `email_sent` activity entry**
+   (`includes/mailer.php`, `Mailer::send()`). entity_type is `email_log`
+   and entity_id is the corresponding outbox row, so the activity detail
+   page can deep-link back to the full outbox entry. The diff captures
+   template, recipient, subject, and final status (sent/failed).
+   `logActivity()` has its own internal try/catch so a logging failure
+   cannot break mail delivery.
+
+**Cosmetic backfills (same pass):**
+
+4. **`user_unlocked` now carries a before/after snapshot** of
+   `failed_login_count` and `locked_until`
+   (`templates/admin/users_detail.php`, `unlock` action). Previously a
+   summary-only entry with no diff.
+
+5. **`password_reset_forced` now carries a before/after snapshot** of
+   the `must_reset_password` flag
+   (`templates/admin/users_detail.php`, `force_reset` action).
+
+### Explicitly NOT changed
+
+- `login_log` table (still the source of truth for lockout counting).
+- The existing `logActivity()` signature.
+- Any call site outside the five listed above.
+- Schema — no migrations.
+
+### Known noise trade-off
+
+- `login_failed` with `reason = unknown email` will be emitted for every
+  probe attempt with a non-existent email address, not only for real user
+  accounts. At Ross's volume this is fine and the signal is more valuable
+  than the noise (probe activity is itself forensically interesting). If
+  the log ever gets spammy from this, a simple filter on the list page
+  (or a retention rule that archives `action='login_failed' AND
+  entity_id IS NULL` after N days) will tame it without losing the data.
+
+### Deployment
+
+- Files uploaded to `~/public_html/dev-TCH/dev/` via scp over SSH:
+  `includes/auth.php`, `includes/mailer.php`,
+  `templates/admin/users_detail.php`.
+- Server-side `php -l` clean on all three.
+- No schema migrations.
+- Not yet promoted to prod — held for Ross sign-off.
+
 ## [0.9.2-dev] - 2026-04-11
 
 ### Changed — Activity log field-level diff is now inline on the list view

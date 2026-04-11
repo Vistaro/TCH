@@ -86,6 +86,25 @@ class Mailer
             $upd->execute(['failed', null, $err ?? 'mail() returned false', $logId]);
         }
 
+        // Audit: surface every send attempt in the main activity log too,
+        // so "I never got an email" claims can be answered in the same UI
+        // as every other audit question. entity_id is the email_log row so
+        // the detail page can deep-link back to the full outbox entry.
+        logActivity(
+            'email_sent',
+            null,
+            'email_log',
+            $logId,
+            ($ok ? 'Sent: ' : 'Send FAILED: ') . $template . ' -> ' . $toEmail,
+            null,
+            [
+                'template' => $template,
+                'to'       => $toEmail,
+                'subject'  => $subject,
+                'status'   => $ok ? 'sent' : 'failed',
+            ]
+        );
+
         return $logId;
     }
 

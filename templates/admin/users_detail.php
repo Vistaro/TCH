@@ -112,19 +112,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
                 'requestIp'    => 'admin: ' . ($me['email'] ?? ''),
             ], $userId);
 
-            // Force a reset on next login
+            // Force a reset on next login — snapshot the flag flip so the
+            // audit log shows what changed, not just that the action ran.
+            $wasForced = (int)($target['must_reset_password'] ?? 0);
             $stmt = $db->prepare('UPDATE users SET must_reset_password = 1 WHERE id = ?');
             $stmt->execute([$userId]);
 
-            logActivity('password_reset_forced', 'users', 'users', $userId,
-                'Admin forced password reset for ' . $target['email']);
+            logActivity(
+                'password_reset_forced', 'users', 'users', $userId,
+                'Admin forced password reset for ' . $target['email'],
+                ['must_reset_password' => $wasForced],
+                ['must_reset_password' => 1]
+            );
 
             $flash = 'Password reset link sent. Dev fallback URL: ' . $resetUrl;
         } elseif ($action === 'unlock') {
+            // Snapshot the lock fields BEFORE clearing them so the activity
+            // log detail page shows exactly what state was cleared.
+            $unlockBefore = [
+                'failed_login_count' => (int)$target['failed_login_count'],
+                'locked_until'       => $target['locked_until'],
+            ];
             $stmt = $db->prepare('UPDATE users SET failed_login_count = 0, locked_until = NULL WHERE id = ?');
             $stmt->execute([$userId]);
-            logActivity('user_unlocked', 'users', 'users', $userId,
-                'Unlocked ' . $target['email']);
+            logActivity(
+                'user_unlocked', 'users', 'users', $userId,
+                'Unlocked ' . $target['email'],
+                $unlockBefore,
+                ['failed_login_count' => 0, 'locked_until' => null]
+            );
             $flash = 'User unlocked.';
             $target = fetchUserById($userId);
         }

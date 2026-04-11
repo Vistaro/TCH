@@ -118,12 +118,30 @@ function attemptLogin(string $email, string $password): array|false {
 
     if (!$user || !$user['is_active']) {
         logLoginAttempt($email, false);
+        // Audit: anonymous failed login. Captured in activity_log so the
+        // main audit view shows the same signal as login_log, and so the
+        // "I didn't do that" defence is answerable in one place.
+        $reason = !$user ? 'unknown email' : 'account inactive';
+        logActivity(
+            'login_failed',
+            null,
+            'users',
+            $user['id'] ?? null,
+            'Failed login for ' . $email . ' (' . $reason . ')'
+        );
         return false;
     }
 
     // Lockout check
     if (!empty($user['locked_until']) && strtotime($user['locked_until']) > time()) {
         logLoginAttempt($email, false);
+        logActivity(
+            'login_failed',
+            null,
+            'users',
+            (int)$user['id'],
+            'Blocked login for ' . $email . ' (account locked until ' . $user['locked_until'] . ')'
+        );
         return false;
     }
 
@@ -131,17 +149,46 @@ function attemptLogin(string $email, string $password): array|false {
         // Increment failed counter; lock after 10 failures for 15 min.
         // Super Admin (role_id 1) is exempt from lockout per the spec.
         $db = getDB();
+        $oldCount  = (int)$user['failed_login_count'];
+        $newCount  = $oldCount;
+        $lockedNow = false;
         if ((int)$user['role_id'] !== 1) {
-            $newCount = (int)$user['failed_login_count'] + 1;
+            $newCount = $oldCount + 1;
             if ($newCount >= 10) {
                 $stmt = $db->prepare('UPDATE users SET failed_login_count = ?, locked_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?');
                 $stmt->execute([$newCount, $user['id']]);
+                $lockedNow = true;
             } else {
                 $stmt = $db->prepare('UPDATE users SET failed_login_count = ? WHERE id = ?');
                 $stmt->execute([$newCount, $user['id']]);
             }
         }
         logLoginAttempt($email, false);
+        // Audit: every wrong-password attempt gets a log entry with the
+        // failed-count bumped in the diff. Actor is anonymous (pre-session).
+        logActivity(
+            'login_failed',
+            null,
+            'users',
+            (int)$user['id'],
+            'Failed login for ' . $email . ' (wrong password, attempt ' . $newCount . ')',
+            ['failed_login_count' => $oldCount],
+            ['failed_login_count' => $newCount]
+        );
+        if ($lockedNow) {
+            // Separate high-signal entry so lockouts show up in the
+            // activity log filter list and can be alerted on later.
+            $lockUntilSnap = date('Y-m-d H:i:s', time() + 15 * 60);
+            logActivity(
+                'account_locked',
+                null,
+                'users',
+                (int)$user['id'],
+                'Account locked after ' . $newCount . ' failed attempts: ' . $email,
+                ['locked_until' => $user['locked_until']],
+                ['locked_until' => $lockUntilSnap]
+            );
+        }
         return false;
     }
 
