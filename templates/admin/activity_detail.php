@@ -64,6 +64,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rever
         $flash = $result['message'];
         $flashType = $result['ok'] ? 'success' : 'error';
     }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'undelete') {
+    // A4 — Undelete. Gated to Super Admin only, same as rollback.
+    if (!$canRollback) {
+        http_response_code(403);
+        $flash = 'Only a Super Admin can undelete a record.';
+        $flashType = 'error';
+    } elseif (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $flash = 'Invalid form submission.';
+        $flashType = 'error';
+    } else {
+        $result = activity_undelete($activityId);
+        $flash = $result['message'];
+        $flashType = $result['ok'] ? 'success' : 'error';
+    }
 } elseif ($canRollback && isset($_GET['preview_rollback'])) {
     $rollbackPlan = activity_rollback_compute_plan($activityId);
     $showRollbackPreview = true;
@@ -114,8 +128,19 @@ $showRevertColumn = $canRevert
 // the original entry if they want to rewind further.
 $showRollbackButton = $canRollback
     && activity_revert_entity_is_supported($entityType)
-    && !in_array($row['action'], ['field_reverted', 'record_rolled_back'], true)
+    && !in_array($row['action'], ['field_reverted', 'record_rolled_back', 'record_deleted', 'record_undeleted'], true)
     && $before !== null;
+
+// A4 — Undelete button. Only shown on record_deleted entries (the
+// before_json on a delete carries the full captured row). Super Admin
+// only. Suppressed if the record has already been restored at the same
+// id (activity_undelete() will detect this at apply time anyway, but
+// hiding the button is cleaner).
+$showUndeleteButton = $canRollback
+    && $row['action'] === 'record_deleted'
+    && activity_revert_entity_is_supported($entityType)
+    && $before !== null
+    && !empty($before);
 
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
@@ -134,6 +159,18 @@ require APP_ROOT . '/templates/layouts/admin.php';
            style="color:#B45309;border-color:#F59E0B;">
             Restore whole record to this point&hellip;
         </a>
+    <?php endif; ?>
+    <?php if ($showUndeleteButton): ?>
+        <form method="POST"
+              action="<?= APP_URL ?>/admin/activity/<?= (int)$row['id'] ?>"
+              onsubmit="return confirm('Undelete this record? The row will be re-inserted with its original id. Related/child records that were deleted alongside the original are NOT restored — only the primary row. A new audit entry will be created.');"
+              style="margin:0;">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="undelete">
+            <button type="submit" class="btn btn-outline btn-sm" style="color:#1E8449;border-color:#27AE60;">
+                Undelete this record&hellip;
+            </button>
+        </form>
     <?php endif; ?>
 </div>
 

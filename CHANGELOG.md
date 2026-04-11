@@ -2,6 +2,132 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.6-dev] - 2026-04-11
+
+### Added — Activity log undelete (A4, Level 3) + standard delete helper
+
+Third and final undo level. A4 has two halves:
+
+**1. `activity_log_delete()` — the standard delete helper.**
+
+Any future delete handler in TCH must call this helper instead of running
+`DELETE FROM …` directly. The helper loads the full row, runs the DELETE
+inside a transaction, then writes a `record_deleted` activity_log entry
+with the captured row as `before_json`. That captured row is what makes
+undelete possible. This pattern is now codified in the global
+`CLAUDE.md` so future sessions on any project do the same thing.
+
+Usage:
+```php
+$result = activity_log_delete(
+    'enquiries',          // entity_type (must be in whitelist)
+    (int)$enqId,
+    'enquiries',          // page_code for the audit entry
+    'Deleted enquiry #' . $enqId . ' (' . $reason . ')'
+);
+if (!$result['ok']) { /* handle failure */ }
+```
+
+**2. Undelete UI on the activity detail page.**
+
+- When a log entry has `action = 'record_deleted'` and all the gates
+  align, a green **Undelete this record…** button appears next to the
+  Back button.
+- Click it → JS confirm dialog (with plain-English explanation of what
+  *will* and *won't* be restored) → re-inserts the row with its original
+  id, under the same safety envelope as A3.
+- On success, a green flash: "Record restored. A new audit entry records
+  the undelete."
+- On failure (id already occupied, column schema drift broke the insert,
+  etc.), a red flash explaining what stopped it.
+- The original `record_deleted` entry is preserved. The undelete itself
+  is recorded as a separate `record_undeleted` entry so both events are
+  part of the audit trail.
+
+**Safety layers (same envelope as A3):**
+
+1. Super Admin only (`isSuperAdmin()`).
+2. CSRF token validated on the POST.
+3. Entity whitelist — same `activity_revert_supported_entity_types()`
+   map as A2/A3: users, enquiries, caregivers, name_lookup.
+4. **PK-collision check** — refuses to undelete if the original id has
+   since been taken by a new row, to avoid duplicate-key collisions.
+5. **Schema drift handling** — any column in `before_json` that no
+   longer exists on the table is silently dropped from the INSERT, and
+   its name is surfaced in the success flash ("skipped N obsolete
+   fields: …") so it's visible to the admin but doesn't block the
+   restore. If a surviving NOT NULL column is missing from the capture,
+   the INSERT fails and the error is surfaced verbatim.
+6. **Transactional INSERT** — runs inside `beginTransaction() / commit()`;
+   partial failure rolls back cleanly.
+
+**Hard limitations — stated loudly in the UI, CHANGELOG, and confirm dialog:**
+
+- **Undelete only works for records deleted AFTER v0.9.6-dev goes live.**
+  There are no pre-existing `record_deleted` entries in TCH today, so
+  the button has nothing to act on until some code path starts calling
+  `activity_log_delete()`.
+- **Only the primary row is restored.** Related/child records that were
+  cascade-deleted alongside the original stay gone. If an enquiry had
+  notes in a child table with `ON DELETE CASCADE`, those notes are lost
+  and the restored enquiry comes back empty.
+- **Auto-increment counters are not reset.** MySQL is fine with
+  re-inserting the same id — the next new insert just gets a higher id —
+  but the restored row sits in a gap in the sequence.
+- **The restored row keeps its original `created_at` / `updated_at`
+  timestamps.** The fresh `record_undeleted` audit entry captures when
+  the restore happened and who triggered it.
+
+**What changed in the code:**
+
+- `includes/activity_log_revert.php` — two new functions appended:
+  * `activity_log_delete(string $entityType, int $entityId, string $pageCode, string $summary): array`
+  * `activity_undelete(int $logId): array`
+  ~200 lines of additions.
+- `templates/admin/activity_detail.php`:
+  * Top-of-page handler now dispatches on four actions: `revert_field`
+    (A2), `apply_rollback` (A3), **`undelete` (A4)**, and the
+    `?preview_rollback=1` preview path.
+  * New `$showUndeleteButton` gate.
+  * New green **Undelete this record…** button in the back-nav bar,
+    only rendered when the log entry is a `record_deleted` for a
+    whitelisted entity type and the user is Super Admin.
+  * `$showRollbackButton` now also excludes `record_deleted` and
+    `record_undeleted` actions (rollback doesn't make sense on either).
+- `C:\ClaudeCode\CLAUDE.md` (global standing orders): the transactional
+  audit section now explicitly says **never call `DELETE FROM …`
+  directly — use the project's delete helper**. This is the rule for
+  every project, not just TCH.
+
+**Explicitly NOT changed:**
+
+- `activity_log` schema — no new columns.
+- `logActivity()` signature.
+- No existing delete handlers were modified (there aren't any in TCH).
+  The moment a delete handler is needed, it will use the helper by
+  standing rule.
+- A2 and A3 behaviour — unchanged.
+- Permission model — reuses `isSuperAdmin()` from `includes/auth.php`.
+
+### Testing note
+
+Because TCH currently has no user-facing delete paths, A4 cannot be
+smoke-tested end-to-end yet — there are no `record_deleted` log entries
+to undelete. The feature is fully wired and will light up the moment
+`activity_log_delete()` is called from anywhere. When the first delete
+UI lands (likely on enquiries, to clean up spam submissions from the
+public form), the Undelete button on that deletion's activity log
+entry will be the real end-to-end test.
+
+### Deployment
+
+- Files uploaded to `~/public_html/dev-TCH/dev/` via scp:
+  `includes/activity_log_revert.php`,
+  `templates/admin/activity_detail.php`.
+- Server-side `php -l` clean.
+- No schema migrations.
+- Not yet promoted to prod.
+
 ## [0.9.5-dev] - 2026-04-11
 
 ### Added — Activity log whole-record rollback (A3, Level 2)

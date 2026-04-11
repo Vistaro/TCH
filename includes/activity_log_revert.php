@@ -519,3 +519,269 @@ function activity_rollback_apply(int $logId): array {
         'message' => 'Rolled back ' . count($targetState) . ' field(s). A new audit entry records the rollback.',
     ];
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// A4 — Undelete (Level 3)
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Two pieces to this feature:
+//
+// 1. activity_log_delete(): a convenience helper that future delete
+//    handlers MUST use. It loads the full row of the record being deleted,
+//    writes a `record_deleted` activity_log entry with the full row as
+//    before_json, then runs the DELETE inside a transaction. After commit,
+//    an undelete is possible by reading the log entry and re-inserting.
+//
+// 2. activity_undelete(): reads a `record_deleted` log entry and
+//    re-inserts the row using the captured before_json. Refuses if:
+//    - the log entry isn't a record_deleted action
+//    - the entity_type isn't in the whitelist
+//    - the target PK is already occupied (a new row has since taken it)
+//    - any column in before_json isn't a real column on the table (schema
+//      has drifted); the undelete will skip those columns and continue,
+//      unless they're NOT NULL and have no default, in which case the
+//      INSERT will fail and we roll back and report it.
+//
+// Limitations — stated loudly in the UI and the CHANGELOG:
+//
+// - Undelete ONLY works for records deleted AFTER v0.9.6-dev goes live.
+//   Pre-existing deletes (none in TCH today) are not recoverable this way.
+// - Only the primary row is restored. Related/cascaded children stay
+//   gone. If you deleted an enquiry and the enquiry had notes stored in
+//   a child table with ON DELETE CASCADE, the notes are gone. The row
+//   comes back empty of those children.
+// - Auto-increment counters are NOT reset on re-insert. MySQL is happy
+//   with this — the next new insert just gets a higher id — but it means
+//   undeleted rows live in a "gap" in the id sequence.
+// - The restored row keeps its original created_at / updated_at values.
+//   A fresh record_undeleted audit entry records when the restore
+//   happened and who triggered it.
+
+/**
+ * Hard-delete helper — the standard way to delete a record in TCH.
+ *
+ * Loads the full row, writes a record_deleted audit entry with the full
+ * row as before_json, then runs the DELETE in a transaction. If the
+ * DELETE fails, the transaction rolls back and no audit entry is written.
+ * If the audit write fails, logActivity() swallows it (same behaviour as
+ * every other log call) so delete-with-silent-audit-failure is impossible
+ * to introduce accidentally but also can't break delivery.
+ *
+ * Usage from a delete handler:
+ *
+ *     $result = activity_log_delete(
+ *         'enquiries',          // entity_type (must be in whitelist)
+ *         (int)$enqId,          // primary key value
+ *         'enquiries',          // page_code for the audit entry
+ *         'Deleted enquiry #' . $enqId . ' (' . $reason . ')'
+ *     );
+ *     if (!$result['ok']) { // handle failure — $result['message'] }
+ *
+ * @param string $entityType Must be in activity_revert_supported_entity_types()
+ * @param int    $entityId   PK of the row to delete
+ * @param string $pageCode   Page where the delete was triggered
+ * @param string $summary    Human-readable one-liner for the audit entry
+ * @return array{ok: bool, message: string, captured_row: array|null}
+ */
+function activity_log_delete(
+    string $entityType,
+    int $entityId,
+    string $pageCode,
+    string $summary
+): array {
+    if (!activity_revert_entity_is_supported($entityType)) {
+        return [
+            'ok' => false,
+            'message' => 'Entity type "' . $entityType . '" is not on the delete whitelist. ' .
+                         'Add it to activity_revert_supported_entity_types() first.',
+            'captured_row' => null,
+        ];
+    }
+
+    $map   = activity_revert_supported_entity_types();
+    $table = $map[$entityType]['table'];
+    $pkCol = $map[$entityType]['pk'];
+
+    $db = getDB();
+
+    // 1. Snapshot the full row BEFORE deleting
+    $sel = $db->prepare("SELECT * FROM `$table` WHERE `$pkCol` = ? LIMIT 1");
+    $sel->execute([$entityId]);
+    $row = $sel->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return [
+            'ok' => false,
+            'message' => "$entityType #$entityId does not exist — nothing to delete.",
+            'captured_row' => null,
+        ];
+    }
+
+    // 2. Run the DELETE in a transaction
+    try {
+        $db->beginTransaction();
+        $del = $db->prepare("DELETE FROM `$table` WHERE `$pkCol` = ?");
+        $del->execute([$entityId]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        return [
+            'ok' => false,
+            'message' => 'Database rejected the delete: ' . $e->getMessage(),
+            'captured_row' => null,
+        ];
+    }
+
+    // 3. Log AFTER commit (standing rule). before = captured row, after = null.
+    //    An undelete pathway reads this entry and re-inserts the row.
+    logActivity(
+        'record_deleted',
+        $pageCode,
+        $entityType,
+        $entityId,
+        $summary,
+        $row,  // captured full row
+        null   // after = nothing (it's gone)
+    );
+
+    return [
+        'ok' => true,
+        'message' => 'Deleted ' . $entityType . ' #' . $entityId . '. Undelete remains available via the activity log.',
+        'captured_row' => $row,
+    ];
+}
+
+/**
+ * Restore a previously-deleted record from a record_deleted log entry.
+ *
+ * @param int $logId The activity_log entry whose before_json carries the captured row
+ * @return array{ok: bool, message: string}
+ */
+function activity_undelete(int $logId): array {
+    $db = getDB();
+
+    // 1. Load the log entry
+    $stmt = $db->prepare('SELECT * FROM activity_log WHERE id = ?');
+    $stmt->execute([$logId]);
+    $log = $stmt->fetch();
+    if (!$log) {
+        return ['ok' => false, 'message' => 'Log entry not found.'];
+    }
+
+    // 2. Must be a record_deleted action
+    if (($log['action'] ?? '') !== 'record_deleted') {
+        return [
+            'ok' => false,
+            'message' => 'This log entry is not a delete (' . ($log['action'] ?? '—') .
+                         '). Only record_deleted entries can be undeleted.',
+        ];
+    }
+
+    // 3. Entity whitelist
+    $entityType = $log['entity_type'] ?? null;
+    $entityId   = $log['entity_id']   ?? null;
+    if (!activity_revert_entity_is_supported($entityType)) {
+        return [
+            'ok' => false,
+            'message' => 'Entity type "' . ($entityType ?: '—') . '" is not on the undelete whitelist.',
+        ];
+    }
+    if (!$entityId) {
+        return ['ok' => false, 'message' => 'Log entry has no target record id.'];
+    }
+
+    // 4. Decode the captured row
+    $captured = activity_decode_snapshot($log['before_json'] ?? null);
+    if ($captured === null || empty($captured)) {
+        return [
+            'ok' => false,
+            'message' => 'Log entry has no captured row to restore — it was logged before A4 was wired up.',
+        ];
+    }
+
+    $map   = activity_revert_supported_entity_types();
+    $table = $map[$entityType]['table'];
+    $pkCol = $map[$entityType]['pk'];
+
+    // 5. PK must not already be occupied
+    $chk = $db->prepare("SELECT 1 FROM `$table` WHERE `$pkCol` = ? LIMIT 1");
+    $chk->execute([$entityId]);
+    if ($chk->fetchColumn()) {
+        return [
+            'ok' => false,
+            'message' => "Cannot undelete: $entityType #$entityId already exists. " .
+                         "The original id has been taken by a new record since the delete.",
+        ];
+    }
+
+    // 6. Filter captured fields to real columns on the current schema.
+    //    Drop anything that isn't a column today — schema may have drifted.
+    $cols = [];
+    $vals = [];
+    $skipped = [];
+    foreach ($captured as $field => $val) {
+        if (activity_field_is_valid_column($table, (string)$field)) {
+            $cols[] = "`$field`";
+            $vals[] = $val;
+        } else {
+            $skipped[] = (string)$field;
+        }
+    }
+    if (empty($cols)) {
+        return [
+            'ok' => false,
+            'message' => 'No fields in the captured row match the current schema — nothing to restore.',
+        ];
+    }
+
+    // 7. Re-INSERT in a transaction. If any NOT NULL column with no
+    //    default is missing from the captured row, the INSERT will fail
+    //    and we surface the error.
+    $placeholders = implode(', ', array_fill(0, count($cols), '?'));
+    $sql = "INSERT INTO `$table` (" . implode(', ', $cols) . ") VALUES ($placeholders)";
+
+    try {
+        $db->beginTransaction();
+        $ins = $db->prepare($sql);
+        $ins->execute($vals);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        return [
+            'ok' => false,
+            'message' => 'Database rejected the undelete: ' . $e->getMessage(),
+        ];
+    }
+
+    // 8. Audit the undelete itself. after = captured row (what's back in
+    //    the DB now); before = null (there was nothing). This makes the
+    //    detail page render a "(empty) → full row" diff, which is the
+    //    mirror image of the original record_deleted entry.
+    $summaryMsg = sprintf(
+        'Undeleted %s #%d (from activity log #%d)',
+        $entityType,
+        (int)$entityId,
+        (int)$logId
+    );
+    if (!empty($skipped)) {
+        $summaryMsg .= ' — skipped obsolete columns: ' . implode(', ', $skipped);
+    }
+    logActivity(
+        'record_undeleted',
+        'activity_log',
+        $entityType,
+        (int)$entityId,
+        $summaryMsg,
+        null,
+        $captured
+    );
+
+    $msg = 'Record restored. A new audit entry records the undelete.';
+    if (!empty($skipped)) {
+        $msg .= ' Note: ' . count($skipped) . ' captured field(s) were skipped because they no longer exist on the table (' . implode(', ', $skipped) . ').';
+    }
+    return ['ok' => true, 'message' => $msg];
+}
