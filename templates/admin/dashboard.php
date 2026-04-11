@@ -24,8 +24,20 @@ try {
          JOIN person_statuses ps ON ps.id = cg.status_id
          WHERE FIND_IN_SET('caregiver', cg.person_type) AND ps.code = 'placed'"
     )->fetchColumn();
-    $stats['clients']        = (int)$db->query('SELECT COUNT(*) FROM clients')->fetchColumn();
-    $stats['active_clients'] = (int)$db->query("SELECT COUNT(*) FROM clients WHERE status = 'Active'")->fetchColumn();
+    $stats['clients']        = (int)$db->query(
+        "SELECT COUNT(*) FROM persons WHERE FIND_IN_SET('client', person_type)"
+    )->fetchColumn();
+    // "Active" is derived from revenue rather than stored: a client is
+    // active if they have any revenue row in the current or previous
+    // 2 calendar months. Per the single-source-of-truth standing rule,
+    // no cached active/inactive flag exists on the persons row.
+    $stats['active_clients'] = (int)$db->query(
+        "SELECT COUNT(DISTINCT cr.client_id)
+         FROM client_revenue cr
+         INNER JOIN persons p ON p.id = cr.client_id
+                              AND FIND_IN_SET('client', p.person_type)
+         WHERE cr.month_date >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 2 MONTH)"
+    )->fetchColumn();
     $stats['roster_shifts']  = (int)$db->query('SELECT COUNT(*) FROM daily_roster')->fetchColumn();
     $stats['pending_names']  = (int)$db->query('SELECT COUNT(*) FROM name_lookup WHERE approved = 0')->fetchColumn();
     $stats['total_revenue']  = (float)$db->query('SELECT COALESCE(SUM(income), 0) FROM client_revenue')->fetchColumn();

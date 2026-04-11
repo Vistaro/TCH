@@ -143,7 +143,10 @@ if ($report === 'earnings' || $report === 'days') {
 //   4. If nothing matches, return an honest empty state explaining
 //      the mismatch and pointing at FR-0069.
 if ($report === 'billing') {
-    $client = $db->prepare('SELECT client_name FROM clients WHERE id = ?');
+    $client = $db->prepare(
+        "SELECT full_name FROM persons
+         WHERE id = ? AND FIND_IN_SET('client', person_type)"
+    );
     $client->execute([$entityId]);
     $clientName = $client->fetchColumn();
     if (!$clientName) {

@@ -34,18 +34,25 @@ $firstMonth = $anchor->modify('-11 months')->format('Y-m-01');
 $lastMonth  = $anchor->format('Y-m-01');
 
 // ── Fetch + pivot ───────────────────────────────────────────────────────
-// Pivot on the canonical `clients.client_name`, NOT on the denormalised
+// Pivot on the canonical `persons.full_name`, NOT on the denormalised
 // `client_revenue.client_name` that was frozen at ingest time. This is
-// what makes merges and renames on the clients table reflect immediately
+// what makes merges and renames on the persons table reflect immediately
 // on this report instead of showing pre-dedup ghosts. Revenue rows
 // whose client_id can't be joined (orphans) fall back to their raw
 // source name via COALESCE.
+//
+// Post-migration-007: the LEFT JOIN targets `persons` filtered to
+// client-type rows. `client_status` is derived from the revenue rows
+// we're already fetching (see the PHP pivot loop below) rather than
+// stored on the person row — per the single-source-of-truth standing
+// rule in C:\ClaudeCode\CLAUDE.md.
 $sql = "SELECT cr.client_id,
-               COALESCE(c.client_name, cr.client_name) AS display_name,
+               COALESCE(p.full_name, cr.client_name) AS display_name,
                cr.month_date, cr.income,
-               c.account_number, c.status AS client_status
+               p.account_number
         FROM client_revenue cr
-        LEFT JOIN clients c ON cr.client_id = c.id
+        LEFT JOIN persons p ON cr.client_id = p.id
+                            AND FIND_IN_SET('client', p.person_type)
         WHERE cr.month_date >= ? AND cr.month_date <= ?
         ORDER BY display_name, cr.month_date";
 $stmt = $db->prepare($sql);
@@ -59,7 +66,7 @@ foreach ($flatRows as $r) {
         $matrix[$name] = [
             'client_id'      => $r['client_id'],
             'account_number' => $r['account_number'],
-            'status'         => $r['client_status'],
+            'status'         => 'Inactive',  // default; upgraded below if recent revenue
             'months'         => array_fill_keys(array_column($months, 'key'), 0.0),
             'total'          => 0.0,
         ];
@@ -72,6 +79,24 @@ foreach ($flatRows as $r) {
     }
 }
 ksort($matrix);
+
+// Derive Active/Inactive status from revenue rather than reading it
+// from a stored field. A client is Active if they have any income in
+// the current or previous 2 calendar months. Applies the single
+// source of truth standing rule — no cached status column on persons.
+$activeCutoffKeys = [];
+for ($i = 0; $i < 3 && $i < count($months); $i++) {
+    $activeCutoffKeys[] = $months[$i]['key'];
+}
+foreach ($matrix as $name => &$row) {
+    foreach ($activeCutoffKeys as $k) {
+        if (($row['months'][$k] ?? 0) > 0) {
+            $row['status'] = 'Active';
+            break;
+        }
+    }
+}
+unset($row);
 
 $colTotals = array_fill_keys(array_column($months, 'key'), 0.0);
 $grandTotal = 0.0;

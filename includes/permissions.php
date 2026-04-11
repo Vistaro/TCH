@@ -174,7 +174,13 @@ function getVisibleCaregiverIds(?int $forUserId = null): array {
 }
 
 /**
- * Get every client_id visible to the given user via hierarchy.
+ * Get every client person_id visible to the given user via hierarchy.
+ *
+ * Post-migration-007: clients live in the `persons` table with
+ * person_type containing 'client'. The `users.linked_client_id`
+ * column was dropped (provisional, never used). The client
+ * self-service login (role_id=5) branch returns an empty set until
+ * a future feature re-introduces the link.
  */
 function getVisibleClientIds(?int $forUserId = null): array {
     if ($forUserId === null) {
@@ -191,11 +197,17 @@ function getVisibleClientIds(?int $forUserId = null): array {
 
     if (in_array((int)$user['role_id'], [1, 2], true)) {
         $db = getDB();
-        return array_map('intval', $db->query('SELECT id FROM clients')->fetchAll(PDO::FETCH_COLUMN));
+        return array_map('intval', $db->query(
+            "SELECT id FROM persons WHERE FIND_IN_SET('client', person_type)"
+        )->fetchAll(PDO::FETCH_COLUMN));
     }
 
     if ((int)$user['role_id'] === 5) {
-        return $user['linked_client_id'] ? [(int)$user['linked_client_id']] : [];
+        // Client self-service login — infrastructure pending.
+        // The users.linked_client_id column was dropped in
+        // migration 007; re-add it (or a linked_person_id
+        // equivalent) when this feature becomes real.
+        return [];
     }
 
     $visibleUsers = getVisibleUserIds($forUserId);

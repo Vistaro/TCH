@@ -53,11 +53,12 @@ function activity_revert_supported_entity_types(): array {
         'caregivers'  => ['table' => 'caregivers', 'pk' => 'id'],
         'persons'     => ['table' => 'persons',    'pk' => 'id'],
         'name_lookup' => ['table' => 'name_lookup', 'pk' => 'id'],
-        // 'clients' is on the whitelist TEMPORARILY for the patient dedup
-        // exercise (see database/seeds/dedup_clients.php). Remove once
-        // migration 007 drops the clients table and the data has moved
-        // into persons.
-        'clients'     => ['table' => 'clients',    'pk' => 'id'],
+        // 'clients' was on the whitelist temporarily for the 2026-04-11
+        // patient dedup exercise. Migration 007 has since moved the
+        // clients into persons and rewritten every historical
+        // activity_log entry so entity_type='persons' + the new
+        // persons.id. The clients table itself is renamed to
+        // clients_deprecated_2026_04_11 and nothing queries it.
     ];
 }
 

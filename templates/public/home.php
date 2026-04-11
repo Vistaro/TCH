@@ -38,8 +38,16 @@ if (!$region) {
 $pipelineCount = (int)$db->query(
     "SELECT COUNT(*) FROM persons WHERE FIND_IN_SET('caregiver', person_type)"
 )->fetchColumn();
+// "Active client" is derived from recent revenue rather than a stored
+// status flag — see the single-source-of-truth standing rule in
+// C:\ClaudeCode\CLAUDE.md. A client counts as active if they have
+// any revenue row in the current or previous 2 calendar months.
 $clientCount = (int)$db->query(
-    "SELECT COUNT(*) FROM clients WHERE status = 'Active'"
+    "SELECT COUNT(DISTINCT cr.client_id)
+     FROM client_revenue cr
+     INNER JOIN persons p ON p.id = cr.client_id
+                          AND FIND_IN_SET('client', p.person_type)
+     WHERE cr.month_date >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 2 MONTH)"
 )->fetchColumn();
 
 // Optional: success / error flag set by the form handler

@@ -2,6 +2,147 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.11] - 2026-04-11
+
+### Added — Migration 007: clients table retired into persons
+
+Migration 007 completes the persons unification by moving the 51
+clean clients (post-dedup) into the `persons` table as
+`person_type='patient,client'` and retiring the old `clients` table.
+After this migration the `clients` table name no longer exists in
+the active schema — it lives only as cold storage at
+`clients_deprecated_2026_04_11`, preserved on disk as a last-resort
+rollback artefact but never queried by any code path.
+
+**Applies the Single Source of Truth standing rule (added to
+C:\ClaudeCode\CLAUDE.md in this same release).** The four derived
+fields on the old `clients` table (`first_seen`, `last_seen`,
+`months_active`, `status`) were **NOT** carried across. They are
+now computed from `client_revenue` at read time. Specifically:
+
+- `first_seen` / `last_seen` — MIN/MAX of `client_revenue.month_date`
+  per client, computed only when a report needs them
+- `months_active` — COUNT(DISTINCT `month_date`), same
+- `status` — Active if the client has any revenue row in the
+  current or previous 2 calendar months, else Inactive. Derived
+  live on every page that shows it.
+
+This fixed a live drift: before migration 007, the dashboard reported
+20 "active clients" based on the stale stored flag; after, it
+correctly reports **34 active clients** computed from actual revenue.
+The 14-client gap was the cumulative effect of the 2026-04-11
+patient dedup repointing revenue rows to surviving clients without
+refreshing the summary columns — caught by Ross during review of
+migration 007.
+
+### Columns actually copied across (non-derived, independent state)
+
+```
+account_number  VARCHAR(12) UNIQUE    -- billing identifier TCH-C0001 etc.
+patient_name    VARCHAR(150)          -- care recipient when different from payer
+day_rate        DECIMAL(10,2)         -- service config
+billing_freq    VARCHAR(30)           -- service config
+shift_type      VARCHAR(30)           -- service config
+schedule        VARCHAR(50)           -- service config
+billing_entity  VARCHAR(10)           -- NPC or TCH; renamed from `entity`
+                                       to avoid the overloaded term
+```
+
+Only 3 of 51 clients (Berthe Botha, Darren Blumenthal, Julian Sam)
+had any of the service-config fields populated — the rest are NULL
+— but we carried the columns anyway so those three didn't need
+re-entering. Expected later refactor (separate `client_engagements`
+table) is deferred per Ross's earlier call.
+
+### Rewiring — all FKs retargeted to persons
+
+- `client_revenue.client_id` — FK constraint dropped and recreated
+  pointing at `persons(id)` instead of `clients(id)`. 129 rows, all
+  repointed to the new persons.id values via a temporary
+  `persons._legacy_client_id` column used during the insert.
+- `daily_roster.client_id` — same pattern. 419 matched rows
+  repointed; the ~1,200 NULL-client_id rows left as-is (they were
+  never matched at ingest and remain an orphan class outside the
+  scope of this migration).
+- `users.linked_client_id` — FK + column dropped entirely.
+  Provisional wiring for future client self-service login, zero
+  populated rows. Can be re-added via a future migration if/when
+  client self-service becomes a real feature.
+- `activity_log` — 66 of the 79 historical `entity_type='clients'`
+  rows rewritten to `entity_type='persons'` with the new
+  `persons.id`. Covers `client_merged` (13), `client_renamed` (5),
+  and `client_patient_backfilled` (48). The remaining 13
+  `record_deleted` entries point at loser client_ids that were
+  deleted during the dedup — they have no surviving persons row
+  to rewire to, so they retain `entity_type='clients'` and
+  gracefully reject revert attempts via the whitelist (which no
+  longer includes 'clients').
+
+### tch_id assignment
+
+Every new client row got a `tch_id` in the existing caregiver
+format: `TCH-000141` through `TCH-000192`, continuing the
+universal person sequence.
+
+### Code changes — 6 files
+
+Every read path that used to query `clients` now queries `persons`
+filtered by `FIND_IN_SET('client', person_type)`:
+
+| File | Change |
+|---|---|
+| `includes/activity_log_revert.php` | Temporary `'clients'` whitelist entry removed. Historical entries now point at `'persons'`. |
+| `includes/permissions.php` | `getVisibleClientIds()` queries persons with FIND_IN_SET filter. The `role_id === 5` client self-service branch returns `[]` for now (the `linked_client_id` column was dropped; re-add when client self-service becomes real). |
+| `templates/admin/dashboard.php` | Client count + "Active Clients" count both derived from persons + `client_revenue` — no stored flag read. |
+| `templates/public/home.php` | Homepage "Active Clients" same derivation. |
+| `templates/admin/report_drill_handler.php` | Billing drill-down client name lookup reads `full_name` from persons. |
+| `templates/admin/reports/client_billing.php` | LEFT JOIN on persons with client-type filter; `client_status` derived in the PHP pivot loop from whether any of the last 3 months has income > 0, rather than SELECT-ed from a stored column. |
+
+### Rollback artefacts on the server
+
+- `database/backups/post_dedup_pre_migration_007_2026-04-11.sql`
+  (432K, 457 lines) — full dump of persons + clients + client_revenue
+  + daily_roster + caregiver_banking + name_lookup + caregiver_costs
+  + caregiver_rate_history + activity_log + users, taken immediately
+  before migration 007 ran.
+- `~/public_html/tch_backup_pre_007_2026-04-11/` (19M) — full file
+  copy of the prod webroot before the rsync.
+- Migration 007 itself wraps everything in a transaction; any
+  mid-flight failure auto-rolls back. Post-commit failure recovery
+  goes via the backup dump above.
+
+### Smoke tests
+
+Sixteen smoke tests green (8 pages × 2 environments). Dashboard
+stats verified against the DB:
+
+| Stat | Value |
+|---|---|
+| Total Caregivers | 140 |
+| Client Accounts | 51 |
+| **Active Clients** | **34** (derived, was 20 stored — see above) |
+| Total Revenue | R1,554,103 |
+| Gross Margin | R844,483 |
+| Roster Shifts | 1,619 |
+| client_billing report rows | 51 (was 64 pre-dedup) |
+
+### Standing rule added — Single Source of Truth
+
+Added a new top-level section to `C:\ClaudeCode\CLAUDE.md`
+applicable to every project Ross runs, not just TCH:
+
+> If a value can be derived from another table on demand, do not
+> store it as a column on a second table. Compute it in the query
+> at read time. There is one version of the truth, and everything
+> queries it.
+
+Ross articulated this principle while reviewing migration 007 —
+the 4 derived-field columns on `clients` that were about to be
+copied to `persons` became the test case for dropping the pattern.
+The standing order now applies cross-project, and a code review
+(DQ0 in `docs/TCH_Ross_Todo.md`) is queued to walk every existing
+table in the TCH schema looking for the same pattern.
+
 ## [0.9.10.1-dev] - 2026-04-11
 
 ### Fixed — Matrix reports pivot on canonical name, not denormalised source
