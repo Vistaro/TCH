@@ -2,6 +2,120 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.5-dev] - 2026-04-11
+
+### Added — Activity log whole-record rollback (A3, Level 2)
+
+Second of the three undo levels. A3 lets a Super Admin restore an entire
+record to the state it held just before a given activity log entry was
+applied — not just a single field. It's a two-step inline flow: click
+"Restore whole record to this point" on the activity detail page, review
+an in-page preview that lists every field that will change and loudly
+flags any intermediate edits that will be discarded, then apply.
+
+**What the user sees on `/admin/activity/{id}`:**
+
+- When the gates align (Super Admin + supported entity type + log entry
+  is not itself a revert or rollback + there's a before-snapshot), an
+  amber **Restore whole record to this point…** button appears next to
+  the Back button.
+- Clicking it opens a **Rollback preview** panel inline above the normal
+  detail. The panel lists:
+  - The entity being restored and the log entry being rolled back
+    through.
+  - A **prominent red warning** listing any fields that have been edited
+    in more than one log entry in the range — with the count of touching
+    entries — so Ross can see exactly what newer work would be lost.
+  - A quiet footnote listing any synthetic diff fields that were dropped
+    from the plan (e.g. `note_appended` on enquiries) because they're
+    not real columns on the target table.
+  - A **Current → After rollback** table showing every field that will
+    change, tinted red/green.
+  - An **Apply rollback** button (amber, matches the warning palette)
+    and a Cancel button.
+- Apply triggers a JS confirm dialog, then POSTs back to the same URL.
+  On success, a green flash appears: "Rolled back N field(s). A new
+  audit entry records the rollback."
+- The original log entry is never mutated. The rollback itself is
+  recorded as a single new `record_rolled_back` entry carrying the
+  current → target diff, so it renders with the exact same machinery
+  as any other field-level change.
+
+**Algorithm for "state at the time of log entry X":**
+
+For each field touched in any log entry with id ≥ X for the same
+entity, the target value is the **earliest** `before_json[field]` seen
+in the range — because the oldest `before` is the value the field held
+before it was first touched in that window, which by definition is
+state-at-time-of-X. Fields untouched from X onwards are left alone (no
+action needed; they're still at their at-time-of-X values). Fields
+touched more than once in the range trigger the intermediate-edit
+warning.
+
+**Safety layers (stricter than A2):**
+
+1. **Permission gate** — `isSuperAdmin()`. Admin and Manager can revert
+   single fields (A2) but cannot roll back a whole record. Rationale:
+   A3 can discard newer work on purpose, so the bar is higher.
+2. **CSRF token** — validated on the apply POST.
+3. **`confirmed=1` guard** — the apply POST must carry `confirmed=1`
+   (set by the hidden field in the preview form). Prevents accidental
+   apply from outside the preview UX.
+4. **Preview required** — the plan is only recomputed-and-applied when
+   the user goes through the preview flow. There is no one-click
+   rollback button.
+5. **Plan is recomputed at apply time** (not trusted from POST body) to
+   avoid time-of-check-to-time-of-use drift — if the record changed
+   between preview and apply, the fresh plan wins.
+6. **Entity whitelist** — same `activity_revert_supported_entity_types()`
+   map as A2: users, enquiries, caregivers, name_lookup.
+7. **Column whitelist** — every field in the plan is validated against
+   `INFORMATION_SCHEMA.COLUMNS` for the target table. Synthetic diff
+   fields are silently dropped from the UPDATE (and listed in the
+   preview footnote).
+8. **Record-exists check** — if the target row has been deleted, the
+   rollback refuses with the same "use A4 once built" message as A2.
+9. **Transactional UPDATE** — the multi-field UPDATE runs inside a
+   `beginTransaction() / commit()` block; partial failures rollback.
+10. **Suppressed on revert/rollback entries themselves** — clicking
+    into a `field_reverted` or `record_rolled_back` entry does not show
+    the button (to avoid chained-rollback confusion).
+
+**What changed in the code:**
+
+- `includes/activity_log_revert.php` — new functions
+  `activity_rollback_compute_plan(int $logId): array` and
+  `activity_rollback_apply(int $logId): array`. Appended to the same
+  helper file as A2 because they share the whitelist and column
+  validation. ~200 lines of additions.
+- `templates/admin/activity_detail.php`:
+  - Top-of-page handler now dispatches on three actions:
+    `revert_field` (A2), `apply_rollback` (A3), and the GET-with-
+    `?preview_rollback=1` preview path.
+  - New `$showRollbackButton` and `$showRollbackPreview` gates driving
+    the UI render.
+  - New amber button in the back-nav bar.
+  - New rollback-preview panel rendered inline above the existing
+    metadata panel.
+
+**Explicitly NOT changed:**
+
+- `activity_log` schema — no new columns.
+- `logActivity()` signature.
+- A2 behaviour (single-field revert) — unchanged.
+- List view (`/admin/activity`) — rollback is detail-page only.
+- Permission model — reuses `isSuperAdmin()` from `includes/auth.php`,
+  no new permission row required.
+
+### Deployment
+
+- Files uploaded to `~/public_html/dev-TCH/dev/` via scp:
+  `includes/activity_log_revert.php`,
+  `templates/admin/activity_detail.php`.
+- Server-side `php -l` clean.
+- No schema migrations.
+- Not yet promoted to prod.
+
 ## [0.9.4-dev] - 2026-04-11
 
 ### Added — Activity log single-field revert (A2, Level 1)
