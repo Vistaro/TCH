@@ -2,6 +2,69 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.10.1-dev] - 2026-04-11
+
+### Fixed — Matrix reports pivot on canonical name, not denormalised source
+
+The three matrix reports — `Client Billing by Month`,
+`Caregiver Earnings by Month`, and `Days Worked by Month` — were
+pivoting on denormalised `*_name` columns frozen into
+`client_revenue`, `caregiver_costs` and `daily_roster` at ingest
+time. That meant any merge, rename, typo fix or slash-split on the
+underlying `clients` / `persons` row did **not** reflect on the
+report — the old source string persisted as a ghost row.
+
+Symptom after the 2026-04-11 patient dedup: `/admin/reports/client-
+billing` was still showing 64 rows including `Andre Theron- monthly`,
+`Gildenhyus`, `Angela/ Dimitri Paoadopoulos`, etc. — each with the
+CORRECT post-merge account number (proof that the dedup itself
+worked), but pivoted by the stale raw source string.
+
+**Root cause:** each report's SQL selected `cr.client_name` /
+`cc.caregiver_name` / `dr.caregiver_name` (the denormalised source
+text) and the PHP pivot used that value as the matrix key. The
+canonical name from the joined `clients` / `persons` row was
+available via the LEFT JOIN but never read.
+
+**Fix:** each report's SELECT now computes
+`COALESCE(joined.canonical_name, raw.source_name) AS display_name`
+and the PHP pivot keys on `$r['display_name']`. Orphan rows where
+the FK join returns NULL (unmatched data) fall back to the raw
+source name so nothing silently disappears.
+
+Files touched (3):
+- `templates/admin/reports/client_billing.php` — SELECT gains
+  `COALESCE(c.client_name, cr.client_name) AS display_name`;
+  pivot key changed to `$r['display_name']`; ORDER BY updated.
+- `templates/admin/reports/caregiver_earnings.php` — SELECT gains
+  `COALESCE(cg.full_name, cc.caregiver_name) AS display_name`;
+  pivot key changed; ORDER BY updated.
+- `templates/admin/reports/days_worked.php` — same pattern, plus
+  the `GROUP BY` clause switched from `dr.caregiver_name` to
+  `display_name` so caregiver_id + canonical name pairs collapse
+  correctly into a single row.
+
+**Verified on dev + prod:**
+
+| Report | Before | After | Stale ghosts |
+|---|---|---|---|
+| client_billing | 64 rows (13 dedup ghosts) | **51 rows** | 0 |
+| caregiver_earnings | 42 rows (latent bug) | 42 rows | 0 |
+| days_worked | 42 rows (latent bug) | 42 rows | 0 |
+
+The caregiver reports had zero visible symptoms today — no
+caregiver has been renamed yet — but they carried the same latent
+bug. Fixing now makes them safe against any future rename on a
+`persons.full_name` value.
+
+### Ops note
+
+The reports were rsync'd dev → prod before this commit, so prod is
+already running the fix. This commit is the after-the-fact code
+checkpoint. Rollback is `git revert` + rsync the previous version
+from `~/public_html/tch_backup_pre_persons_2026-04-11/` or from
+the prior commit. No DB changes, no schema touched.
+
 ## [0.9.10-dev] - 2026-04-11
 
 ### Added — Persons unification + universal Activities & Tasks timeline

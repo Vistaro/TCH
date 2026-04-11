@@ -34,19 +34,27 @@ $firstMonth = $anchor->modify('-11 months')->format('Y-m-01');
 $lastMonth  = $anchor->format('Y-m-01');
 
 // ── Fetch + pivot ───────────────────────────────────────────────────────
-$sql = "SELECT cr.client_id, cr.client_name, cr.month_date, cr.income,
+// Pivot on the canonical `clients.client_name`, NOT on the denormalised
+// `client_revenue.client_name` that was frozen at ingest time. This is
+// what makes merges and renames on the clients table reflect immediately
+// on this report instead of showing pre-dedup ghosts. Revenue rows
+// whose client_id can't be joined (orphans) fall back to their raw
+// source name via COALESCE.
+$sql = "SELECT cr.client_id,
+               COALESCE(c.client_name, cr.client_name) AS display_name,
+               cr.month_date, cr.income,
                c.account_number, c.status AS client_status
         FROM client_revenue cr
         LEFT JOIN clients c ON cr.client_id = c.id
         WHERE cr.month_date >= ? AND cr.month_date <= ?
-        ORDER BY cr.client_name, cr.month_date";
+        ORDER BY display_name, cr.month_date";
 $stmt = $db->prepare($sql);
 $stmt->execute([$firstMonth, $lastMonth]);
 $flatRows = $stmt->fetchAll();
 
 $matrix = [];
 foreach ($flatRows as $r) {
-    $name = $r['client_name'];
+    $name = $r['display_name'];
     if (!isset($matrix[$name])) {
         $matrix[$name] = [
             'client_id'      => $r['client_id'],

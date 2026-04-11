@@ -58,22 +58,28 @@ if ($filterTranche !== '') {
 // ── Fetch flat rows, pivot in PHP ───────────────────────────────────────
 // One row in caregiver_costs per caregiver × month. We fetch the 12-month
 // window, then group client-side into caregiver → month → amount.
-$sql = "SELECT cc.caregiver_id, cc.caregiver_name, cc.month_date, cc.amount, cc.days_worked,
+// Pivot on the canonical `persons.full_name`, NOT the denormalised
+// `caregiver_costs.caregiver_name` frozen at ingest time, so renames on
+// a caregiver's full_name reflect immediately without a re-ingest.
+// Orphan rows (caregiver_id IS NULL) fall back to the raw source name.
+$sql = "SELECT cc.caregiver_id,
+               COALESCE(cg.full_name, cc.caregiver_name) AS display_name,
+               cc.month_date, cc.amount, cc.days_worked,
                cg.tranche
         FROM caregiver_costs cc
         LEFT JOIN persons cg ON cc.caregiver_id = cg.id
         WHERE cc.month_date >= ? AND cc.month_date <= ?
               $extraWhere
-        ORDER BY cc.caregiver_name, cc.month_date";
+        ORDER BY display_name, cc.month_date";
 $params = array_merge([$firstMonth, $lastMonth], $extraParams);
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $flatRows = $stmt->fetchAll();
 
-// Pivot: caregiver_name → [ month_key => amount, __total__, __tranche__, __id__ ]
+// Pivot: display_name → [ month_key => amount, __total__, __tranche__, __id__ ]
 $matrix = [];
 foreach ($flatRows as $r) {
-    $name = $r['caregiver_name'];
+    $name = $r['display_name'];
     if (!isset($matrix[$name])) {
         $matrix[$name] = [
             'caregiver_id' => $r['caregiver_id'],

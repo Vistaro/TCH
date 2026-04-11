@@ -49,8 +49,11 @@ if ($filterTranche !== '') {
 }
 
 // ── Aggregate days per caregiver per month ──────────────────────────────
+// Group + pivot on the canonical `persons.full_name`, NOT the
+// denormalised `daily_roster.caregiver_name` frozen at ingest time.
+// Orphan rows (no caregiver_id match) fall back to the raw source name.
 $sql = "SELECT dr.caregiver_id,
-               dr.caregiver_name,
+               COALESCE(cg.full_name, dr.caregiver_name) AS display_name,
                DATE_FORMAT(dr.roster_date, '%Y-%m') AS month_key,
                COUNT(*) AS days_worked,
                cg.tranche
@@ -58,8 +61,8 @@ $sql = "SELECT dr.caregiver_id,
         LEFT JOIN persons cg ON dr.caregiver_id = cg.id
         WHERE dr.roster_date >= ? AND dr.roster_date <= ?
               $extraWhere
-        GROUP BY dr.caregiver_id, dr.caregiver_name, month_key, cg.tranche
-        ORDER BY dr.caregiver_name, month_key";
+        GROUP BY dr.caregiver_id, display_name, month_key, cg.tranche
+        ORDER BY display_name, month_key";
 $params = array_merge([$firstMonth, $lastMonth], $extraParams);
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
@@ -68,7 +71,7 @@ $flatRows = $stmt->fetchAll();
 // Pivot into matrix
 $matrix = [];
 foreach ($flatRows as $r) {
-    $name = $r['caregiver_name'];
+    $name = $r['display_name'];
     if (!isset($matrix[$name])) {
         $matrix[$name] = [
             'caregiver_id' => $r['caregiver_id'],
