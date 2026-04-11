@@ -1639,3 +1639,58 @@ h3 { font-size: 1.35rem; }
     border: 1px solid #BFDBFE;
 }
 
+/* -------------------------------------------------------------------------
+ * Activity log field-level diff rendering
+ *
+ * Used inline on the activity log list view (collapsible per row) and in
+ * the Was/Now columns on the detail page. Red strikethrough = old value,
+ * green = new value — matches the Nexus CRM convention.
+ * ------------------------------------------------------------------------- */
+.activity-inline-diff {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.82rem;
+    color: #555;
+}
+
+.activity-inline-diff > summary {
+    cursor: pointer;
+    color: #666;
+    list-style: disclosure-closed;
+    user-select: none;
+    padding: 0.15rem 0;
+}
+
+.activity-inline-diff[open] > summary {
+    list-style: disclosure-open;
+    color: #333;
+    margin-bottom: 0.25rem;
+}
+
+.activity-inline-diff .diff-row {
+    padding: 0.15rem 0 0.15rem 1rem;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.diff-was {
+    color: #C0392B;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+
+.diff-now {
+    color: #1E8449;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.diff-arrow {
+    color: #999;
+    margin: 0 0.15rem;
+}
+
+/* Detail page Was/Now table cells use the same palette */
+.name-table td.diff-was-cell { color: #C0392B; }
+.name-table td.diff-now-cell { color: #1E8449; font-weight: 500; }
+

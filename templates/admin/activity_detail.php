@@ -11,6 +11,8 @@
 $pageTitle = 'Activity Detail';
 $activeNav = 'activity';
 
+require_once APP_ROOT . '/includes/activity_log_render.php';
+
 $db = getDB();
 $activityId = (int)($_GET['activity_id'] ?? 0);
 
@@ -35,56 +37,9 @@ if (!$row) {
     return;
 }
 
-/**
- * Decode a before/after JSON column to an associative array, or null if empty/invalid.
- */
-function decode_snapshot(?string $json): ?array {
-    if ($json === null || $json === '') {
-        return null;
-    }
-    $decoded = json_decode($json, true);
-    return is_array($decoded) ? $decoded : null;
-}
-
-/**
- * Render a single field value for the diff view.
- * Booleans, nulls, arrays, and long strings are made safe and readable.
- */
-function render_value($v): string {
-    if ($v === null) {
-        return '<em style="color:#999;">(empty)</em>';
-    }
-    if (is_bool($v)) {
-        return $v ? 'true' : 'false';
-    }
-    if (is_array($v) || is_object($v)) {
-        return '<code>' . htmlspecialchars(json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) . '</code>';
-    }
-    $s = (string)$v;
-    if ($s === '') {
-        return '<em style="color:#999;">(empty)</em>';
-    }
-    return htmlspecialchars($s);
-}
-
-$before = decode_snapshot($row['before_json']);
-$after  = decode_snapshot($row['after_json']);
-
-// Compute the diff: field name → [before, after]. Only include changed fields.
-$diff = [];
-if ($before !== null || $after !== null) {
-    $allKeys = array_unique(array_merge(
-        $before !== null ? array_keys($before) : [],
-        $after  !== null ? array_keys($after)  : []
-    ));
-    foreach ($allKeys as $k) {
-        $b = $before[$k] ?? null;
-        $a = $after[$k]  ?? null;
-        if ($b !== $a) {
-            $diff[$k] = [$b, $a];
-        }
-    }
-}
+$before = activity_decode_snapshot($row['before_json']);
+$after  = activity_decode_snapshot($row['after_json']);
+$diff   = activity_compute_diff($before, $after);
 
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
@@ -166,8 +121,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
                     <?php foreach ($diff as $field => [$wasValue, $nowValue]): ?>
                         <tr>
                             <td><strong><?= htmlspecialchars($field) ?></strong></td>
-                            <td><?= render_value($wasValue) ?></td>
-                            <td><?= render_value($nowValue) ?></td>
+                            <td class="diff-was-cell"><?= activity_render_value($wasValue) ?></td>
+                            <td class="diff-now-cell"><?= activity_render_value($nowValue) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

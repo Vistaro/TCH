@@ -2,6 +2,69 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.2-dev] - 2026-04-11
+
+### Changed — Activity log field-level diff is now inline on the list view
+
+Ross flagged that the TCH activity log wasn't showing what he wanted to see at
+a glance: when a record was edited, the list row showed only a summary line
+and he had to click "View" to see *which fields actually changed*. The Nexus
+CRM activity log shows the `old → new` diff inline on the list row, colour-
+coded (red strikethrough → green). This release brings TCH to the same shape.
+
+**What the user sees on `/admin/activity`:**
+
+- Every row that captured a before/after snapshot now shows a small
+  `▶ N fields changed` disclosure triangle under the summary cell.
+- Click to expand → one line per changed field, rendered as
+  `field: <del>old</del> → <ins>new</ins>`. Old is red strikethrough, new
+  is green. Matches the Nexus visual convention.
+- Login/logout/public-form rows render nothing extra (no snapshot = nothing
+  to show). Keeps the table scannable.
+- The existing **View** button on each row is unchanged — it still opens
+  `/admin/activity/{id}` with the full forensic detail (IP, user agent,
+  link-throughs to the affected entity, raw JSON).
+
+**What changed in the code:**
+
+- New `includes/activity_log_render.php` — shared helpers for snapshot
+  decoding, per-field value rendering, diff computation, and the new
+  inline-diff renderer used by the list view.
+- `templates/admin/activity_log.php` — replaced the placeholder
+  "(field-level diff available)" hint with a real collapsible inline diff
+  block. View button preserved.
+- `templates/admin/activity_detail.php` — refactored to use the shared
+  helpers (removed duplicated private `decode_snapshot()` / `render_value()`
+  / diff-loop). Detail page Was/Now cells are now tinted red/green to match
+  the inline view.
+- `public/assets/css/style.css` — added `.activity-inline-diff`,
+  `.diff-was`, `.diff-now`, `.diff-arrow`, and `.diff-was-cell` /
+  `.diff-now-cell` rules.
+
+**Explicitly NOT changed:**
+
+- No schema change to `activity_log`. The single-table + JSON blob design
+  stays.
+- No changes to `logActivity()` or any call site — coverage is the same as
+  v0.9.1.
+- No retention policy, no source/route column, no tamper protection — all
+  still outstanding and tracked in `docs/TCH_Ross_Todo.md`.
+
+**Also in this commit:**
+
+- `.gitignore` now excludes `.last-backup-timestamp` (written by the
+  cross-device SessionEnd hook; never meant to be committed).
+- `docs/TCH_Ross_Todo.md` — added the "Activity Log — full audit + revert
+  capability" section with 4 planned work items (A1 audit sweep, A2 single-
+  field revert, A3 whole-record rollback, A4 undelete) and workload
+  estimates.
+
+### Deployment
+
+- Files uploaded to `~/public_html/dev-TCH/dev/` via rsync over SSH.
+- No schema migrations.
+- Not yet promoted to prod — held for Ross sign-off after dev smoke test.
+
 ## [0.9.1] - 2026-04-10 — SHIPPED TO PROD
 
 ### Prod deploy

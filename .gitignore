@@ -16,6 +16,9 @@ Thumbs.db
 # Chat History (local only — never commit)
 Chat History/
 
+# Cross-device sync marker written by the SessionEnd backup hook
+.last-backup-timestamp
+
 # Brand assets staging
 brand.pdf
 

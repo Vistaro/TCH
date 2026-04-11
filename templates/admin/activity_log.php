@@ -10,6 +10,8 @@
 $pageTitle = 'Activity Log';
 $activeNav = 'activity';
 
+require_once APP_ROOT . '/includes/activity_log_render.php';
+
 $db = getDB();
 
 $filterAction  = trim($_GET['action'] ?? '');
@@ -156,9 +158,16 @@ require APP_ROOT . '/templates/layouts/admin.php';
                         </td>
                         <td>
                             <?= htmlspecialchars($r['summary'] ?? '') ?>
-                            <?php if (!empty($r['before_json']) || !empty($r['after_json'])): ?>
-                                <br><small style="color:#666;">(field-level diff available)</small>
-                            <?php endif; ?>
+                            <?php
+                            // Inline field-level diff: collapsible <details> showing
+                            // Was -> Now per changed field. Empty string when there
+                            // are no snapshots (login/logout/public actions) or when
+                            // before == after.
+                            $rowBefore = activity_decode_snapshot($r['before_json'] ?? null);
+                            $rowAfter  = activity_decode_snapshot($r['after_json']  ?? null);
+                            $rowDiff   = activity_compute_diff($rowBefore, $rowAfter);
+                            echo activity_render_inline_diff($rowDiff);
+                            ?>
                         </td>
                         <td><?= htmlspecialchars($r['ip_address'] ?? '—') ?></td>
                         <td>

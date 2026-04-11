@@ -43,6 +43,23 @@
 | 9 | **Purge CDN cache after deployments** | StackCP > CDN > Edge Caching. Only needed until we go to production and set proper cache rules. |
 | 10 | **DB credentials** | Stored in server `.env`. Username: `tch_admin`, DB: `tch_placements-313539d33a`, host: `shareddb-y.hosting.stackcp.net` |
 
+## Activity Log — full audit + revert capability (added 11 April 2026)
+
+Goal (Ross's words): "full audit capability so when a user says 'I didn't do that, the system is broken' we can then find out the reality." Plus: ability to **reverse** a past change from the log without erasing history.
+
+Inline field-level diff view on the activity log list is already shipped (v0.9.2-dev, 11 April 2026). The four items below are the remaining pieces.
+
+| # | Item | Effort | Priority | What it does (plain English) |
+|---|------|--------|----------|------------------------------|
+| A1 | **Audit sweep — coverage gap report** | **S** (~½ session, read-only) | HIGH | I read every part of the app that changes data and give Ross a plain list: "these actions are logged, these aren't." No code changes. Ross decides which gaps to close. |
+| A2 | **Level 1 — Single-field revert** | **S** (~1 session) | HIGH | From any log entry, a "Revert this field" button next to each change. Sets that one field back to what it was. Writes a new log entry saying who reverted it and when. Refuses to revert if the field has been changed again since — shows a warning instead. Covers ~80% of real "undo" needs. |
+| A3 | **Level 2 — Restore whole record to a point in time** | **M** (~1–2 sessions) | MEDIUM | From any log entry, a "Restore record to this point" button. Shows a preview of what will change, warns loudly if there have been intermediate edits (they'll be lost), then writes a single rollback log entry. Riskier than Level 1 — gated to a dedicated role. |
+| A4 | **Level 3 — Undelete** | **M** (~1–2 sessions + small schema decision) | MEDIUM | Bring back a record that was deleted (e.g. an enquiry or user). Requires the logger to save the full record at delete time from now on — **only works for things deleted AFTER we turn this on**. Things deleted before are not recoverable this way. Related/child records may or may not come back depending on how they were linked. |
+
+**Order:** A1 first (cheap, tells us where the holes are). Then A2, A3, A4 in sequence, each committed and deployed independently so Ross can test before moving on.
+
+**Storage note:** Ross asked whether growing the log forever is OK. Answer: yes. A log entry is a few hundred bytes — even at thousands of changes a day, that's ~30–50 MB per year of database growth. Worth adding a retention policy (e.g. auto-archive > 2 years old) at some point for GDPR comfort, not urgent.
+
 ## Person Database Build (added 10 April 2026)
 
 Decisions locked in this session for unifying student/caregiver into a single Person record:
