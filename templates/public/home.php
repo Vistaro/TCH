@@ -36,7 +36,7 @@ if (!$region) {
 
 // Pull live caregiver/client counts for the stats bar
 $pipelineCount = (int)$db->query(
-    "SELECT COUNT(*) FROM caregivers"
+    "SELECT COUNT(*) FROM persons WHERE FIND_IN_SET('caregiver', person_type)"
 )->fetchColumn();
 $clientCount = (int)$db->query(
     "SELECT COUNT(*) FROM clients WHERE status = 'Active'"

@@ -16,11 +16,13 @@ $stats = [
 ];
 
 try {
-    $stats['caregivers']     = (int)$db->query('SELECT COUNT(*) FROM caregivers')->fetchColumn();
+    $stats['caregivers']     = (int)$db->query(
+        "SELECT COUNT(*) FROM persons WHERE FIND_IN_SET('caregiver', person_type)"
+    )->fetchColumn();
     $stats['placed']         = (int)$db->query(
-        "SELECT COUNT(*) FROM caregivers cg
+        "SELECT COUNT(*) FROM persons cg
          JOIN person_statuses ps ON ps.id = cg.status_id
-         WHERE ps.code = 'placed'"
+         WHERE FIND_IN_SET('caregiver', cg.person_type) AND ps.code = 'placed'"
     )->fetchColumn();
     $stats['clients']        = (int)$db->query('SELECT COUNT(*) FROM clients')->fetchColumn();
     $stats['active_clients'] = (int)$db->query("SELECT COUNT(*) FROM clients WHERE status = 'Active'")->fetchColumn();

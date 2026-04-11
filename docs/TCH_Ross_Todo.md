@@ -36,6 +36,19 @@
 | 7 | **Review and confirm vision doc** | MEDIUM | `docs/TCH_Platform_Vision.md` — read through, flag anything wrong |
 | 8 | **Review and confirm build plan** | MEDIUM | `docs/TCH_Plan.md` — check priority order makes sense |
 
+## Data Quality — post-dedup follow-ups (added 2026-04-11)
+
+| # | Item | Notes |
+|---|------|-------|
+| DQ1 | **id=47 Morrison — R0 total income, 2 revenue rows** | Flagged during patient dedup Round 2 (2026-04-11). The two revenue rows attached to `clients.id = 47 "Morrison"` sum to R0.00. Either genuinely zero-value data from ingest or an import bug. Investigate before we trust any report that filters by client income > 0. |
+| DQ2 | **Slash-split client/patient rows may be wrong** | During the patient-name backfill (2026-04-11), 7 client rows with "X / Y" naming were split into client=before-slash, patient=after-slash. Known-rough case: id=5 "Angela / Dimitri Papadopoulos" almost certainly means Angela Papadopoulos + Dimitri Papadopoulos (shared surname lost on the client side). Other candidates: ids 4, 7, 21, 24, 25, 53. These need human review and correction via the edit-relationship UI once it exists. |
+
+## UI requirements — queued for the person-record edit screen
+
+| # | Item | Notes |
+|---|------|-------|
+| UI1 | **Edit client ↔ patient relationship from the Patient record** | On the patient edit screen, show "Billed to: [Client name]" with an edit control so the billing relationship can be changed. Applies both to the current one-record-is-both-client-and-patient rows and to the split rows from DQ2. Becomes genuinely multi-record when a corporate Client pays for multiple Patients. Build when we first need to correct one of the DQ2 rows. |
+
 ## Ongoing
 
 | # | Item | Notes |

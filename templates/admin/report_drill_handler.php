@@ -74,7 +74,7 @@ $monthEnd   = (new DateTimeImmutable($monthStart))
 // with a caregiver_name fallback as defence-in-depth.
 if ($report === 'earnings' || $report === 'days') {
     // Look up the caregiver's canonical name in case we need the fallback
-    $cgName = $db->prepare('SELECT full_name FROM caregivers WHERE id = ?');
+    $cgName = $db->prepare('SELECT full_name FROM persons WHERE id = ?');
     $cgName->execute([$entityId]);
     $caregiverName = (string)($cgName->fetchColumn() ?: '');
 

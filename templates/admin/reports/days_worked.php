@@ -36,7 +36,7 @@ $lastMonth  = $anchor->modify('last day of this month')->format('Y-m-d');
 
 // ── Tranche pre-filter (server-side) ────────────────────────────────────
 $tranches = $db->query(
-    "SELECT DISTINCT tranche FROM caregivers WHERE tranche IS NOT NULL AND tranche != '' ORDER BY tranche"
+    "SELECT DISTINCT tranche FROM persons WHERE tranche IS NOT NULL AND tranche != '' ORDER BY tranche"
 )->fetchAll(PDO::FETCH_COLUMN);
 
 $filterTranche = $_GET['tranche'] ?? '';
@@ -55,7 +55,7 @@ $sql = "SELECT dr.caregiver_id,
                COUNT(*) AS days_worked,
                cg.tranche
         FROM daily_roster dr
-        LEFT JOIN caregivers cg ON dr.caregiver_id = cg.id
+        LEFT JOIN persons cg ON dr.caregiver_id = cg.id
         WHERE dr.roster_date >= ? AND dr.roster_date <= ?
               $extraWhere
         GROUP BY dr.caregiver_id, dr.caregiver_name, month_key, cg.tranche

@@ -43,7 +43,7 @@ $lastMonth  = $anchor->format('Y-m-01');
 
 // ── Server-side pre-filter (tranche dropdown) ───────────────────────────
 $tranches = $db->query(
-    "SELECT DISTINCT tranche FROM caregivers WHERE tranche IS NOT NULL AND tranche != '' ORDER BY tranche"
+    "SELECT DISTINCT tranche FROM persons WHERE tranche IS NOT NULL AND tranche != '' ORDER BY tranche"
 )->fetchAll(PDO::FETCH_COLUMN);
 
 $filterTranche = $_GET['tranche'] ?? '';
@@ -61,7 +61,7 @@ if ($filterTranche !== '') {
 $sql = "SELECT cc.caregiver_id, cc.caregiver_name, cc.month_date, cc.amount, cc.days_worked,
                cg.tranche
         FROM caregiver_costs cc
-        LEFT JOIN caregivers cg ON cc.caregiver_id = cg.id
+        LEFT JOIN persons cg ON cc.caregiver_id = cg.id
         WHERE cc.month_date >= ? AND cc.month_date <= ?
               $extraWhere
         ORDER BY cc.caregiver_name, cc.month_date";

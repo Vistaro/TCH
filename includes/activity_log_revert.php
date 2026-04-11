@@ -41,8 +41,23 @@ function activity_revert_supported_entity_types(): array {
     return [
         'users'       => ['table' => 'users',       'pk' => 'id'],
         'enquiries'   => ['table' => 'enquiries',   'pk' => 'id'],
-        'caregivers'  => ['table' => 'caregivers',  'pk' => 'id'],
+        // Both 'caregivers' and 'persons' are listed: the `caregivers`
+        // table is being renamed to `persons` in migration 006. Until
+        // that migration runs, the server sees the old table name;
+        // after it runs, the new name. Keeping both lets this file
+        // deploy safely both before AND after the migration. Dead
+        // entries do no harm (nothing selects by entity_type that
+        // doesn't also match a real row). Remove 'caregivers' once
+        // migration 006 is live and any residual code paths have been
+        // cleared.
+        'caregivers'  => ['table' => 'caregivers', 'pk' => 'id'],
+        'persons'     => ['table' => 'persons',    'pk' => 'id'],
         'name_lookup' => ['table' => 'name_lookup', 'pk' => 'id'],
+        // 'clients' is on the whitelist TEMPORARILY for the patient dedup
+        // exercise (see database/seeds/dedup_clients.php). Remove once
+        // migration 007 drops the clients table and the data has moved
+        // into persons.
+        'clients'     => ['table' => 'clients',    'pk' => 'id'],
     ];
 }
 

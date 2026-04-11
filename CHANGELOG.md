@@ -2,6 +2,165 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.10-dev] - 2026-04-11
+
+### Added — Persons unification + universal Activities & Tasks timeline
+
+**Migration 006** (`database/006_persons_unification.sql`), wrapped in
+a single transaction with an inline rollback block:
+
+- `RENAME TABLE caregivers TO persons`. InnoDB silently re-targets
+  every FK that referenced `caregivers(id)` — specifically:
+  `caregiver_banking`, `caregiver_costs`, `caregiver_rate_history`,
+  `daily_roster`, `name_lookup`, `attachments`. Column names on those
+  tables (e.g. `daily_roster.caregiver_id`) are **intentionally left
+  as-is** because they describe the *role* the person plays in that
+  relationship, not the table they live in.
+- `ADD COLUMN person_type SET('patient','caregiver','client') NOT NULL
+  DEFAULT 'caregiver'` on `persons`. SET (not ENUM) so one row can hold
+  multiple labels — in particular today's patients are also their own
+  clients until a corporate payer arrives, so they will be marked
+  `'patient,client'` in migration 007. Existing 140 caregiver rows
+  backfill as `'caregiver'` via the DEFAULT.
+- `CREATE TABLE activity_types` — lookup table (NOT an enum) so new
+  activity types can be added by an admin via the config UI without
+  a migration. Schema copied verbatim from Nexus CRM for cross-product
+  alignment (see mailbox thread `activities-tasks-schema-2026-04-11`).
+  Seven seed rows: Email, Phone Call, Meeting, Demo, Follow-up, Note
+  (six Nexus-canonical) + System (TCH-specific, for auto-generated
+  timeline entries).
+- `CREATE TABLE activities` — universal Activities & Tasks timeline,
+  polymorphic via `entity_type ENUM('persons','enquiries') + entity_id`.
+  Schema matches Nexus CRM exactly: `activity_type_id` FK,
+  `user_id` (author), `subject`, `notes` (body, NOT a JSON blob),
+  `activity_date` (doubles as due date when `is_task=1`), `is_task`,
+  `task_status ENUM('pending','completed','cancelled')`, `assigned_to`,
+  `completed_at`, `is_test_data`, plus the usual timestamps.
+- New admin page `config_activity_types` registered in `pages`
+  (section=admin, sort_order=250) with Super Admin CRUD granted.
+  The UI handler for this page is NOT in this release — the page
+  row exists so the migration can wire permissions, the actual
+  `/admin/config/activity-types` screen is queued for next session.
+
+### Changed — Code aligned with new schema
+
+Eleven files had every `FROM`/`JOIN`/`INTO`/`UPDATE caregivers`
+switched to `persons`. Comments, marketing copy on `templates/public/
+home.php`, terminal echo messages in seed scripts, and internal PHP
+array labels (e.g. `$stats['caregivers']`) were deliberately left as-is
+— only SQL fragments changed. Historical migrations (001, 003*, 004,
+005) were NOT touched, per the standing rule that migration files are
+frozen records of what was applied at the time.
+
+| File | Change |
+|---|---|
+| `includes/activity_log_revert.php` | Whitelist for the single-field-revert / undelete helpers gains `'persons'` and `'clients'`. Keeps `'caregivers'` alongside for the brief cutover window; remove once confident no code path still passes that entity_type. `'clients'` is on the whitelist TEMPORARILY for the patient dedup exercise (see below) — remove when migration 007 drops the `clients` table. |
+| `includes/permissions.php` | `getVisibleCaregiverIds()` now filters `WHERE FIND_IN_SET('caregiver', person_type)` so admins querying "all caregivers" don't accidentally pick up patient/client rows after the unification. |
+| `database/seeds/ingest.php` | `INSERT INTO persons` (person_type defaults to 'caregiver'); `UPDATE persons SET standard_daily_rate`. Comment at top still references legacy schema history — left as-is. |
+| `database/seeds/reconcile.php` | `LEFT JOIN persons cg ON dr.caregiver_id = cg.id` |
+| `templates/admin/dashboard.php` | Total caregivers + placed-count queries filtered by `FIND_IN_SET('caregiver', person_type)` |
+| `templates/admin/names.php` | Name Reconciliation page JOIN |
+| `templates/admin/people_review.php` | 2× UPDATE, 2× FROM, logActivity entity_type changed from `'caregivers'` to `'persons'`, tranche dropdown, pending count |
+| `templates/admin/report_drill_handler.php` | Drill-down caregiver name lookup |
+| `templates/admin/reports/caregiver_earnings.php` | Tranche dropdown + JOIN |
+| `templates/admin/reports/days_worked.php` | Tranche dropdown + JOIN |
+| `templates/public/home.php` | Public homepage caregiver count filtered by `person_type` |
+
+### Added — Patient dedup exercise (data cleanup, already executed)
+
+Four one-shot helper scripts under `database/seeds/`, all already
+run against the shared dev/prod DB during this session. They stay in
+git as a historical record of what changed, not for re-use:
+
+- `dedup_clients.php` — the CLI merge helper. Takes `--loser`,
+  `--survivor`, `--reason`, optional `--survivor-name` (for same-step
+  renames), optional `--dry-run`. Wraps the merge in a transaction:
+  repoint `client_revenue.client_id` + `daily_roster.client_id` from
+  loser → survivor, optionally rename survivor, log the merge as
+  `client_merged`, then `activity_log_delete()` the loser so the full
+  row is captured in the audit log (undeletable). Used 13 times.
+- `dedup_recovery_2026-04-11.php` — one-shot recovery for a whitelist
+  bug that affected the first 2 merges: the local edit adding `'clients'`
+  to `activity_revert_supported_entity_types()` hadn't been deployed
+  to the server yet, so `activity_log_delete()` rejected both loser
+  rows. Result: `clients.id=3` ended up hard-deleted with no audit
+  entry; `clients.id=6` was repointed but the row sat orphaned. The
+  recovery script (a) backfilled a synthetic `record_deleted` audit
+  entry for id=3 reconstructed from the pre-dedup backup,
+  (b) properly deleted id=6 via the now-working helper, (c) no-op'd
+  the Papadopoulos rename (already done inside the original successful
+  transaction before the delete step failed).
+- `rename_clients_round2.php` — one-shot for five `client_renamed`
+  entries that don't involve a merge: typo fixes (Gildenhyus →
+  Gildenhuys, Ishaan/Elizabth → Ishaan/Elizabeth) and word-order /
+  suffix-strip cleanups (Oosthuizen- Weekly → Oosthuizen, Roux- Esme →
+  Esme Roux, Webb- Sonja → Sonja Webb).
+- `backfill_patient_names.php` — one-shot that populated every row
+  where `patient_name` was NULL, using the slash-split rule:
+  `"X / Y"` → client=X, patient=Y; everything else → patient=client.
+  48 rows touched (7 splits + 41 mirrors); 3 rows were already
+  non-NULL with genuine payer ≠ patient pairings (Berthe Botha /
+  Anne Botha, Darren Blumenthal / Diane Blumenthal, Julian Sam /
+  Sui Fon) and were left alone.
+
+**Net dedup result:** 64 → **51 clean clients**; 129 revenue rows
+preserved (0 orphans); 79 audit entries in `activity_log` with
+entity_type='clients' covering every mutation. Every loser row is
+recoverable via `activity_undelete()` from its `record_deleted`
+audit entry.
+
+### Pre-deploy backups (manual rollback artefacts)
+
+Two snapshots were taken on the server before migration 006 runs, so
+the dedup work is preserved if rollback is needed:
+
+- `~/public_html/dev-TCH/dev/database/backups/post_dedup_pre_migration_006_2026-04-11.sql`
+  — mysqldump of `caregivers` (140 rows), `clients` (51 clean rows),
+  `client_revenue`, `daily_roster`, `caregiver_banking`, `name_lookup`,
+  `caregiver_costs`, `caregiver_rate_history`, and `activity_log`.
+  428K, 406 lines.
+- `~/public_html/tch_backup_pre_persons_2026-04-11/` — full file-level
+  copy of the prod webroot (`cp -a`), 19MB. Used to roll back prod
+  code if the rsync + migration window exposes a bug.
+
+An earlier backup, `pre_persons_unification_2026-04-11.sql`, is also
+on disk and captures the state BEFORE the dedup exercise (64 clients,
+with duplicates). That's a fallback rollback point of last resort —
+restoring it would lose all the dedup work and is only appropriate
+if both migration 006 rollback AND the post-dedup backup fail to
+recover.
+
+### Docs
+
+- `docs/TCH_Ross_Todo.md`: new sections **Data Quality** (DQ1 id=47
+  Morrison R0 income investigation, DQ2 seven slash-split rows needing
+  human review) and **UI Requirements** (UI1 edit-client↔patient
+  relationship on the patient record screen).
+- `_global/keys/web-logins.md`: TCH section added (PROD SSH host,
+  webroots, DB creds, `.env`-parsing caveat).
+
+### Nexus CRM alignment
+
+The `activities` + `activity_types` schema was derived by a mailbox
+exchange with the Nexus CRM agent earlier in this session (thread
+`activities-tasks-schema-2026-04-11` in
+`_global/output/agent-messages/`). Field names, enum values, and seed
+activity-type rows all match Nexus CRM verbatim so future shared
+tooling — e.g. the centralised reporter widget on the Hub
+(FR-0065) — can target one canonical schema across both products.
+
+### NOT in this release (queued)
+
+- Admin UI for `/admin/config/activity-types` CRUD
+- Admin UI for creating / logging activities & tasks on persons
+- Timeline rendering on the person detail page (unified view of
+  `activities` + `activity_log` entries scoped to that person)
+- Migration 007 — moving the 51 clean clients into `persons` as
+  `person_type='patient,client'`, repointing `client_revenue.client_id`
+  + `daily_roster.client_id` to new person IDs, and renaming `clients`
+  to `clients_deprecated_2026_04_xx` (NOT dropping, per Ross's safety
+  instinct)
+
 ## [0.9.9.2] - 2026-04-11 — SHIPPED TO PROD
 
 ### Prod deploy

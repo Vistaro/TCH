@@ -216,7 +216,7 @@ foreach ($db->query("SELECT id, code FROM person_statuses") as $r) {
 }
 
 $cgStmt = $db->prepare(
-    'INSERT INTO caregivers (full_name, student_id, known_as, tranche, gender, dob, nationality,
+    'INSERT INTO persons (full_name, student_id, known_as, tranche, gender, dob, nationality,
      id_passport, home_language, other_language, mobile, email, street_address, suburb, city, province,
      postal_code, nok_name, nok_relationship, nok_contact, course_start, available_from, avg_score,
      qualified, total_billed, status_id, import_notes)
@@ -699,7 +699,7 @@ foreach ($rateQuery->fetchAll() as $rr) {
     $rateCount++;
 
     // Also update the caregiver's standard_daily_rate to the most recent rate
-    $db->prepare('UPDATE caregivers SET standard_daily_rate = ? WHERE id = ?')
+    $db->prepare('UPDATE persons SET standard_daily_rate = ? WHERE id = ?')
        ->execute([$rr['daily_rate'], $rr['caregiver_id']]);
 }
 echo "  Inserted $rateCount rate history records\n";

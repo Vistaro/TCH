@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
 
     if ($personId > 0 && in_array($action, ['approve', 'reject'], true) && userCan('people_review', 'edit')) {
         $newState = $action === 'approve' ? null : 'rejected';
-        $stmt = $db->prepare('UPDATE caregivers SET import_review_state = ? WHERE id = ?');
+        $stmt = $db->prepare('UPDATE persons SET import_review_state = ? WHERE id = ?');
         $stmt->execute([$newState, $personId]);
 
         // Append an audit line to import_notes
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
             date('Y-m-d H:i:s')
         );
         $stmt = $db->prepare(
-            "UPDATE caregivers
+            "UPDATE persons
              SET import_notes = CONCAT_WS('\n\n', NULLIF(import_notes, ''), ?)
              WHERE id = ?"
         );
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
         logActivity(
             $action === 'approve' ? 'person_approved' : 'person_rejected',
             'people_review',
-            'caregivers',
+            'persons',
             $personId,
             ucfirst($action) . " caregiver #" . $personId,
             ['import_review_state' => 'pending'],
@@ -74,7 +74,7 @@ if ($detailId > 0) {
         "SELECT cg.*,
                 ps.label AS status_label,
                 ls.label AS lead_source_label
-         FROM caregivers cg
+         FROM persons cg
          LEFT JOIN person_statuses ps ON ps.id = cg.status_id
          LEFT JOIN lead_sources    ls ON ls.id = cg.lead_source_id
          WHERE cg.id = ?"
@@ -289,7 +289,7 @@ $sql = "SELECT cg.id, cg.tch_id, cg.full_name, cg.known_as, cg.student_id, cg.tr
                cg.import_notes IS NOT NULL AND cg.import_notes != '' AS has_notes,
                (SELECT COUNT(*) FROM attachments a
                 WHERE a.person_id = cg.id AND a.is_active = 1) AS attachment_count
-        FROM caregivers cg
+        FROM persons cg
         $whereSQL
         ORDER BY cg.tranche, cg.id";
 $stmt = $db->prepare($sql);
@@ -297,13 +297,13 @@ $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
 $tranches = $db->query(
-    "SELECT DISTINCT tranche FROM caregivers
+    "SELECT DISTINCT tranche FROM persons
      WHERE import_review_state = 'pending' AND tranche IS NOT NULL
      ORDER BY tranche"
 )->fetchAll(PDO::FETCH_COLUMN);
 
 $totalPending = (int)$db->query(
-    "SELECT COUNT(*) FROM caregivers WHERE import_review_state = 'pending'"
+    "SELECT COUNT(*) FROM persons WHERE import_review_state = 'pending'"
 )->fetchColumn();
 
 require APP_ROOT . '/templates/layouts/admin.php';

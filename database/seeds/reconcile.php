@@ -223,7 +223,7 @@ $rateIssues = $db->query(
             MIN(dr.daily_rate) AS min_rate, MAX(dr.daily_rate) AS max_rate,
             COUNT(DISTINCT dr.daily_rate) AS distinct_rates
      FROM daily_roster dr
-     LEFT JOIN caregivers cg ON dr.caregiver_id = cg.id
+     LEFT JOIN persons cg ON dr.caregiver_id = cg.id
      WHERE cg.standard_daily_rate IS NOT NULL
      GROUP BY dr.caregiver_name, cg.standard_daily_rate
      HAVING COUNT(DISTINCT dr.daily_rate) > 1
