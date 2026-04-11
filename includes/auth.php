@@ -166,12 +166,19 @@ function attemptLogin(string $email, string $password): array|false {
         logLoginAttempt($email, false);
         // Audit: every wrong-password attempt gets a log entry with the
         // failed-count bumped in the diff. Actor is anonymous (pre-session).
+        // Super Admins (role_id 1) are exempt from the lockout counter per
+        // spec, so their attempts always show $newCount = 0. Give them a
+        // different summary so the audit log reads sensibly instead of
+        // "attempt 0".
+        $summaryMsg = ((int)$user['role_id'] === 1)
+            ? 'Failed login for ' . $email . ' (wrong password; Super Admin — no lockout)'
+            : 'Failed login for ' . $email . ' (wrong password, attempt ' . $newCount . ')';
         logActivity(
             'login_failed',
             null,
             'users',
             (int)$user['id'],
-            'Failed login for ' . $email . ' (wrong password, attempt ' . $newCount . ')',
+            $summaryMsg,
             ['failed_login_count' => $oldCount],
             ['failed_login_count' => $newCount]
         );
