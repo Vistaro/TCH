@@ -2,6 +2,89 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.9.2] - 2026-04-11 — SHIPPED TO PROD
+
+### Prod deploy
+
+**Production deploy of v0.9.2-dev through v0.9.9.2-dev as a single
+block of eleven dev increments built across one long working session.**
+
+This deploy brings to prod:
+- Inline field-level diff viewer on the activity log list
+- Failed logins, account lockouts, and email sends now logged to
+  `activity_log`
+- Single-field revert from the activity log detail page (A2)
+- Whole-record rollback with preview (A3)
+- Undelete infrastructure + `activity_log_delete()` helper (A4)
+- In-app Bug/FR reporter widget proxying to the Nexus Hub, with
+  confirmation email and activity log integration
+- Short description field on the reporter widget
+- Shared sortable + filterable table component (`tch-data-table`)
+  applied to every admin list page
+- Three matrix reports (caregiver earnings, client billing, days
+  worked) rebuilt as caregiver/client x 12-month grids with click-
+  through drill-down
+- Drill-down honest empty state for the 78% of clients whose roster
+  entries can't be linked yet (tracked as FR-0069)
+
+Full detail: `docs/sessions/2026-04-11-prod-deploy-v0.9.9.2.md`
+
+### Pre-deploy state
+
+- Dev branch at `b8d0671` (v0.9.9.2-dev)
+- Main branch at `966755a` (v0.9.1)
+- 12 commits on dev not yet on main
+- No schema migrations, no DB table backup needed
+
+### Deploy steps executed
+
+1. **Server-side prod files backup:**
+   `cp -a ~/public_html/tch ~/public_html/tch_backup_pre_v0.9.9.2_20260411_131926`
+   (19MB)
+
+2. **Git: fast-forward main, tag, push** — 12 commits merged as a
+   single block via `git merge dev --ff-only`, tagged `v0.9.9.2`,
+   both pushed to GitHub.
+
+3. **Prod `.env` updated** — added `NEXUS_HUB_URL`,
+   `NEXUS_HUB_PROJECT_SLUG`, and `NEXUS_HUB_TOKEN` (the same
+   TCH-scoped token used on dev). Same file is gitignored and was
+   NOT rsynced.
+
+4. **Server-side rsync** `~/public_html/dev-TCH/dev/` →
+   `~/public_html/tch/` (excluding `.env`, `.git/`, backups,
+   intake outputs). 35 files transferred, ~330KB.
+
+5. **Server-side `php -l` clean** on every PHP file touched
+   (16 files).
+
+6. **Smoke tests on prod** (`https://tch.intelligentae.co.uk`):
+   - `/` → 200
+   - `/login` → 200
+   - `/admin` → 302 (redirects unauth'd users to login)
+   - `POST /ajax/report-issue` → 401 (auth gate working)
+
+### Outstanding post-deploy actions for Ross
+
+1. **Purge CDN cache** on StackCP > CDN > Edge Caching so anonymous
+   users hit the latest CSS/JS.
+2. **Test A1.5, A2, A3, A4 on prod** — these features didn't get a
+   full browser smoke test on dev before shipping (they lint clean
+   and are defensive / click-triggered, so the risk was judged
+   acceptable).
+
+### Rollback
+
+Server-side rollback (non-destructive):
+```
+rsync -av --delete --exclude='.env' \
+  ~/public_html/tch_backup_pre_v0.9.9.2_20260411_131926/ \
+  ~/public_html/tch/
+```
+
+Git rollback (requires Ross's explicit approval) — reset main to
+`966755a`, force-push, delete the `v0.9.9.2` tag.
+
 ## [0.9.9-dev] - 2026-04-11
 
 ### Added — Shared sortable/filterable table component + matrix reports (FR-0056, FR-0057, FR-0066)
