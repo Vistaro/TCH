@@ -1,11 +1,17 @@
 RewriteEngine On
 
-# Disable caching during development — remove these lines for production
-<IfModule mod_headers.c>
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
-</IfModule>
+# Cache headers are now controlled by PHP on a per-request basis:
+# - Dynamic pages call initSession() which triggers PHP's session cache
+#   limiter (default 'nocache' mode) — emits no-cache/no-store on
+#   session-bound HTML responses, which is correct for admin pages
+# - Static assets (CSS, JS, images) are cache-busted via ?v=<filemtime>
+#   query strings in templates/layouts/header.php and admin_footer.php,
+#   so each deploy's asset URLs are unique and the CDN treats them as
+#   new resources automatically
+# - The previous Apache-level "Header set Cache-Control no-cache" block
+#   was originally added for local development to force browser reloads;
+#   it was carried into prod accidentally and defeated browser + CDN
+#   caching entirely. Removed on 2026-04-11 as part of BUG-0035 fix.
 
 # If not a real file or directory, route to index.php
 RewriteCond %{REQUEST_FILENAME} !-f
