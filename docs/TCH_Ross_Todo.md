@@ -57,8 +57,10 @@ markdown notes in this todo doc.
 |---|------|--------|-------|
 | B1 | **Widget + server proxy + activity log integration** | **DONE 2026-04-11** (v0.9.7-dev) | Floating Help button bottom-right on every admin page → slide-in panel → POST to `/ajax/report-issue` → Hub API. Duplicate detection, confirmation email, activity log entry. Graceful failure if Hub unreachable. |
 | B2 | **Ross provides the Hub API token** | PENDING | Log into Hub as Super Admin → `?page=tokens&action=create` → label `TCH Agent`, scope to `tch` project → copy the plain token once → paste to Claude → Claude pastes it into the dev server's `.env` and smoke tests end-to-end. |
-| B3 | **Migrate existing TCH bugs/FRs off markdown and onto the Hub** | PENDING | Before retiring `docs/TCH_Ross_Todo.md` as a bug/FR source, port any items in it (and `docs/TCH_Plan.md`) that are really bugs or feature requests (not blockers) into the Hub. Keep planning-type items in the markdown. |
+| ~~B3~~ | ~~**Migrate existing TCH bugs/FRs off markdown and onto the Hub**~~ | **DONE 2026-04-11** | Seven Person Database FRs migrated to the Hub as FR-0058 through FR-0064. Blockers-waiting-on-Ross stay in this file (they aren't bugs/FRs). The Tuniti data-quality list (~30 items) also stays in this file as a shared checklist for handover to Tuniti — it isn't TCH backlog. |
 | B4 | **Standing practice: review Hub backlog at start of every session** | ONGOING | From now on every TCH session begins with Ross + Claude reviewing the open items in the Hub's TCH project to decide priorities. Recorded as a project memory so future sessions know to check. |
+| B5 | **Short-description field on the in-app reporter** | **DONE 2026-04-11** (v0.9.8-dev) | New one-line input above the long-description textarea. Optional. When set, it becomes the Hub ticket title verbatim. When blank, falls back to the auto-generated `[slug] Type: first-80-chars` style. Nexus CRM has been asked to mirror the same change via the agent mailbox. |
+| B6 | **Centralise the reporter widget on the Hub** | QUEUED ([FR-0065](https://hub.intelligentae.co.uk/?page=features&action=view&id=66)) | Host the widget CSS + JS on the Hub itself so all projects link to one canonical copy instead of duplicating the code. Trigger: before onboarding any third project to the in-app reporter. Filed on the TCH project on the Hub because TCH's API token is scoped to TCH only — but the work is for the Nexus Hub agent. |
 
 ## Activity Log — full audit + revert capability (added 11 April 2026)
 
@@ -78,20 +80,27 @@ Inline field-level diff view on the activity log list is already shipped (v0.9.2
 
 **Storage note:** Ross asked whether growing the log forever is OK. Answer: yes. A log entry is a few hundred bytes — even at thousands of changes a day, that's ~30–50 MB per year of database growth. Worth adding a retention policy (e.g. auto-archive > 2 years old) at some point for GDPR comfort, not urgent.
 
-## Person Database Build (added 10 April 2026)
+## Person Database Build (added 10 April 2026 — migrated to Hub 2026-04-11)
 
-Decisions locked in this session for unifying student/caregiver into a single Person record:
+Decisions locked for unifying student/caregiver into a single Person record.
 
-| # | Item | Priority | Notes |
-|---|------|----------|-------|
-| 11 | **System config admin page** | MEDIUM | One UI to manage all lookup lists: `person_statuses`, `lead_sources`, `attachment_types`, future `relationships`, etc. Replaces hard-coded ENUMs. |
-| 12 | **Status promotion gates** | MEDIUM | Define required-fields-per-status and enforce in app layer when status is changed (e.g. cannot move to `Qualified` without DOB, ID number, course completion). DB stays permissive. |
-| 13 | **Referrer / affiliate model** | LOW (build later) | When `lead_source = Referral`, capture who referred them. Future-proof for incentive payments. Today: free-text `referred_by_name` + `referred_by_contact` on the person record. Later: full referrer table + payout tracking. |
-| 14 | **Field-level role-based edit permissions** | MEDIUM | Per-field edit/view rules based on user role. E.g. only finance role can edit banking, only admin can change `tch_id`. |
-| 15 | **Person record card view** | HIGH (this build) | Card view styled to mirror the Tuniti PDF intake page: photo top-left, two columns of structured fields, NoK block, attachments list. Used for the import review screen and for the standard person profile screen. |
-| 16 | **Retire `name_lookup` table** | MEDIUM | Once all 9 PDFs imported and matched, backfill all legacy FKs (caregiver_costs, daily_roster, etc.) and drop `name_lookup`. End state = single canonical person record, no name strings used as identity anywhere. |
-| 17 | **`tch_id` immutable identifier** | DONE in migration 003 | Format `TCH-000001`. Auto-assigned on insert. Used in URLs and as the human-facing person identifier. Survives marriage / name changes. |
-| 18 | **Replace placeholder portraits with full-quality photos** | LOW | Current portraits are crops from the Tuniti intake PDFs — adequate but low resolution. Source higher-quality originals from Tuniti or re-photograph. Each replacement lands as a NEW `profile_photo` attachment (history preserved). |
+**Items 11–16 and 18 have been migrated to the Nexus Hub as feature requests** (2026-04-11, B3). They are no longer tracked in this file — view the current backlog on the Hub:
+
+| Old # | Hub ref | Priority | Title |
+|-------|---------|----------|-------|
+| 11 | [FR-0059](https://hub.intelligentae.co.uk/?page=features&action=view&id=60) | medium | System config admin page for all lookup lists |
+| 12 | [FR-0060](https://hub.intelligentae.co.uk/?page=features&action=view&id=61) | medium | Status promotion gates (required fields per status) |
+| 13 | [FR-0063](https://hub.intelligentae.co.uk/?page=features&action=view&id=64) | low | Referrer / affiliate model for paid referrals |
+| 14 | [FR-0061](https://hub.intelligentae.co.uk/?page=features&action=view&id=62) | medium | Field-level role-based edit permissions |
+| 15 | [FR-0058](https://hub.intelligentae.co.uk/?page=features&action=view&id=59) | **high** | Person record card view matching Tuniti PDF layout |
+| 16 | [FR-0062](https://hub.intelligentae.co.uk/?page=features&action=view&id=63) | medium | Retire name_lookup table once all PDFs matched |
+| 18 | [FR-0064](https://hub.intelligentae.co.uk/?page=features&action=view&id=65) | low | Replace placeholder portraits with full-quality photos |
+
+**Item 17** stays here as historical context (it was done in migration 003):
+
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 17 | **`tch_id` immutable identifier** | **DONE** in migration 003 | Format `TCH-000001`. Auto-assigned on insert. Used in URLs and as the human-facing person identifier. Survives marriage / name changes. |
 
 ## Locked Build Plan: User Management + RBAC + Audit + Impersonation
 

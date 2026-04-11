@@ -77,13 +77,14 @@ if (!is_array($input)) {
     exit;
 }
 
-$type        = in_array($input['type'] ?? '', ['bug', 'feature'], true) ? $input['type'] : 'bug';
-$severity    = in_array($input['severity'] ?? '', ['fatal', 'improvement'], true) ? $input['severity'] : 'improvement';
-$description = trim(substr((string)($input['description'] ?? ''), 0, 2000));
-$pageSlug    = trim(substr((string)($input['page_slug']   ?? ''), 0, 100));
-$pageUrl     = trim(substr((string)($input['page_url']    ?? ''), 0, 500));
-$pageTitle   = trim(substr((string)($input['page_title']  ?? ''), 0, 200));
-$forceSubmit = !empty($input['force']);
+$type             = in_array($input['type'] ?? '', ['bug', 'feature'], true) ? $input['type'] : 'bug';
+$severity         = in_array($input['severity'] ?? '', ['fatal', 'improvement'], true) ? $input['severity'] : 'improvement';
+$shortDescription = trim(substr((string)($input['short_description'] ?? ''), 0, 140));
+$description      = trim(substr((string)($input['description']       ?? ''), 0, 2000));
+$pageSlug         = trim(substr((string)($input['page_slug']          ?? ''), 0, 100));
+$pageUrl          = trim(substr((string)($input['page_url']           ?? ''), 0, 500));
+$pageTitle        = trim(substr((string)($input['page_title']         ?? ''), 0, 200));
+$forceSubmit      = !empty($input['force']);
 
 // ── Hub configuration ───────────────────────────────────────────────────
 $hubUrl   = defined('NEXUS_HUB_URL')          ? rtrim(NEXUS_HUB_URL, '/') : '';
@@ -170,11 +171,19 @@ $severityLabel = ($severity === 'fatal') ? '🔴 Fatal' : '🔵 Improvement';
 $typeLabel     = ($type === 'bug') ? 'Bug' : 'Feature Request';
 $pageLabel     = $pageTitle !== '' ? $pageTitle : ($pageSlug !== '' ? $pageSlug : 'Unknown page');
 
-// Title format: [slug] Type: first-80-chars-of-description
-$descSnippet = $description !== ''
-    ? (mb_strlen($description) > 80 ? mb_substr($description, 0, 77) . '...' : $description)
-    : "{$typeLabel} reported on {$pageLabel}";
-$title = "[{$pageSlug}] {$typeLabel}: {$descSnippet}";
+// Title: prefer the user's one-line short description if they filled it
+// in. If they didn't, fall back to the auto-generated
+// "[slug] Type: first-80-chars-of-description" style. Keeping the pageSlug
+// prefix in both paths preserves the duplicate-detection logic on the
+// server (dup check matches on "[slug]" in the title).
+if ($shortDescription !== '') {
+    $title = "[{$pageSlug}] {$shortDescription}";
+} else {
+    $descSnippet = $description !== ''
+        ? (mb_strlen($description) > 80 ? mb_substr($description, 0, 77) . '...' : $description)
+        : "{$typeLabel} reported on {$pageLabel}";
+    $title = "[{$pageSlug}] {$typeLabel}: {$descSnippet}";
+}
 
 $userName = trim($user['full_name'] ?? $user['email'] ?? '(unknown)');
 $roleName = $user['role_name'] ?? $user['role_slug'] ?? ($user['role'] ?? 'Unknown');
@@ -247,12 +256,13 @@ logActivity(
     "Submitted {$ref} ({$typeLabel}, {$severity}) from {$pageLabel}",
     null,
     [
-        'ref'       => $ref,
-        'hub_id'    => $hubId,
-        'type'      => $type,
-        'severity'  => $severity,
-        'page_slug' => $pageSlug,
-        'issue_url' => $issueUrl,
+        'ref'               => $ref,
+        'hub_id'            => $hubId,
+        'type'              => $type,
+        'severity'          => $severity,
+        'short_description' => $shortDescription,
+        'page_slug'         => $pageSlug,
+        'issue_url'         => $issueUrl,
     ]
 );
 

@@ -2,6 +2,174 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.8-dev] - 2026-04-11
+
+### Added — Short description field on the in-app reporter + B3 migration
+
+Two threads merged into a single commit:
+
+**1. Short description field on the reporter widget (B5)**
+
+Ross asked for a one-line short-description field on the reporter so
+the submitter controls the Hub ticket title explicitly, instead of the
+handler auto-generating it from the first 80 chars of the long
+description.
+
+What the user sees: a new single-line text input **above** the long
+description textarea, labelled **"Short description"** with the hint
+`(optional — this becomes the Hub title)`. 140-char max. Optional —
+when left blank, the handler falls back to the existing auto-generated
+`[slug] Type: first-80-chars-of-description` title format. When
+filled, the title on the Hub is exactly `[slug] {user's short
+description}` (keeping the `[slug]` prefix because the duplicate-
+detection logic matches on it).
+
+Also changed: the panel now focuses the **short description** input
+on open (instead of the long description textarea) because the short
+description is the most important field — user types a one-line title
+first and tabs into the textarea for more detail if they want.
+
+Files touched:
+- `public/assets/js/reporter.js` — new `<input>` element, new
+  reference in the init block, send value as `short_description` in
+  the POST payload, clear on reset, focus on panel open.
+- `public/assets/css/reporter.css` — merged the `textarea` and
+  `input[type="text"]` style rules so the new input visually matches
+  the textarea (border, padding, focus state, placeholder colour).
+- `templates/admin/report_issue_handler.php` — new `$shortDescription`
+  variable parsed from JSON body, length-capped at 140. Title-
+  building branch now prefers `$shortDescription` when set and falls
+  back to the auto-generated snippet otherwise. `short_description`
+  is also added to the `activity_log.after_json` so the TCH audit
+  trail preserves the user's exact wording.
+
+Nexus CRM's reporter does NOT have this field yet. A mailbox message
+has been sent to the Nexus CRM agent asking them to mirror the change
+locally. Until they do, the two projects' reporters will diverge — an
+acceptable trade-off given the centralisation FR (below) is already
+queued.
+
+**2. B3 — seven Person Database FRs migrated from docs to the Hub**
+
+Ross decided that from now on, every TCH bug and FR lives on the
+Nexus Hub, not in markdown checklists in `docs/`. As a one-off
+migration step, I scanned `docs/TCH_Ross_Todo.md` and
+`docs/TCH_Plan.md` for any items that were really bugs or FRs (not
+blockers, not planning items, not historical context) and ported
+them to the Hub via direct API POST.
+
+Source: the "Person Database Build" section of
+`docs/TCH_Ross_Todo.md`. Seven items migrated:
+
+| Old | Hub ref | Priority | Title |
+|-----|---------|----------|-------|
+| 11  | FR-0059 | medium   | System config admin page for all lookup lists |
+| 12  | FR-0060 | medium   | Status promotion gates (required fields per status) |
+| 13  | FR-0063 | low      | Referrer / affiliate model for paid referrals |
+| 14  | FR-0061 | medium   | Field-level role-based edit permissions |
+| 15  | FR-0058 | **high** | Person record card view matching Tuniti PDF layout |
+| 16  | FR-0062 | medium   | Retire name_lookup table once all PDFs matched |
+| 18  | FR-0064 | low      | Replace placeholder portraits with full-quality photos |
+
+Each FR carries a footer note stating it was migrated from the Todo
+doc on 2026-04-11 at Ross's request. The matching section in
+`docs/TCH_Ross_Todo.md` has been replaced with a link table pointing
+at the Hub refs — it's no longer a source of truth for these items,
+just a cross-reference.
+
+**What did NOT get migrated to the Hub, and why:**
+
+- **`docs/TCH_Plan.md` items** — that's a build-plan roadmap (phases
+  A/B/C/D), not a tracker. Stays as-is.
+- **"Blocking Next Session" / "Blocking Later Phases" items** — those
+  are waiting-on-Ross-for-data items (paper form, service list,
+  training data, etc.). Not bugs, not FRs, they're blockers. Stay as
+  a markdown checklist.
+- **"Requires Tuniti Approval / Clarification" (~30 items)** — data
+  defects in Tuniti's intake PDFs. TCH can't fix them; only Tuniti
+  can by re-issuing the forms. They're effectively reference notes
+  for me so I know what weird shapes to expect in the data.
+  Ross explicitly confirmed they stay in the markdown.
+- **Historical "done" sections (v0.7.0 → v0.9.1, A1–A4, etc.)** —
+  historical record of completed work. Stays.
+
+**3. B6 — FR-0065 queued on the Hub for centralising the widget**
+
+Filed an FR on the Hub: **FR-0065 — Centralise the in-app Bug/FR
+reporter widget on the Hub**, priority medium. The work is to host
+one canonical widget CSS + JS on the Hub itself so all projects link
+to it instead of duplicating the code.
+
+**Trigger:** BEFORE any third project is onboarded to the in-app
+reporter. TCH and Nexus CRM can tolerate two copies that drift
+slightly (we just proved it — v0.9.8-dev's short-description field
+will land in Nexus CRM shortly via the mailbox loop). A third copy
+is the breaking point.
+
+**FR-0065 is misfiled on the TCH project instead of the Nexus Hub
+project.** Reason: TCH's API token is scoped to TCH only. I can
+GET from any project (scope enforcement is loose on the list
+endpoints) but I can't POST into another project's backlog. Moving
+it to the nexus-hub project requires the Hub web UI and a Super
+Admin. Ross can do that at his convenience; not urgent.
+
+**Incidental Hub bug spotted:** I tried to PATCH FR-0065 to add a
+note in `implementation_notes`. The PATCH call returned empty body
+with no error, and the field remained null. Likely cause: the Hub's
+PATCH allowlist accepts `implementation_notes` as the body key but
+the actual DB column is `impl_notes` — so the UPDATE SET fails
+silently when MySQL doesn't find the column. This is a Nexus Hub
+bug, not TCH. Worth raising with the Hub agent.
+
+**Files touched in this commit:**
+
+- `public/assets/js/reporter.js` — short description field
+- `public/assets/css/reporter.css` — input + textarea style merge
+- `templates/admin/report_issue_handler.php` — title-building branch
+- `docs/TCH_Ross_Todo.md` — Person Database section replaced with
+  Hub cross-references; B3 marked done; B5 + B6 added
+- `CHANGELOG.md` — this entry
+
+**Mailbox activity (separate from the commit, lives outside the
+repo):**
+
+- `C:\ClaudeCode\_global\output\agent-messages\2026-04-11-1200-tch-to-nexus-crm-add-short-description-field.md`
+  — detailed change spec for Nexus CRM agent to mirror the short
+  description field in their reporter copy.
+
+### Deployment
+
+- Files uploaded to `~/public_html/dev-TCH/dev/` via scp.
+- Server-side `php -l` clean on the handler.
+- No schema migrations.
+- Not yet promoted to prod.
+
+## [0.9.7.1-dev] - 2026-04-11
+
+### Fixed — Reporter handler bugs caught in smoke test
+
+Two silent bugs in v0.9.7-dev's handler:
+
+1. Missing `initSession()` — handler was reading `$_SESSION` before PHP
+   had started the session, so `isLoggedIn()` always returned false and
+   every submission bounced with "Not authenticated" even from a valid
+   admin browser session. Fix: call `initSession()` at the top of the
+   handler.
+
+2. Missing `require_once includes/mailer.php` — the `Mailer` class
+   wasn't loaded when the handler ran, so `Mailer::send()` threw
+   "Class not found". The defensive try/catch around the email call
+   (which catches `Throwable`) swallowed the Error, so the Hub record
+   and activity log entry both landed but no email was sent and the
+   widget happily showed a success state. Fix: require the mailer at
+   the top of the handler, same pattern as every other handler that
+   uses it.
+
+Both bugs were caught only because I checked `email_log` directly
+after the smoke test and found nothing. The defensive patterns
+(graceful auth error, swallowed exception) masked the failures from
+the user-facing flow — which is exactly when silent misses happen.
+
 ## [0.9.7-dev] - 2026-04-11
 
 ### Added — In-app Bug/FR reporter → Nexus Hub

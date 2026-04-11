@@ -202,10 +202,9 @@
     font-weight: 400;
     color: #9CA3AF;
 }
-.tch-reporter-body textarea {
+.tch-reporter-body textarea,
+.tch-reporter-body input[type="text"] {
     width: 100%;
-    min-height: 90px;
-    resize: vertical;
     border: 1.5px solid #E5E7EB;
     border-radius: 6px;
     padding: 8px 10px;
@@ -215,11 +214,17 @@
     transition: border-color 0.2s ease;
     box-sizing: border-box;
 }
-.tch-reporter-body textarea:focus {
+.tch-reporter-body textarea {
+    min-height: 90px;
+    resize: vertical;
+}
+.tch-reporter-body textarea:focus,
+.tch-reporter-body input[type="text"]:focus {
     outline: none;
     border-color: #10B2B4;
 }
-.tch-reporter-body textarea::placeholder {
+.tch-reporter-body textarea::placeholder,
+.tch-reporter-body input[type="text"]::placeholder {
     color: #9CA3AF;
 }
 

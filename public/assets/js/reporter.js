@@ -90,6 +90,14 @@
     </div>
 
     <div>
+      <label for="tch-reporter-short-desc">
+        Short description
+        <span class="tch-reporter-hint">(optional — this becomes the Hub title)</span>
+      </label>
+      <input type="text" id="tch-reporter-short-desc" maxlength="140" placeholder="One-line summary (e.g. 'Caregiver Earnings should show totals by carer')">
+    </div>
+
+    <div>
       <label for="tch-reporter-desc">
         What happened?
         <span class="tch-reporter-hint">(optional — more detail helps)</span>
@@ -153,6 +161,7 @@
         const dupYes    = qs('#tch-dup-yes');
         const dupNo     = qs('#tch-dup-no');
         const errorBox  = qs('#tch-reporter-error');
+        const shortIn   = qs('#tch-reporter-short-desc');
         const descTA    = qs('#tch-reporter-desc');
 
         let selectedType     = 'bug';
@@ -170,14 +179,17 @@
         function openPanel() {
             panel.classList.add('open');
             backdrop.classList.add('open');
-            // Focus description textarea so the user can type straight away
-            setTimeout(function () { descTA.focus(); }, 50);
+            // Focus the short-description input first — it's the most
+            // important field; user types a one-line title, tabs to the
+            // textarea for more detail if they want.
+            setTimeout(function () { shortIn.focus(); }, 50);
         }
         function closePanel() {
             panel.classList.remove('open');
             backdrop.classList.remove('open');
         }
         function resetForm() {
+            shortIn.value = '';
             descTA.value = '';
             errorBox.classList.remove('visible');
             dupBox.classList.remove('visible');
@@ -245,13 +257,14 @@
             setSubmitLoading();
 
             const payload = {
-                type:        selectedType,
-                severity:    selectedSeverity,
-                description: descTA.value.trim(),
-                page_slug:   pageSlug,
-                page_url:    pageUrl,
-                page_title:  pageTitle,
-                force:       forceSubmit,
+                type:              selectedType,
+                severity:          selectedSeverity,
+                short_description: shortIn.value.trim(),
+                description:       descTA.value.trim(),
+                page_slug:         pageSlug,
+                page_url:          pageUrl,
+                page_title:        pageTitle,
+                force:             forceSubmit,
             };
 
             fetch(TCH_BASE_URL + '/ajax/report-issue', {
