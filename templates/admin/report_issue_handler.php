@@ -28,7 +28,19 @@ if (!defined('APP_ROOT')) {
     die('Direct access not permitted.');
 }
 
+// Mailer is NOT loaded by the front controller — every handler that sends
+// email must require it explicitly (same pattern as users_detail.php,
+// users_invite.php, forgot_password.php, etc.).
+require_once APP_ROOT . '/includes/mailer.php';
+
 header('Content-Type: application/json');
+
+// ── Start the session so $_SESSION is populated ─────────────────────────
+// The front controller does NOT start sessions automatically — normal page
+// handlers pick it up via requirePagePermission() → requireAuth() →
+// initSession(). This AJAX handler bypasses that chain, so we must call
+// initSession() explicitly before any isLoggedIn() / $_SESSION read.
+initSession();
 
 // ── Auth gate ───────────────────────────────────────────────────────────
 // The reporter is admin-only; if someone hits this endpoint unauthenticated
