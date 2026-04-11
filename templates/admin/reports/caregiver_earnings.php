@@ -25,20 +25,20 @@ $db = getDB();
 
 // ── Build the 12-month window ───────────────────────────────────────────
 // Anchor month = current month. Previous 11 + current = 12 columns.
-// We use DateTime for DST-safe month arithmetic; the month_key format
-// matches what caregiver_costs stores (month_date truncated to yyyy-mm).
+// Columns are NEWEST-FIRST — current month sits immediately right of the
+// caregiver name, prior months fan out to the right. Labels are MMM-YY
+// so the year is always visible (e.g. "Apr-26").
 $anchor = new DateTimeImmutable('first day of this month');
 $months = [];
-for ($i = 11; $i >= 0; $i--) {
+for ($i = 0; $i < 12; $i++) {
     $d = $anchor->modify("-{$i} months");
     $months[] = [
-        'key'        => $d->format('Y-m'),
-        'label'      => $d->format('M'),     // e.g. "Apr"
-        'label_long' => $d->format('M Y'),   // e.g. "Apr 2026"
-        'sql_first'  => $d->format('Y-m-01'),
+        'key'   => $d->format('Y-m'),
+        'label' => $d->format('M-y'),  // e.g. "Apr-26"
     ];
 }
-$firstMonth = $months[0]['sql_first'];
+// SQL window: oldest month first day → current month first day
+$firstMonth = $anchor->modify('-11 months')->format('Y-m-01');
 $lastMonth  = $anchor->format('Y-m-01');
 
 // ── Server-side pre-filter (tranche dropdown) ───────────────────────────
@@ -131,7 +131,7 @@ function zar_cell(float $v): string {
     <?php endif; ?>
     <div style="margin-left:auto;color:#666;font-size:0.85rem;">
         <?= count($matrix) ?> caregiver<?= count($matrix) === 1 ? '' : 's' ?> &middot;
-        window: <?= htmlspecialchars($months[0]['label_long']) ?> → <?= htmlspecialchars(end($months)['label_long']) ?>
+        window: <?= htmlspecialchars(end($months)['label']) ?> → <?= htmlspecialchars($months[0]['label']) ?>
     </div>
 </form>
 
@@ -171,7 +171,7 @@ function zar_cell(float $v): string {
                                        data-entity-id="<?= (int)$row['caregiver_id'] ?>"
                                        data-entity-name="<?= htmlspecialchars($name, ENT_QUOTES) ?>"
                                        data-month="<?= htmlspecialchars($m['key']) ?>"
-                                       data-month-label="<?= htmlspecialchars($m['label_long']) ?>">
+                                       data-month-label="<?= htmlspecialchars($m['label']) ?>">
                                         <?= zar_cell((float)$val) ?>
                                     </a>
                                 <?php else: ?>

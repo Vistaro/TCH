@@ -20,18 +20,17 @@ $activeNav = 'report-client-billing';
 $db = getDB();
 
 // ── 12-month window ─────────────────────────────────────────────────────
+// Newest-first ordering. Labels are MMM-YY (e.g. "Apr-26").
 $anchor = new DateTimeImmutable('first day of this month');
 $months = [];
-for ($i = 11; $i >= 0; $i--) {
+for ($i = 0; $i < 12; $i++) {
     $d = $anchor->modify("-{$i} months");
     $months[] = [
-        'key'        => $d->format('Y-m'),
-        'label'      => $d->format('M'),
-        'label_long' => $d->format('M Y'),
-        'sql_first'  => $d->format('Y-m-01'),
+        'key'   => $d->format('Y-m'),
+        'label' => $d->format('M-y'),
     ];
 }
-$firstMonth = $months[0]['sql_first'];
+$firstMonth = $anchor->modify('-11 months')->format('Y-m-01');
 $lastMonth  = $anchor->format('Y-m-01');
 
 // ── Fetch + pivot ───────────────────────────────────────────────────────
@@ -86,7 +85,7 @@ function zar_cell(float $v): string {
 <form method="GET" action="<?= APP_URL ?>/admin/reports/client-billing" class="report-filters" style="justify-content:space-between;">
     <div style="color:#666;font-size:0.85rem;">
         <?= count($matrix) ?> client<?= count($matrix) === 1 ? '' : 's' ?> &middot;
-        window: <?= htmlspecialchars($months[0]['label_long']) ?> → <?= htmlspecialchars(end($months)['label_long']) ?>
+        window: <?= htmlspecialchars(end($months)['label']) ?> → <?= htmlspecialchars($months[0]['label']) ?>
     </div>
 </form>
 
@@ -125,7 +124,7 @@ function zar_cell(float $v): string {
                                        data-entity-id="<?= (int)$row['client_id'] ?>"
                                        data-entity-name="<?= htmlspecialchars($name, ENT_QUOTES) ?>"
                                        data-month="<?= htmlspecialchars($m['key']) ?>"
-                                       data-month-label="<?= htmlspecialchars($m['label_long']) ?>">
+                                       data-month-label="<?= htmlspecialchars($m['label']) ?>">
                                         <?= zar_cell((float)$val) ?>
                                     </a>
                                 <?php else: ?>

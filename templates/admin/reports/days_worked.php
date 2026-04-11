@@ -20,18 +20,18 @@ $activeNav = 'report-days-worked';
 $db = getDB();
 
 // ── 12-month window ─────────────────────────────────────────────────────
+// Newest-first ordering. Labels are MMM-YY (e.g. "Apr-26").
 $anchor = new DateTimeImmutable('first day of this month');
 $months = [];
-for ($i = 11; $i >= 0; $i--) {
+for ($i = 0; $i < 12; $i++) {
     $d = $anchor->modify("-{$i} months");
     $months[] = [
-        'key'        => $d->format('Y-m'),
-        'label'      => $d->format('M'),
-        'label_long' => $d->format('M Y'),
+        'key'   => $d->format('Y-m'),
+        'label' => $d->format('M-y'),
     ];
 }
-$firstMonth = $months[0]['key'] . '-01';
-// Last day of the anchor month
+$firstMonth = $anchor->modify('-11 months')->format('Y-m-01');
+// Last day of the anchor (current) month for the inclusive SQL upper bound
 $lastMonth  = $anchor->modify('last day of this month')->format('Y-m-d');
 
 // ── Tranche pre-filter (server-side) ────────────────────────────────────
@@ -121,7 +121,7 @@ function days_cell(int $v): string {
     <?php endif; ?>
     <div style="margin-left:auto;color:#666;font-size:0.85rem;">
         <?= count($matrix) ?> caregiver<?= count($matrix) === 1 ? '' : 's' ?> &middot;
-        window: <?= htmlspecialchars($months[0]['label_long']) ?> → <?= htmlspecialchars(end($months)['label_long']) ?>
+        window: <?= htmlspecialchars(end($months)['label']) ?> → <?= htmlspecialchars($months[0]['label']) ?>
     </div>
 </form>
 
@@ -160,7 +160,7 @@ function days_cell(int $v): string {
                                        data-entity-id="<?= (int)$row['caregiver_id'] ?>"
                                        data-entity-name="<?= htmlspecialchars($name, ENT_QUOTES) ?>"
                                        data-month="<?= htmlspecialchars($m['key']) ?>"
-                                       data-month-label="<?= htmlspecialchars($m['label_long']) ?>">
+                                       data-month-label="<?= htmlspecialchars($m['label']) ?>">
                                         <?= days_cell($val) ?>
                                     </a>
                                 <?php else: ?>
