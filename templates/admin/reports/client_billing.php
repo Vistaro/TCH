@@ -1,159 +1,194 @@
 <?php
+/**
+ * Client Billing by Month — Matrix view (FR-0057).
+ *
+ * One row per client, 12 month columns (current + previous 11) plus
+ * a Total column. Each cell shows income (R), clickable to drill
+ * down into which caregivers provided care to that client that
+ * month with individual roster dates and daily rates.
+ *
+ * Matches the shape of caregiver_earnings.php (FR-0056) and
+ * days_worked.php (FR-0066) — three views of the same matrix idea
+ * with different underlying data tables.
+ *
+ * Permission: reports_client_billing.read
+ */
+
 $pageTitle = 'Client Billing by Month';
 $activeNav = 'report-client-billing';
 
 $db = getDB();
 
-// Get filter options
-$clients = $db->query(
-    "SELECT DISTINCT client_name FROM client_revenue ORDER BY client_name"
-)->fetchAll(PDO::FETCH_COLUMN);
-
-// Apply filters
-$where = [];
-$params = [];
-
-$filterClient = $_GET['client'] ?? '';
-$filterFrom   = $_GET['from'] ?? '';
-$filterTo     = $_GET['to'] ?? '';
-
-if ($filterClient !== '') {
-    $where[] = 'cr.client_name = ?';
-    $params[] = $filterClient;
+// ── 12-month window ─────────────────────────────────────────────────────
+$anchor = new DateTimeImmutable('first day of this month');
+$months = [];
+for ($i = 11; $i >= 0; $i--) {
+    $d = $anchor->modify("-{$i} months");
+    $months[] = [
+        'key'        => $d->format('Y-m'),
+        'label'      => $d->format('M'),
+        'label_long' => $d->format('M Y'),
+        'sql_first'  => $d->format('Y-m-01'),
+    ];
 }
-if ($filterFrom !== '') {
-    $where[] = 'cr.month_date >= ?';
-    $params[] = $filterFrom . '-01';
-}
-if ($filterTo !== '') {
-    $where[] = 'cr.month_date <= ?';
-    $params[] = $filterTo . '-01';
-}
+$firstMonth = $months[0]['sql_first'];
+$lastMonth  = $anchor->format('Y-m-01');
 
-$whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
-
-$sql = "SELECT cr.id, cr.client_name, cr.month, cr.month_date, cr.income, cr.expense, cr.margin, cr.margin_pct,
+// ── Fetch + pivot ───────────────────────────────────────────────────────
+$sql = "SELECT cr.client_id, cr.client_name, cr.month_date, cr.income,
                c.account_number, c.status AS client_status
         FROM client_revenue cr
         LEFT JOIN clients c ON cr.client_id = c.id
-        $whereSQL
+        WHERE cr.month_date >= ? AND cr.month_date <= ?
         ORDER BY cr.client_name, cr.month_date";
-
 $stmt = $db->prepare($sql);
-$stmt->execute($params);
-$rows = $stmt->fetchAll();
+$stmt->execute([$firstMonth, $lastMonth]);
+$flatRows = $stmt->fetchAll();
 
-// Drill-down: which caregivers worked for this client that month
-$drillData = [];
-foreach ($rows as $r) {
-    // Match client name in roster (try exact and partial)
-    $clientName = $r['client_name'];
-    $baseName = preg_replace('/[-\s]*monthly$/i', '', $clientName);
+$matrix = [];
+foreach ($flatRows as $r) {
+    $name = $r['client_name'];
+    if (!isset($matrix[$name])) {
+        $matrix[$name] = [
+            'client_id'      => $r['client_id'],
+            'account_number' => $r['account_number'],
+            'status'         => $r['client_status'],
+            'months'         => array_fill_keys(array_column($months, 'key'), 0.0),
+            'total'          => 0.0,
+        ];
+    }
+    $monthKey = substr($r['month_date'], 0, 7);
+    $income   = (float)$r['income'];
+    if (array_key_exists($monthKey, $matrix[$name]['months'])) {
+        $matrix[$name]['months'][$monthKey] += $income;
+        $matrix[$name]['total'] += $income;
+    }
+}
+ksort($matrix);
 
-    $drillStmt = $db->prepare(
-        "SELECT roster_date, day_of_week, caregiver_name, daily_rate
-         FROM daily_roster
-         WHERE (client_assigned = ? OR client_assigned = ?)
-           AND roster_date >= ? AND roster_date < ? + INTERVAL 1 MONTH
-         ORDER BY roster_date, caregiver_name"
-    );
-    $drillStmt->execute([$clientName, trim($baseName), $r['month_date'], $r['month_date']]);
-    $drillData[$r['id']] = $drillStmt->fetchAll();
+$colTotals = array_fill_keys(array_column($months, 'key'), 0.0);
+$grandTotal = 0.0;
+foreach ($matrix as $row) {
+    foreach ($row['months'] as $k => $v) {
+        $colTotals[$k] += $v;
+    }
+    $grandTotal += $row['total'];
 }
 
-$totalIncome  = array_sum(array_column($rows, 'income'));
-$totalExpense = array_sum(array_column($rows, 'expense'));
-$totalMargin  = $totalIncome - $totalExpense;
-
 require APP_ROOT . '/templates/layouts/admin.php';
+
+function zar_cell(float $v): string {
+    if ($v <= 0) return '<span style="color:#CCC;">—</span>';
+    return 'R' . number_format($v, 0);
+}
 ?>
 
-<form method="GET" action="<?= APP_URL ?>/admin/reports/client-billing" class="report-filters">
-    <div class="filter-group">
-        <label>Client</label>
-        <select name="client">
-            <option value="">All Clients</option>
-            <?php foreach ($clients as $cl): ?>
-                <option value="<?= htmlspecialchars($cl) ?>" <?= $filterClient === $cl ? 'selected' : '' ?>><?= htmlspecialchars($cl) ?></option>
-            <?php endforeach; ?>
-        </select>
+<form method="GET" action="<?= APP_URL ?>/admin/reports/client-billing" class="report-filters" style="justify-content:space-between;">
+    <div style="color:#666;font-size:0.85rem;">
+        <?= count($matrix) ?> client<?= count($matrix) === 1 ? '' : 's' ?> &middot;
+        window: <?= htmlspecialchars($months[0]['label_long']) ?> → <?= htmlspecialchars(end($months)['label_long']) ?>
     </div>
-    <div class="filter-group">
-        <label>From</label>
-        <input type="month" name="from" value="<?= htmlspecialchars($filterFrom) ?>">
-    </div>
-    <div class="filter-group">
-        <label>To</label>
-        <input type="month" name="to" value="<?= htmlspecialchars($filterTo) ?>">
-    </div>
-    <button type="submit" class="btn btn-primary">Filter</button>
-    <?php if ($where): ?>
-        <a href="<?= APP_URL ?>/admin/reports/client-billing" class="btn btn-outline btn-sm">Clear</a>
-    <?php endif; ?>
 </form>
 
+<p style="color:#666;font-size:0.85rem;margin:0 0 0.75rem 0;">
+    Click any column header to sort. Click any cell value to see which caregivers
+    served that client that month.
+</p>
+
 <div class="report-table-wrap">
-    <table class="report-table">
+    <table class="report-table tch-data-table">
         <thead>
             <tr>
                 <th>Client</th>
-                <th>Account</th>
-                <th>Month</th>
-                <th class="number">Income (ZAR)</th>
-                <th class="number">Expense (ZAR)</th>
-                <th class="number">Margin (ZAR)</th>
+                <th data-no-filter>Account</th>
+                <?php foreach ($months as $m): ?>
+                    <th class="number" data-no-filter><?= htmlspecialchars($m['label']) ?></th>
+                <?php endforeach; ?>
+                <th class="number" data-no-filter>Total</th>
             </tr>
         </thead>
         <tbody>
-            <?php if (empty($rows)): ?>
-                <tr><td colspan="6" style="text-align:center;color:#999;padding:2rem;">No records found.</td></tr>
+            <?php if (empty($matrix)): ?>
+                <tr><td colspan="<?= 3 + count($months) ?>" style="text-align:center;color:#999;padding:2rem;">No records found in the 12-month window.</td></tr>
             <?php else: ?>
-                <?php foreach ($rows as $r): ?>
-                    <?php $drills = $drillData[$r['id']] ?? []; ?>
-                    <tr class="<?= $drills ? 'drill-toggle' : '' ?>" data-drill="drill-cr-<?= $r['id'] ?>">
-                        <td><?= htmlspecialchars($r['client_name']) ?></td>
-                        <td><?= htmlspecialchars($r['account_number'] ?? '—') ?></td>
-                        <td><?= htmlspecialchars($r['month']) ?></td>
-                        <td class="number">R<?= number_format((float)$r['income'], 0) ?></td>
-                        <td class="number">R<?= number_format((float)$r['expense'], 0) ?></td>
-                        <td class="number"><?php
-                            $margin = (float)$r['income'] - (float)$r['expense'];
-                            echo ($margin >= 0 ? '' : '-') . 'R' . number_format(abs($margin), 0);
-                        ?></td>
+                <?php foreach ($matrix as $name => $row): ?>
+                    <tr>
+                        <td><?= htmlspecialchars($name) ?></td>
+                        <td><?= htmlspecialchars($row['account_number'] ?? '—') ?></td>
+                        <?php foreach ($months as $m): ?>
+                            <?php $val = $row['months'][$m['key']] ?? 0; ?>
+                            <td class="number">
+                                <?php if ($val > 0): ?>
+                                    <a href="#"
+                                       class="drill-cell"
+                                       data-report="billing"
+                                       data-entity-id="<?= (int)$row['client_id'] ?>"
+                                       data-entity-name="<?= htmlspecialchars($name, ENT_QUOTES) ?>"
+                                       data-month="<?= htmlspecialchars($m['key']) ?>"
+                                       data-month-label="<?= htmlspecialchars($m['label_long']) ?>">
+                                        <?= zar_cell((float)$val) ?>
+                                    </a>
+                                <?php else: ?>
+                                    <?= zar_cell((float)$val) ?>
+                                <?php endif; ?>
+                            </td>
+                        <?php endforeach; ?>
+                        <td class="number"><strong><?= zar_cell((float)$row['total']) ?></strong></td>
                     </tr>
-                    <?php foreach ($drills as $d): ?>
-                        <tr class="drill-row" data-parent="drill-cr-<?= $r['id'] ?>">
-                            <td><?= htmlspecialchars($d['roster_date']) ?></td>
-                            <td><?= htmlspecialchars($d['day_of_week']) ?></td>
-                            <td><?= htmlspecialchars($d['caregiver_name']) ?></td>
-                            <td></td>
-                            <td></td>
-                            <td class="number">R<?= number_format((float)$d['daily_rate'], 0) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
                 <?php endforeach; ?>
                 <tr class="total-row">
-                    <td colspan="3">Total</td>
-                    <td class="number">R<?= number_format($totalIncome, 0) ?></td>
-                    <td class="number">R<?= number_format($totalExpense, 0) ?></td>
-                    <td class="number">R<?= number_format($totalMargin, 0) ?></td>
+                    <td colspan="2">Total</td>
+                    <?php foreach ($months as $m): ?>
+                        <td class="number"><?= zar_cell((float)($colTotals[$m['key']] ?? 0)) ?></td>
+                    <?php endforeach; ?>
+                    <td class="number"><strong><?= zar_cell((float)$grandTotal) ?></strong></td>
                 </tr>
             <?php endif; ?>
         </tbody>
     </table>
 </div>
 
+<div id="drill-panel" style="display:none;margin-top:1.5rem;background:#fff;border:1px solid #eee;border-radius:10px;padding:1.25rem 1.5rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <h3 id="drill-title" style="margin:0;"></h3>
+        <button type="button" id="drill-close" class="btn btn-outline btn-sm">Close</button>
+    </div>
+    <div id="drill-body" style="color:#555;">Loading…</div>
+</div>
+
 <script>
-document.querySelectorAll('.drill-toggle').forEach(function(row) {
-    row.addEventListener('click', function() {
-        var id = this.dataset.drill;
-        var drills = document.querySelectorAll('[data-parent="' + id + '"]');
-        var isOpen = this.classList.toggle('open');
-        drills.forEach(function(dr) {
-            dr.classList.toggle('show', isOpen);
+(function () {
+    var panel = document.getElementById('drill-panel');
+    var title = document.getElementById('drill-title');
+    var body  = document.getElementById('drill-body');
+    var close = document.getElementById('drill-close');
+
+    document.querySelectorAll('a.drill-cell').forEach(function (a) {
+        a.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            var entity   = a.dataset.entityName;
+            var month    = a.dataset.monthLabel;
+            var id       = a.dataset.entityId;
+            var monthKey = a.dataset.month;
+
+            title.textContent = entity + ' — ' + month;
+            body.innerHTML = 'Loading…';
+            panel.style.display = '';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            fetch('<?= APP_URL ?>/ajax/report-drill?report=billing&entity_id=' + encodeURIComponent(id) + '&month=' + encodeURIComponent(monthKey), {
+                credentials: 'same-origin'
+            })
+            .then(function (r) { return r.text(); })
+            .then(function (html) { body.innerHTML = html; })
+            .catch(function () { body.innerHTML = '<span style="color:#c00;">Failed to load drill-down detail. Please retry.</span>'; });
         });
     });
-});
+
+    close.addEventListener('click', function () {
+        panel.style.display = 'none';
+    });
+}());
 </script>
 
 <?php require APP_ROOT . '/templates/layouts/admin_footer.php'; ?>

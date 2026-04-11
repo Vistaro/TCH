@@ -336,7 +336,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
 </form>
 
 <div class="report-table-wrap">
-    <table class="name-table">
+    <table class="name-table tch-data-table">
         <thead>
             <tr>
                 <th>Photo</th>

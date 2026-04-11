@@ -173,6 +173,14 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/report_issue_handler.php';
         break;
 
+    // ─── Matrix-report drill-down (GET, returns HTML fragment) ─────────
+    // Used by caregiver_earnings / client_billing / days_worked when a
+    // user clicks a cell in the matrix view. Auth + per-report permission
+    // enforced inside the handler.
+    case 'ajax/report-drill':
+        require APP_ROOT . '/templates/admin/report_drill_handler.php';
+        break;
+
     default:
         http_response_code(404);
         require APP_ROOT . '/templates/errors/404.php';

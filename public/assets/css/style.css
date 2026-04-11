@@ -1694,3 +1694,100 @@ h3 { font-size: 1.35rem; }
 .name-table td.diff-was-cell { color: #C0392B; }
 .name-table td.diff-now-cell { color: #1E8449; font-weight: 500; }
 
+/* -------------------------------------------------------------------------
+ * Shared sortable + filterable table component (tch-data-table)
+ *
+ * Opt-in by adding class="tch-data-table" to any <table>. The JS at
+ * public/assets/js/tch-table.js will:
+ *   - Make every column header clickable (toggles asc → desc → off)
+ *   - Insert a filter input row below the header with one text input
+ *     per non-excluded column
+ *
+ * Columns with data-sortable="false" or data-filterable="false" / data-no-filter
+ * opt out of sort or filter respectively. Drill-down rows (tch-drill-row or
+ * legacy drill-row) inherit their parent row's visibility during filtering.
+ * ------------------------------------------------------------------------- */
+
+/* Base layout inherits from .report-table / .name-table — this component
+   adds behaviour, not layout. Put class="tch-data-table" ALONGSIDE the
+   existing .report-table or .name-table class. */
+
+table.tch-data-table th.tch-sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 1.4rem;
+}
+
+table.tch-data-table th.tch-sortable:hover {
+    background: #F0FDFA;
+    color: #0D8E90;
+}
+
+table.tch-data-table th.tch-sortable .tch-sort-arrow {
+    display: inline-block;
+    width: 1rem;
+    color: #9CA3AF;
+    font-size: 0.85em;
+    margin-left: 0.25rem;
+    vertical-align: middle;
+    transition: color 0.15s ease;
+}
+
+table.tch-data-table th.tch-sorted-asc .tch-sort-arrow::after {
+    content: '\25B2'; /* ▲ */
+    color: #10B2B4;
+}
+table.tch-data-table th.tch-sorted-desc .tch-sort-arrow::after {
+    content: '\25BC'; /* ▼ */
+    color: #10B2B4;
+}
+table.tch-data-table th.tch-sorted-asc .tch-sort-arrow,
+table.tch-data-table th.tch-sorted-desc .tch-sort-arrow {
+    color: transparent; /* hide the placeholder ↕, show ::after arrow */
+}
+table.tch-data-table th.tch-sorted-asc .tch-sort-arrow::before,
+table.tch-data-table th.tch-sorted-desc .tch-sort-arrow::before {
+    /* absorb the placeholder text so ::after shows cleanly */
+    content: '';
+}
+
+/* Filter row — sits below the header row, inside thead */
+table.tch-data-table tr.tch-filter-row th {
+    padding: 0.35rem 0.5rem;
+    background: #FAFBFC;
+    border-bottom: 1px solid #e0e0e0;
+    font-weight: 400;
+    cursor: default;
+}
+
+table.tch-data-table tr.tch-filter-row th:hover {
+    background: #FAFBFC;
+    color: inherit;
+}
+
+table.tch-data-table input.tch-filter-input {
+    width: 100%;
+    max-width: 180px;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid #E5E7EB;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-family: inherit;
+    color: #242424;
+    background: #fff;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+}
+
+table.tch-data-table input.tch-filter-input::placeholder {
+    color: #B0B5BB;
+    font-style: italic;
+}
+
+table.tch-data-table input.tch-filter-input:focus {
+    outline: none;
+    border-color: #10B2B4;
+    box-shadow: 0 0 0 2px rgba(16, 178, 180, 0.15);
+}
+

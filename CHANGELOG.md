@@ -2,6 +2,174 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.9-dev] - 2026-04-11
+
+### Added — Shared sortable/filterable table component + matrix reports (FR-0056, FR-0057, FR-0066)
+
+Single commit closing three real FRs and shipping a cross-cutting UI
+upgrade that lands on every admin table in TCH.
+
+**1. Shared sortable + filterable table component (`tch-data-table`)**
+
+New JS library at `public/assets/js/tch-table.js` (~220 lines, no
+framework). Opt-in by adding `class="tch-data-table"` to any
+`<table>` — the library will:
+
+- Make every column header clickable to toggle sort asc → desc → off.
+  Sort indicators (↕ idle, ▲ asc, ▼ desc) appear next to the header
+  text.
+- Auto-detect numeric vs text sorting. Currency cells like
+  `R12,345` are parsed as 12345 and sorted numerically; text cells
+  fall back to case-insensitive string compare.
+- Insert a filter row below the header with one text input per
+  non-excluded column. Typing in any input hides rows whose
+  corresponding cell doesn't contain the typed text
+  (case-insensitive). Multiple filters AND together.
+- Handle drill-down child rows correctly: rows with class
+  `drill-row` or `tch-drill-row` stay with their logical parent
+  during sort and inherit parent visibility during filter.
+- Handle total rows correctly: rows with class `total-row` or
+  `tch-total-row` always stay at the bottom and are never filtered.
+
+Per-column opt-outs:
+- `data-sortable="false"` — this column is not sortable
+- `data-filterable="false"` or `data-no-filter` — this column gets no
+  filter input (rendered as an empty cell in the filter row)
+
+Loaded automatically on every admin page via
+`templates/layouts/admin_footer.php` when `isLoggedIn()` is true.
+
+Matching CSS added to `public/assets/css/style.css` under the
+heading "Shared sortable + filterable table component". Hover
+highlight on sortable headers uses the TCH teal (#10B2B4). Filter
+inputs match the existing form input style with a 2px teal focus
+ring.
+
+**2. Matrix reports (FR-0056, FR-0057, FR-0066)**
+
+All three reports rewritten from their old flat shape ("one row per
+entity-per-month") to the matrix shape Ross asked for: one row per
+entity, 12 month columns (current + previous 11) plus a total column.
+
+- `templates/admin/reports/caregiver_earnings.php` — caregiver ×
+  month earnings grid. Data source: `caregiver_costs` joined to
+  `caregivers`. Tranche dropdown stays as a server-side pre-filter.
+- `templates/admin/reports/client_billing.php` — client × month
+  income grid. Data source: `client_revenue` joined to `clients`.
+- `templates/admin/reports/days_worked.php` — caregiver × month
+  days-count grid. Data source: `daily_roster` aggregated by
+  caregiver + month (`COUNT(*)` per month bucket).
+
+All three share the same pattern: fetch flat rows from the source
+table restricted to the 12-month window, pivot in PHP into a
+`caregiver_name => [month_key => amount, total]` map, render as a
+matrix with clickable cells. The `tch-data-table` class is applied
+so sort + filter work out of the box (name column filterable, month
+columns sortable but not filterable per Ross's agreed scope —
+numeric range filters are a separate future enhancement).
+
+**3. Drill-down AJAX handler**
+
+New `templates/admin/report_drill_handler.php` exposed at
+`GET /ajax/report-drill?report={earnings|billing|days}&entity_id=<id>&month=<YYYY-MM>`.
+
+- Returns a rendered HTML fragment (not JSON) — the reports drop
+  it into `#drill-body` via `innerHTML` on click. Simple and
+  avoids JSON serialisation of an HTML table.
+- Per-report permission gate: each report type maps to its own
+  page-permission code (`reports_caregiver_earnings`,
+  `reports_client_billing`, `reports_days_worked`) so a user who
+  can see a matrix can also drill into its cells.
+- Session + auth + input validation (regex on month, int on
+  entity_id).
+- For `earnings` and `days` reports the drill shows every
+  `daily_roster` row for that caregiver in that month: date, day,
+  client, rate + totals footer.
+- For `billing` the drill pivots on client — same daily_roster
+  rows but from the client side, showing date / day / caregiver /
+  rate.
+
+The drill-down panel on each matrix page is a single `<div>` below
+the table that slides into view on first click, loads via `fetch`,
+and offers a Close button to dismiss.
+
+**4. Retrofit — every admin list page gets sort + filter**
+
+Added `tch-data-table` to the `<table>` class list on:
+
+- `templates/admin/activity_log.php` (activity log list)
+- `templates/admin/users_list.php` (user list)
+- `templates/admin/enquiries.php` (enquiry inbox)
+- `templates/admin/names.php` (name reconciliation — both the
+  unmatched-billing-names table and the main canonical list)
+- `templates/admin/people_review.php` (pending-person queue)
+- `templates/admin/email_log_list.php` (email outbox)
+- `templates/admin/roles_list.php` (roles list)
+
+Each page now has per-column text filters and click-to-sort
+headers with zero additional per-page code.
+
+**Not retrofitted (detail pages where sort/filter doesn't make
+sense):**
+
+- `templates/admin/activity_detail.php` — the Was/Now diff table
+  (already structured, single-record context)
+- `templates/admin/users_detail.php` — single-user detail
+- `templates/admin/roles_permissions.php` — CRUD permission matrix
+  editor (user is editing, not browsing)
+
+**5. Pre-existing filter styling — verified consistent**
+
+Ross asked me to check whether the existing server-side filter
+dropdowns (`.report-filters` block at the top of each report page)
+already look the same across pages. Answer: yes, they already use
+the shared `.report-filters` / `.filter-group` / `.report-filters
+select` rules in `style.css` (lines 659–706). No cleanup needed.
+
+**Hub record closures**
+
+FR-0056, FR-0057, and FR-0066 will be PATCHed to
+`status: implemented` on the Hub as part of this deploy, with a
+note pointing at this changelog entry and the dev URL.
+
+### Explicitly pushed back on / deferred
+
+- **Numeric range filters on the matrix month columns.** A text
+  "contains" filter on a number column is bad UX — typing "500"
+  matches 500, 5000, 15000, 25000 and so on. I opted to make the
+  name/label columns filterable and the month columns sortable
+  only. If Ross wants real numeric filters later (">=10000",
+  "<5000", between), that's a clean future enhancement and a
+  different component.
+- **Column-hide/show toggle.** Not asked for; skipped.
+- **CSV / Excel export from the matrix.** Not asked for; skipped.
+- **Server-side sort + pagination on the new matrix reports.** All
+  three pivot in PHP and render every caregiver/client on one
+  page. Fine at TCH's volume (123 caregivers × 12 months = ~1500
+  cells per page). If the lists grow to 10k+ rows we'll revisit.
+
+### Deployment
+
+- Files uploaded to `~/public_html/dev-TCH/dev/` via scp:
+  `public/assets/js/tch-table.js` (new),
+  `public/assets/css/style.css`,
+  `public/index.php`,
+  `templates/layouts/admin_footer.php`,
+  `templates/admin/reports/caregiver_earnings.php`,
+  `templates/admin/reports/client_billing.php`,
+  `templates/admin/reports/days_worked.php`,
+  `templates/admin/report_drill_handler.php` (new),
+  `templates/admin/activity_log.php`,
+  `templates/admin/users_list.php`,
+  `templates/admin/enquiries.php`,
+  `templates/admin/names.php`,
+  `templates/admin/people_review.php`,
+  `templates/admin/email_log_list.php`,
+  `templates/admin/roles_list.php`.
+- Server-side `php -l` clean on every PHP file.
+- No schema migrations.
+- Not yet promoted to prod.
+
 ## [0.9.8-dev] - 2026-04-11
 
 ### Added — Short description field on the in-app reporter + B3 migration

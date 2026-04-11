@@ -129,7 +129,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
         <h3>Unmatched Billing Names</h3>
         <span class="badge badge-warning"><?= count($unmatchedBilling) ?> names need assignment</span>
     </div>
-    <table class="name-table">
+    <table class="name-table tch-data-table">
         <thead>
             <tr>
                 <th>Billing Name (from payroll)</th>
@@ -193,7 +193,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
 <!-- Main name lookup table -->
 <div class="report-table-wrap">
-    <table class="name-table">
+    <table class="name-table tch-data-table">
         <thead>
             <tr>
                 <th>Canonical Name</th>

@@ -7,8 +7,10 @@
 // to /ajax/report-issue. Graceful failure: if the JS file can't load, the
 // rest of the admin UI is unaffected.
 if (function_exists('isLoggedIn') && isLoggedIn()):
-    $reporterJsVer = @filemtime(APP_ROOT . '/public/assets/js/reporter.js') ?: time();
+    $reporterJsVer = @filemtime(APP_ROOT . '/public/assets/js/reporter.js')  ?: time();
+    $tchTableJsVer = @filemtime(APP_ROOT . '/public/assets/js/tch-table.js') ?: time();
 ?>
+<script src="<?= APP_URL ?>/assets/js/tch-table.js?v=<?= $tchTableJsVer ?>"></script>
 <script src="<?= APP_URL ?>/assets/js/reporter.js?v=<?= $reporterJsVer ?>"></script>
 <?php endif; ?>
 </body>
