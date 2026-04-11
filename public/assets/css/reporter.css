@@ -1,0 +1,403 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   TCH Placements — In-App Bug / Feature-Request Reporter Widget
+   ─────────────────────────────────────────────────────────────────────────
+   Floating Help button (bottom-right) + slide-in panel.
+   No Quick-Links menu — TCH v1 is reporter-only, single button.
+   Colours are hard-coded to match the TCH brand palette (teal/charcoal).
+   Ported from Nexus CRM's reporter.css, simplified + retuned.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Floating trigger button (bottom-right) ─────────────────────────────── */
+.tch-reporter-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: #3A3839;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 24px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+    transition: background 0.2s ease, transform 0.2s ease;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    letter-spacing: 0.2px;
+}
+.tch-reporter-btn:hover {
+    background: #242424;
+    transform: translateY(-1px);
+}
+.tch-reporter-btn svg {
+    flex-shrink: 0;
+}
+
+/* ── Backdrop ───────────────────────────────────────────────────────────── */
+.tch-reporter-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1001;
+    animation: tchReporterFadeIn 150ms ease;
+}
+.tch-reporter-backdrop.open {
+    display: block;
+}
+
+/* ── Panel (slide-in from bottom-right) ─────────────────────────────────── */
+.tch-reporter-panel {
+    position: fixed;
+    bottom: 80px;
+    right: 24px;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    background: #FFFFFF;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.08);
+    z-index: 1002;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    animation: tchReporterSlideUp 180ms ease;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+.tch-reporter-panel.open {
+    display: flex;
+}
+
+/* ── Panel header ───────────────────────────────────────────────────────── */
+.tch-reporter-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid #E5E7EB;
+    background: #F9FAFB;
+}
+.tch-reporter-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #242424;
+}
+.tch-reporter-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6B7280;
+    padding: 4px;
+    border-radius: 4px;
+    line-height: 1;
+    font-size: 22px;
+    transition: color 0.2s ease;
+}
+.tch-reporter-close:hover {
+    color: #242424;
+}
+
+/* ── Panel body ─────────────────────────────────────────────────────────── */
+.tch-reporter-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* ── Type toggle (Bug / Feature) ────────────────────────────────────────── */
+.tch-reporter-type-toggle {
+    display: flex;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.tch-reporter-type-toggle button {
+    flex: 1;
+    padding: 8px 12px;
+    background: #FFFFFF;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+    color: #4B5563;
+    font-family: inherit;
+}
+.tch-reporter-type-toggle button.active[data-type="bug"] {
+    background: #DC2626;
+    color: #FFFFFF;
+}
+.tch-reporter-type-toggle button.active[data-type="feature"] {
+    background: #10B2B4;
+    color: #FFFFFF;
+}
+.tch-reporter-type-toggle button:not(:last-child) {
+    border-right: 1px solid #E5E7EB;
+}
+
+/* ── Severity toggle (Fatal / Improvement) ──────────────────────────────── */
+.tch-reporter-severity-toggle {
+    display: flex;
+    gap: 8px;
+}
+.tch-reporter-severity-toggle button {
+    flex: 1;
+    padding: 8px 10px;
+    background: #F9FAFB;
+    border: 1.5px solid #E5E7EB;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #4B5563;
+    font-family: inherit;
+    text-align: center;
+}
+.tch-reporter-severity-toggle button.active[data-severity="fatal"] {
+    background: #FEE2E2;
+    border-color: #DC2626;
+    color: #991B1B;
+}
+.tch-reporter-severity-toggle button.active[data-severity="improvement"] {
+    background: #E6F7F7;
+    border-color: #10B2B4;
+    color: #0D8E90;
+}
+
+/* ── Page context chip ──────────────────────────────────────────────────── */
+.tch-reporter-page-context {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #6B7280;
+    background: #F9FAFB;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+.tch-reporter-page-context svg {
+    flex-shrink: 0;
+}
+.tch-reporter-page-context span {
+    font-weight: 600;
+    color: #242424;
+}
+
+/* ── Labels + textarea ──────────────────────────────────────────────────── */
+.tch-reporter-body label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4B5563;
+    margin-bottom: 4px;
+    display: block;
+}
+.tch-reporter-body label .tch-reporter-hint {
+    font-weight: 400;
+    color: #9CA3AF;
+}
+.tch-reporter-body textarea {
+    width: 100%;
+    min-height: 90px;
+    resize: vertical;
+    border: 1.5px solid #E5E7EB;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #242424;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+}
+.tch-reporter-body textarea:focus {
+    outline: none;
+    border-color: #10B2B4;
+}
+.tch-reporter-body textarea::placeholder {
+    color: #9CA3AF;
+}
+
+/* ── Duplicate warning ──────────────────────────────────────────────────── */
+.tch-reporter-duplicate {
+    display: none;
+    background: #FEF3C7;
+    border: 1px solid #D97706;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #242424;
+    line-height: 1.5;
+}
+.tch-reporter-duplicate.visible {
+    display: block;
+}
+.tch-reporter-duplicate strong {
+    color: #B45309;
+}
+.tch-reporter-dup-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+.tch-reporter-dup-actions button {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #D1D5DB;
+    background: #FFFFFF;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+.tch-reporter-dup-actions .tch-btn-yes {
+    background: #D97706;
+    border-color: #D97706;
+    color: #FFFFFF;
+}
+.tch-reporter-dup-actions .tch-btn-yes:hover {
+    background: #B45309;
+}
+.tch-reporter-dup-actions .tch-btn-no {
+    color: #4B5563;
+}
+.tch-reporter-dup-actions .tch-btn-no:hover {
+    background: #F3F4F6;
+}
+
+/* ── Submit button ──────────────────────────────────────────────────────── */
+.tch-reporter-submit {
+    width: 100%;
+    padding: 10px 16px;
+    background: #10B2B4;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s ease;
+}
+.tch-reporter-submit:hover {
+    background: #0D8E90;
+}
+.tch-reporter-submit:disabled {
+    background: #D1D5DB;
+    cursor: not-allowed;
+}
+
+/* ── Success state ──────────────────────────────────────────────────────── */
+.tch-reporter-success {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 24px;
+    text-align: center;
+    gap: 12px;
+}
+.tch-reporter-success.visible {
+    display: flex;
+}
+.tch-reporter-success-icon {
+    width: 48px;
+    height: 48px;
+    background: #D1FAE5;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #059669;
+}
+.tch-reporter-success h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #242424;
+}
+.tch-reporter-success p {
+    margin: 0;
+    font-size: 13px;
+    color: #6B7280;
+    line-height: 1.5;
+}
+.tch-reporter-success .tch-ref-badge {
+    display: inline-block;
+    background: #F3F4F6;
+    border: 1px solid #E5E7EB;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #4B5563;
+    font-family: 'Courier New', monospace;
+}
+.tch-reporter-success a {
+    font-size: 13px;
+    color: #10B2B4;
+    text-decoration: none;
+    font-weight: 600;
+}
+.tch-reporter-success a:hover {
+    text-decoration: underline;
+}
+
+/* ── Error state ────────────────────────────────────────────────────────── */
+.tch-reporter-error {
+    display: none;
+    background: #FEE2E2;
+    border: 1px solid #DC2626;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #991B1B;
+}
+.tch-reporter-error.visible {
+    display: block;
+}
+
+/* ── Spinner ────────────────────────────────────────────────────────────── */
+.tch-reporter-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #FFFFFF;
+    border-radius: 50%;
+    animation: tchReporterSpin 600ms linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────── */
+@keyframes tchReporterFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes tchReporterSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes tchReporterSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Mobile adjustments ─────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .tch-reporter-panel {
+        right: 12px;
+        bottom: 72px;
+        width: calc(100vw - 24px);
+    }
+    .tch-reporter-btn {
+        right: 12px;
+        bottom: 16px;
+    }
+}

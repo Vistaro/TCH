@@ -167,6 +167,12 @@ switch ($route) {
         require APP_ROOT . '/templates/public/enquire_handler.php';
         break;
 
+    // ─── In-app Bug/FR reporter (AJAX proxy to Nexus Hub) ──────────────
+    // POST only. Auth + CSRF enforced inside the handler.
+    case 'ajax/report-issue':
+        require APP_ROOT . '/templates/admin/report_issue_handler.php';
+        break;
+
     default:
         http_response_code(404);
         require APP_ROOT . '/templates/errors/404.php';

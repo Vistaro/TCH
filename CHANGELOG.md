@@ -2,6 +2,152 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.7-dev] - 2026-04-11
+
+### Added — In-app Bug/FR reporter → Nexus Hub
+
+A floating **Help** button now appears on every admin page in TCH (bottom-
+right). Click it → slide-in panel with a type toggle (Bug / Feature),
+impact toggle (Fatal / Improvement), page context (auto-captured),
+description textarea, and a Submit button. Submissions POST to a
+server-side proxy at `/ajax/report-issue` which forwards to the Nexus
+Hub API at `https://hub.intelligentae.co.uk` using a server-side token
+(never exposed to the browser).
+
+**Widget features:**
+
+- **Page context auto-captured** — `data-page-slug` and
+  `data-page-title` are injected on the `<body>` tag by
+  `templates/layouts/header.php` when the user is logged in, using the
+  existing `$activeNav` and `$pageTitle` variables each admin page
+  already sets.
+- **Duplicate detection** — before creating a new Hub record, the proxy
+  GETs the Hub's list endpoint for open bugs/features in the `tch`
+  project and scans for an item whose title contains `[{pageSlug}]` or
+  whose description contains `Page: {pageSlug}`. If a match exists and
+  the user didn't click "No — submit as new", the widget surfaces a
+  yellow warning with Yes (view existing) / No (submit anyway) actions.
+- **Confirmation email** — on successful submission, TCH's mailer sends
+  a plain-text confirmation to the reporter with the Hub reference
+  (e.g. `BUG-0042`), the page, severity, and a link back to the Hub
+  issue view. Template lives at `templates/emails/report_confirmation.php`
+  and follows the same `$subject + $body` convention as the existing
+  invite/reset emails.
+- **Activity log integration** — per the standing order in
+  `C:\ClaudeCode\CLAUDE.md`, every bug/FR submission writes an entry to
+  TCH's own `activity_log` with `action = 'bug_reported'` or
+  `'feature_requested'`, `entity_type = 'nexus_hub'`, `entity_id =
+  <Hub numeric id>`, and `after_json` carrying ref / type / severity /
+  page / issue_url. So "who reported what, when, from where" is
+  answerable from TCH alone without visiting the Hub.
+- **Graceful failure** — if the Hub is unreachable, the widget shows a
+  red inline error and the user can retry. If the Hub token isn't
+  configured, the proxy returns 503 with a clear "ask Ross for the
+  token" message. Network errors surface as "network error — check
+  your connection".
+- **Admin-only** — widget only renders for logged-in users via an
+  `isLoggedIn()` check in `header.php` (CSS + globals) and
+  `admin_footer.php` (JS). Public pages (home, enquiry form, login)
+  don't load it.
+- **No Quick Links menu** — TCH v1 skips the Nexus CRM reporter's
+  configurable Quick Links sub-menu; the Help button opens the panel
+  directly.
+
+**Safety / security layers:**
+
+1. **Server-side proxy holds the token.** The browser never sees
+   `NEXUS_HUB_TOKEN`. Only `templates/admin/report_issue_handler.php`
+   reads it, via the `NEXUS_HUB_TOKEN` constant defined in
+   `includes/config.php` from `.env`.
+2. **Auth gate** — handler returns 401 if `isLoggedIn()` is false.
+3. **CSRF gate** — handler reads `X-CSRF-Token` header and calls
+   `validateCsrfToken()`. Returns 403 on mismatch.
+4. **Input whitelist** — `type`, `severity` are whitelisted to known
+   values; `description`, `page_slug`, `page_url`, `page_title` are
+   trimmed and length-capped.
+5. **Real user identity** — uses `currentRealUser()` not
+   `currentUser()`, so an impersonated session reports as the real
+   human at the keyboard.
+6. **Scoped token recommended** — the TCH Hub token will be scoped to
+   the `tch` project in the Hub's token admin UI, so even if the
+   token leaks it cannot touch other projects' data.
+
+**Config:**
+
+New constants in `includes/config.php`, loaded from `.env`:
+- `NEXUS_HUB_URL` — defaults to `https://hub.intelligentae.co.uk`
+- `NEXUS_HUB_PROJECT_SLUG` — defaults to `tch`
+- `NEXUS_HUB_TOKEN` — defaults to empty; must be set in `.env` for the
+  reporter to actually submit. When empty, the handler returns 503
+  with a clear message, so the UI stays functional as a preview.
+
+`.env.example` updated with the three new keys and a comment explaining
+how to generate the token in the Hub's Super Admin UI.
+
+**API contract** (documented for future maintenance):
+
+- Hub endpoint for creation: `POST ?page=api&resource=bugs` (or
+  `features`). No `&action=create` URL param — the Hub dispatches on
+  HTTP method alone.
+- Request body: `{"project": "tch", "title": "...", "description": "...",
+  "priority": "low|medium|high|critical"}`. Note: the Hub reads
+  `project`, NOT `project_slug`. Nexus CRM's reporter sends
+  `project_slug` — that's a latent bug in Nexus CRM (tracked separately
+  by the Nexus CRM maintainer); it only "works" there because their
+  token is project-scoped so the body param is ignored entirely. TCH
+  sends `project` correctly from day one.
+- Severity → priority mapping: `fatal → high`, `improvement → low`.
+- Response envelope on success: `{"ok": true, "data": {"ref":
+  "BUG-0042", "id": 123, "status": "open"}}`.
+- Hub issue view URL: `/?page={bugs|features}&action=view&id={id}`
+- No rate limits, no attachments in the API (v1).
+
+**Files added:**
+- `public/assets/css/reporter.css` — widget styles, TCH palette
+- `public/assets/js/reporter.js` — widget logic, no framework dependency
+- `templates/admin/report_issue_handler.php` — server-side proxy
+- `templates/emails/report_confirmation.php` — confirmation email
+  template
+
+**Files modified:**
+- `includes/config.php` — three new `NEXUS_HUB_*` constants
+- `.env.example` — documented the three new keys
+- `templates/layouts/header.php` — body data attrs + CSS link + CSRF/
+  base-URL globals, all conditional on `isLoggedIn()`
+- `templates/layouts/admin_footer.php` — conditional reporter.js include
+- `public/index.php` — new `ajax/report-issue` route
+
+**Explicitly NOT changed:**
+
+- `activity_log` schema
+- `logActivity()` signature
+- Existing mailer, auth, CSRF helpers
+- Public layout / public pages (no widget there)
+- Permission model (reporter is open to every logged-in user; if we
+  later want to restrict it to specific roles, add a `userCan` check
+  in the handler — not needed for v1)
+
+### Outstanding for Ross before this ships
+
+1. **Generate the Hub API token** in the Hub web UI at
+   `?page=tokens&action=create`, label it `TCH Agent`, scope it to the
+   `tch` project, and paste the plain token to me once.
+2. I will add `NEXUS_HUB_TOKEN=<paste>` to the dev server's `.env`
+   (gitignored), then smoke-test end-to-end.
+3. Until the token is set, the widget is live and clickable on dev,
+   but submitting will return a graceful 503 with a
+   "Hub integration not configured" error. You can open the panel to
+   see the look and feel before the token exists.
+
+### Deployment
+
+- Files uploaded to `~/public_html/dev-TCH/dev/` via scp. Created the
+  new `public/assets/js/` directory on the server first (didn't exist).
+- Server-side `php -l` clean on all six PHP files.
+- No schema migrations.
+- Not yet promoted to prod — held for Ross to test on dev and provide
+  the token.
+
 ## [0.9.6-dev] - 2026-04-11
 
 ### Added — Activity log undelete (A4, Level 3) + standard delete helper

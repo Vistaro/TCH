@@ -43,6 +43,23 @@
 | 9 | **Purge CDN cache after deployments** | StackCP > CDN > Edge Caching. Only needed until we go to production and set proper cache rules. |
 | 10 | **DB credentials** | Stored in server `.env`. Username: `tch_admin`, DB: `tch_placements-313539d33a`, host: `shareddb-y.hosting.stackcp.net` |
 
+## Bug / Feature Request reporter → Nexus Hub (added 11 April 2026)
+
+**Status: LIVE on dev, pending Hub token from Ross.**
+
+Goal: every logged-in TCH user can raise a Bug or FR with one click from
+any admin page. Submissions forward to the central Nexus Hub at
+`hub.intelligentae.co.uk` (single tracker across all Intelligentae
+projects). From now on, TCH bugs and FRs live on the Hub — NOT in
+markdown notes in this todo doc.
+
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| B1 | **Widget + server proxy + activity log integration** | **DONE 2026-04-11** (v0.9.7-dev) | Floating Help button bottom-right on every admin page → slide-in panel → POST to `/ajax/report-issue` → Hub API. Duplicate detection, confirmation email, activity log entry. Graceful failure if Hub unreachable. |
+| B2 | **Ross provides the Hub API token** | PENDING | Log into Hub as Super Admin → `?page=tokens&action=create` → label `TCH Agent`, scope to `tch` project → copy the plain token once → paste to Claude → Claude pastes it into the dev server's `.env` and smoke tests end-to-end. |
+| B3 | **Migrate existing TCH bugs/FRs off markdown and onto the Hub** | PENDING | Before retiring `docs/TCH_Ross_Todo.md` as a bug/FR source, port any items in it (and `docs/TCH_Plan.md`) that are really bugs or feature requests (not blockers) into the Hub. Keep planning-type items in the markdown. |
+| B4 | **Standing practice: review Hub backlog at start of every session** | ONGOING | From now on every TCH session begins with Ross + Claude reviewing the open items in the Hub's TCH project to decide priorities. Recorded as a project memory so future sessions know to check. |
+
 ## Activity Log — full audit + revert capability (added 11 April 2026)
 
 Goal (Ross's words): "full audit capability so when a user says 'I didn't do that, the system is broken' we can then find out the reality." Plus: ability to **reverse** a past change from the log without erasing history.

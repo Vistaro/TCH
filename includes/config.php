@@ -41,3 +41,11 @@ define('APP_ENV', $_ENV['APP_ENV'] ?? 'production');
 define('APP_URL', $_ENV['APP_URL'] ?? 'https://tch.intelligentae.co.uk');
 define('APP_NAME', $_ENV['APP_NAME'] ?? 'TCH Placements');
 define('SESSION_LIFETIME', (int)($_ENV['SESSION_LIFETIME'] ?? 3600));
+
+// Nexus Hub integration — in-app Bug/FR reporter proxies submissions here.
+// The token is generated in the Hub web UI (Super Admin > Tokens > Create)
+// and MUST be scoped to the 'tch' project for safety. Never commit the
+// real token — .env is gitignored.
+define('NEXUS_HUB_URL',          $_ENV['NEXUS_HUB_URL']          ?? 'https://hub.intelligentae.co.uk');
+define('NEXUS_HUB_PROJECT_SLUG', $_ENV['NEXUS_HUB_PROJECT_SLUG'] ?? 'tch');
+define('NEXUS_HUB_TOKEN',        $_ENV['NEXUS_HUB_TOKEN']        ?? '');
