@@ -40,8 +40,9 @@
 
 | # | Item | Notes |
 |---|------|-------|
-| 9 | **Purge CDN cache after deployments** | StackCP > CDN > Edge Caching. Only needed until we go to production and set proper cache rules. |
+| 9 | ~~**Purge CDN cache after deployments**~~ | **No longer required** as of 2026-04-11 (v0.9.9.3). The `.htaccess` no-cache block was removed (BUG-0035) and static assets are cache-busted via `?v=<filemtime>` query strings. Try the next deploy without a purge — if anything's stale, re-add as a fallback. |
 | 10 | **DB credentials** | Stored in server `.env`. Username: `tch_admin`, DB: `tch_placements-313539d33a`, host: `shareddb-y.hosting.stackcp.net` |
+| 11 | **DEV and PROD currently share one database** | **Documented exception to the global "Production Database Discipline" standing rule**, because TCH has no real customer activity yet. Tracked on the Hub as **FR-0076** (LOW priority, trigger-based). The rule activates — and the FR becomes HIGH priority — the moment any of: first real caregiver/client self-service login, first real enquiry becomes a real lead, Tuniti begins real approvals, or any real billing/placement activity begins. Ross judges the trigger subjectively. |
 
 ## Bug / Feature Request reporter → Nexus Hub (added 11 April 2026)
 
