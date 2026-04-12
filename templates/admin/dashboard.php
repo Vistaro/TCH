@@ -16,17 +16,9 @@ $stats = [
 ];
 
 try {
-    $stats['caregivers']     = (int)$db->query(
-        "SELECT COUNT(*) FROM persons WHERE FIND_IN_SET('caregiver', person_type)"
-    )->fetchColumn();
-    $stats['placed']         = (int)$db->query(
-        "SELECT COUNT(*) FROM persons cg
-         JOIN person_statuses ps ON ps.id = cg.status_id
-         WHERE FIND_IN_SET('caregiver', cg.person_type) AND ps.code = 'placed'"
-    )->fetchColumn();
-    $stats['clients']        = (int)$db->query(
-        "SELECT COUNT(*) FROM persons WHERE FIND_IN_SET('client', person_type)"
-    )->fetchColumn();
+    $stats['caregivers']     = (int)$db->query("SELECT COUNT(*) FROM caregivers")->fetchColumn();
+    $stats['placed']         = (int)$db->query("SELECT COUNT(*) FROM caregivers WHERE status = 'placed'")->fetchColumn();
+    $stats['clients']        = (int)$db->query("SELECT COUNT(*) FROM clients")->fetchColumn();
     // "Active" is derived from revenue rather than stored: a client is
     // active if they have any revenue row in the current or previous
     // 2 calendar months. Per the single-source-of-truth standing rule,
@@ -34,8 +26,7 @@ try {
     $stats['active_clients'] = (int)$db->query(
         "SELECT COUNT(DISTINCT cr.client_id)
          FROM client_revenue cr
-         INNER JOIN persons p ON p.id = cr.client_id
-                              AND FIND_IN_SET('client', p.person_type)
+         INNER JOIN clients c ON c.id = cr.client_id
          WHERE cr.month_date >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 2 MONTH)"
     )->fetchColumn();
     $stats['roster_shifts']  = (int)$db->query('SELECT COUNT(*) FROM daily_roster')->fetchColumn();

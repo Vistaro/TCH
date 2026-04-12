@@ -144,8 +144,9 @@ if ($report === 'earnings' || $report === 'days') {
 //      the mismatch and pointing at FR-0069.
 if ($report === 'billing') {
     $client = $db->prepare(
-        "SELECT full_name FROM persons
-         WHERE id = ? AND FIND_IN_SET('client', person_type)"
+        "SELECT p.full_name FROM clients c
+         JOIN persons p ON p.id = c.person_id
+         WHERE c.id = ?"
     );
     $client->execute([$entityId]);
     $clientName = $client->fetchColumn();

@@ -75,8 +75,9 @@ if ($detailId > 0) {
                 ps.label AS status_label,
                 ls.label AS lead_source_label
          FROM persons cg
-         LEFT JOIN person_statuses ps ON ps.id = cg.status_id
-         LEFT JOIN lead_sources    ls ON ls.id = cg.lead_source_id
+         LEFT JOIN students st     ON st.person_id = cg.id
+         LEFT JOIN person_statuses ps ON ps.id = st.status_id
+         LEFT JOIN lead_sources    ls ON ls.id = st.lead_source_id
          WHERE cg.id = ?"
     );
     $stmt->execute([$detailId]);
@@ -277,33 +278,34 @@ if ($detailId > 0) {
 
 // Filter
 $filterCohort = $_GET['cohort'] ?? '';
-$where  = ["cg.import_review_state = 'pending'"];
+$where  = ["st.import_review_state = 'pending'"];
 $params = [];
 if ($filterCohort !== '') {
-    $where[]  = 'cg.cohort = ?';
+    $where[]  = 'st.cohort = ?';
     $params[] = $filterCohort;
 }
 $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
-$sql = "SELECT cg.id, cg.tch_id, cg.full_name, cg.known_as, cg.student_id, cg.cohort,
-               cg.import_notes IS NOT NULL AND cg.import_notes != '' AS has_notes,
+$sql = "SELECT cg.id, cg.tch_id, cg.full_name, cg.known_as, st.student_id, st.cohort,
+               st.import_notes IS NOT NULL AND st.import_notes != '' AS has_notes,
                (SELECT COUNT(*) FROM attachments a
                 WHERE a.person_id = cg.id AND a.is_active = 1) AS attachment_count
         FROM persons cg
+        LEFT JOIN students st ON st.person_id = cg.id
         $whereSQL
-        ORDER BY cg.cohort, cg.id";
+        ORDER BY st.cohort, cg.id";
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
 $cohorts = $db->query(
-    "SELECT DISTINCT cohort FROM persons
+    "SELECT DISTINCT cohort FROM students
      WHERE import_review_state = 'pending' AND cohort IS NOT NULL
      ORDER BY cohort"
 )->fetchAll(PDO::FETCH_COLUMN);
 
 $totalPending = (int)$db->query(
-    "SELECT COUNT(*) FROM persons WHERE import_review_state = 'pending'"
+    "SELECT COUNT(*) FROM students WHERE import_review_state = 'pending'"
 )->fetchColumn();
 
 require APP_ROOT . '/templates/layouts/admin.php';

@@ -43,7 +43,7 @@ $lastMonth  = $anchor->format('Y-m-01');
 
 // ── Server-side pre-filter (cohort dropdown) ───────────────────────────
 $cohorts = $db->query(
-    "SELECT DISTINCT cohort FROM persons WHERE cohort IS NOT NULL AND cohort != '' ORDER BY cohort"
+    "SELECT DISTINCT cohort FROM students WHERE cohort IS NOT NULL AND cohort != '' ORDER BY cohort"
 )->fetchAll(PDO::FETCH_COLUMN);
 
 $filterCohort = $_GET['cohort'] ?? '';
@@ -51,7 +51,7 @@ $filterCohort = $_GET['cohort'] ?? '';
 $extraWhere = '';
 $extraParams = [];
 if ($filterCohort !== '') {
-    $extraWhere = ' AND cg.cohort = ?';
+    $extraWhere = ' AND s.cohort = ?';
     $extraParams[] = $filterCohort;
 }
 
@@ -63,11 +63,12 @@ if ($filterCohort !== '') {
 // a caregiver's full_name reflect immediately without a re-ingest.
 // Orphan rows (caregiver_id IS NULL) fall back to the raw source name.
 $sql = "SELECT cc.caregiver_id,
-               COALESCE(cg.full_name, cc.caregiver_name) AS display_name,
+               COALESCE(p.full_name, cc.caregiver_name) AS display_name,
                cc.month_date, cc.amount, cc.days_worked,
-               cg.cohort
+               s.cohort
         FROM caregiver_costs cc
-        LEFT JOIN persons cg ON cc.caregiver_id = cg.id
+        LEFT JOIN persons p ON cc.caregiver_id = p.id
+        LEFT JOIN students s ON s.person_id = p.id
         WHERE cc.month_date >= ? AND cc.month_date <= ?
               $extraWhere
         ORDER BY display_name, cc.month_date";

@@ -49,10 +49,10 @@ $lastMonth  = $anchor->format('Y-m-01');
 $sql = "SELECT cr.client_id,
                COALESCE(p.full_name, cr.client_name) AS display_name,
                cr.month_date, cr.income,
-               p.account_number
+               c.account_number
         FROM client_revenue cr
-        LEFT JOIN persons p ON cr.client_id = p.id
-                            AND FIND_IN_SET('client', p.person_type)
+        LEFT JOIN clients c ON cr.client_id = c.id
+        LEFT JOIN persons p ON p.id = c.person_id
         WHERE cr.month_date >= ? AND cr.month_date <= ?
         ORDER BY display_name, cr.month_date";
 $stmt = $db->prepare($sql);

@@ -35,9 +35,7 @@ if (!$region) {
 }
 
 // Pull live caregiver/client counts for the stats bar
-$pipelineCount = (int)$db->query(
-    "SELECT COUNT(*) FROM persons WHERE FIND_IN_SET('caregiver', person_type)"
-)->fetchColumn();
+$pipelineCount = (int)$db->query("SELECT COUNT(*) FROM caregivers")->fetchColumn();
 // "Active client" is derived from recent revenue rather than a stored
 // status flag — see the single-source-of-truth standing rule in
 // C:\ClaudeCode\CLAUDE.md. A client counts as active if they have
@@ -45,8 +43,7 @@ $pipelineCount = (int)$db->query(
 $clientCount = (int)$db->query(
     "SELECT COUNT(DISTINCT cr.client_id)
      FROM client_revenue cr
-     INNER JOIN persons p ON p.id = cr.client_id
-                          AND FIND_IN_SET('client', p.person_type)
+     INNER JOIN clients c ON c.id = cr.client_id
      WHERE cr.month_date >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 2 MONTH)"
 )->fetchColumn();
 

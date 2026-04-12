@@ -2,6 +2,63 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.13] - 2026-04-12
+
+### Added — Phase 2+3: Table decomposition + reports on role tables
+
+**Migration 009** (`009_table_decomposition.sql`):
+Created five role tables alongside the existing `persons` identity
+table. Additive approach — no existing FKs repointed, no code
+breaks during rollout. Role tables are extension tables joined via
+`person_id`:
+
+- **`students`** (137 rows) — cohort, student_id, scores,
+  qualification, import_review_state. Populated from caregiver-type
+  persons that have training data.
+- **`caregivers`** (139 rows) — day_rate (from latest rate_history),
+  status (available/placed/inactive). One row per deployable
+  caregiver.
+- **`clients`** (68 rows) — account_number, billing_entity,
+  billing_freq. Separate auto-increment id supports future company
+  clients (person_id nullable). Existing `client_revenue.client_id`
+  and `daily_roster.client_id` values work as FKs without repointing
+  because clients.id = persons.id for individual clients.
+- **`patients`** (68 rows) — client_id FK (who pays), patient_name.
+  1:1 with clients today; supports N:1 when corporate clients arrive.
+- **`products`** (1 row) — seeded with "Day Rate". Ready for Night
+  Shift, Live-In, Hourly etc. when TCH adds them.
+
+Admin pages registered for caregivers, clients, patients, products
+(Super Admin CRUD granted). Handlers not yet built — queued for
+Phase 4.
+
+### Changed — Reports read from role tables
+
+All reports and the dashboard now JOIN through the role tables
+instead of filtering `persons` with `FIND_IN_SET`:
+
+- Dashboard: caregivers count from `caregivers`, placed from
+  `caregivers WHERE status='placed'`, clients from `clients`,
+  active from `clients JOIN client_revenue`
+- Client Billing: JOINs `clients` → `persons` for display name
+- Caregiver Earnings: JOINs `persons` + `students` for cohort
+- Days Worked: same pattern
+- People Review: reads cohort, import state from `students` table
+- Permissions: `getVisibleCaregiverIds` reads from `caregivers`,
+  `getVisibleClientIds` reads from `clients`
+- Homepage: counts from `caregivers` and `clients`
+- Report drill-down: client lookup through `clients JOIN persons`
+
+**Note:** Role-specific columns are NOT yet dropped from `persons`.
+They stay temporarily so any code path not yet migrated doesn't
+break. Migration 010 (future) strips persons to identity-only.
+
+### Verified
+
+Dashboard: 139 caregivers, 68 clients, 24 active, R1,765,204
+revenue, R1,055,584 margin, 1,619 shifts. All 6 admin pages + 
+homepage return 200 on both dev and prod.
+
 ## [0.9.12] - 2026-04-12
 
 ### Changed — Phase 1: cohort rename + drop derivations + data rebuild

@@ -152,7 +152,7 @@ function getVisibleCaregiverIds(?int $forUserId = null): array {
     if (in_array((int)$user['role_id'], [1, 2], true)) {
         $db = getDB();
         return array_map('intval', $db->query(
-            "SELECT id FROM persons WHERE FIND_IN_SET('caregiver', person_type)"
+            "SELECT person_id FROM caregivers"
         )->fetchAll(PDO::FETCH_COLUMN));
     }
 
@@ -198,7 +198,7 @@ function getVisibleClientIds(?int $forUserId = null): array {
     if (in_array((int)$user['role_id'], [1, 2], true)) {
         $db = getDB();
         return array_map('intval', $db->query(
-            "SELECT id FROM persons WHERE FIND_IN_SET('client', person_type)"
+            "SELECT id FROM clients"
         )->fetchAll(PDO::FETCH_COLUMN));
     }
 

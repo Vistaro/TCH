@@ -36,7 +36,7 @@ $lastMonth  = $anchor->modify('last day of this month')->format('Y-m-d');
 
 // ── Cohort pre-filter (server-side) ────────────────────────────────────
 $cohorts = $db->query(
-    "SELECT DISTINCT cohort FROM persons WHERE cohort IS NOT NULL AND cohort != '' ORDER BY cohort"
+    "SELECT DISTINCT cohort FROM students WHERE cohort IS NOT NULL AND cohort != '' ORDER BY cohort"
 )->fetchAll(PDO::FETCH_COLUMN);
 
 $filterCohort = $_GET['cohort'] ?? '';
@@ -44,7 +44,7 @@ $filterCohort = $_GET['cohort'] ?? '';
 $extraWhere = '';
 $extraParams = [];
 if ($filterCohort !== '') {
-    $extraWhere = ' AND cg.cohort = ?';
+    $extraWhere = ' AND s.cohort = ?';
     $extraParams[] = $filterCohort;
 }
 
@@ -53,15 +53,16 @@ if ($filterCohort !== '') {
 // denormalised `daily_roster.caregiver_name` frozen at ingest time.
 // Orphan rows (no caregiver_id match) fall back to the raw source name.
 $sql = "SELECT dr.caregiver_id,
-               COALESCE(cg.full_name, dr.caregiver_name) AS display_name,
+               COALESCE(p.full_name, dr.caregiver_name) AS display_name,
                DATE_FORMAT(dr.roster_date, '%Y-%m') AS month_key,
                COUNT(*) AS days_worked,
-               cg.cohort
+               s.cohort
         FROM daily_roster dr
-        LEFT JOIN persons cg ON dr.caregiver_id = cg.id
+        LEFT JOIN persons p ON dr.caregiver_id = p.id
+        LEFT JOIN students s ON s.person_id = p.id
         WHERE dr.roster_date >= ? AND dr.roster_date <= ?
               $extraWhere
-        GROUP BY dr.caregiver_id, display_name, month_key, cg.cohort
+        GROUP BY dr.caregiver_id, display_name, month_key, s.cohort
         ORDER BY display_name, month_key";
 $params = array_merge([$firstMonth, $lastMonth], $extraParams);
 $stmt = $db->prepare($sql);
