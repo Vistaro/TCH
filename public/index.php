@@ -152,15 +152,14 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/activity_types_config.php';
         break;
 
+    // Name reconciliation retired (v0.9.15) — all names normalised
+    // via the 2026-04-12 spreadsheet exercise. Zero orphan roster rows.
+    // The name_lookup table and /admin/names page are historical artefacts.
+    // Redirect to dashboard if anyone bookmarked the old URL.
     case 'admin/names':
-        requirePagePermission('names_reconcile', 'read');
-        require APP_ROOT . '/templates/admin/names.php';
-        break;
-
     case 'admin/names/assign':
-        requirePagePermission('names_reconcile', 'edit');
-        require APP_ROOT . '/templates/admin/names_assign.php';
-        break;
+        header('Location: ' . APP_URL . '/admin/dashboard');
+        exit;
 
     case 'admin/people/review':
         requirePagePermission('people_review', 'read');
