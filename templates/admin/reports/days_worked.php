@@ -34,18 +34,18 @@ $firstMonth = $anchor->modify('-11 months')->format('Y-m-01');
 // Last day of the anchor (current) month for the inclusive SQL upper bound
 $lastMonth  = $anchor->modify('last day of this month')->format('Y-m-d');
 
-// ── Tranche pre-filter (server-side) ────────────────────────────────────
-$tranches = $db->query(
-    "SELECT DISTINCT tranche FROM persons WHERE tranche IS NOT NULL AND tranche != '' ORDER BY tranche"
+// ── Cohort pre-filter (server-side) ────────────────────────────────────
+$cohorts = $db->query(
+    "SELECT DISTINCT cohort FROM persons WHERE cohort IS NOT NULL AND cohort != '' ORDER BY cohort"
 )->fetchAll(PDO::FETCH_COLUMN);
 
-$filterTranche = $_GET['tranche'] ?? '';
+$filterCohort = $_GET['cohort'] ?? '';
 
 $extraWhere = '';
 $extraParams = [];
-if ($filterTranche !== '') {
-    $extraWhere = ' AND cg.tranche = ?';
-    $extraParams[] = $filterTranche;
+if ($filterCohort !== '') {
+    $extraWhere = ' AND cg.cohort = ?';
+    $extraParams[] = $filterCohort;
 }
 
 // ── Aggregate days per caregiver per month ──────────────────────────────
@@ -56,12 +56,12 @@ $sql = "SELECT dr.caregiver_id,
                COALESCE(cg.full_name, dr.caregiver_name) AS display_name,
                DATE_FORMAT(dr.roster_date, '%Y-%m') AS month_key,
                COUNT(*) AS days_worked,
-               cg.tranche
+               cg.cohort
         FROM daily_roster dr
         LEFT JOIN persons cg ON dr.caregiver_id = cg.id
         WHERE dr.roster_date >= ? AND dr.roster_date <= ?
               $extraWhere
-        GROUP BY dr.caregiver_id, display_name, month_key, cg.tranche
+        GROUP BY dr.caregiver_id, display_name, month_key, cg.cohort
         ORDER BY display_name, month_key";
 $params = array_merge([$firstMonth, $lastMonth], $extraParams);
 $stmt = $db->prepare($sql);
@@ -75,7 +75,7 @@ foreach ($flatRows as $r) {
     if (!isset($matrix[$name])) {
         $matrix[$name] = [
             'caregiver_id' => $r['caregiver_id'],
-            'tranche'      => $r['tranche'],
+            'cohort'      => $r['cohort'],
             'months'       => array_fill_keys(array_column($months, 'key'), 0),
             'total'        => 0,
         ];
@@ -108,18 +108,18 @@ function days_cell(int $v): string {
 
 <form method="GET" action="<?= APP_URL ?>/admin/reports/days-worked" class="report-filters">
     <div class="filter-group">
-        <label>Tranche</label>
-        <select name="tranche">
-            <option value="">All Tranches</option>
-            <?php foreach ($tranches as $t): ?>
-                <option value="<?= htmlspecialchars($t) ?>" <?= $filterTranche === $t ? 'selected' : '' ?>>
+        <label>Cohort</label>
+        <select name="cohort">
+            <option value="">All Cohorts</option>
+            <?php foreach ($cohorts as $t): ?>
+                <option value="<?= htmlspecialchars($t) ?>" <?= $filterCohort === $t ? 'selected' : '' ?>>
                     <?= htmlspecialchars($t) ?>
                 </option>
             <?php endforeach; ?>
         </select>
     </div>
     <button type="submit" class="btn btn-primary">Filter</button>
-    <?php if ($filterTranche !== ''): ?>
+    <?php if ($filterCohort !== ''): ?>
         <a href="<?= APP_URL ?>/admin/reports/days-worked" class="btn btn-outline btn-sm">Clear</a>
     <?php endif; ?>
     <div style="margin-left:auto;color:#666;font-size:0.85rem;">
@@ -138,7 +138,7 @@ function days_cell(int $v): string {
         <thead>
             <tr>
                 <th>Caregiver</th>
-                <th data-no-filter>Tranche</th>
+                <th data-no-filter>Cohort</th>
                 <?php foreach ($months as $m): ?>
                     <th class="number" data-no-filter><?= htmlspecialchars($m['label']) ?></th>
                 <?php endforeach; ?>
@@ -152,7 +152,7 @@ function days_cell(int $v): string {
                 <?php foreach ($matrix as $name => $row): ?>
                     <tr>
                         <td><?= htmlspecialchars($name) ?></td>
-                        <td><?= htmlspecialchars($row['tranche'] ?? '—') ?></td>
+                        <td><?= htmlspecialchars($row['cohort'] ?? '—') ?></td>
                         <?php foreach ($months as $m): ?>
                             <?php $val = (int)($row['months'][$m['key']] ?? 0); ?>
                             <td class="number">

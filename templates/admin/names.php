@@ -39,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
 }
 
 // Get filter options
-$tranches = $db->query(
-    "SELECT DISTINCT tranche FROM name_lookup WHERE tranche IS NOT NULL AND tranche != '' ORDER BY tranche"
+$cohorts = $db->query(
+    "SELECT DISTINCT cohort FROM name_lookup WHERE cohort IS NOT NULL AND cohort != '' ORDER BY cohort"
 )->fetchAll(PDO::FETCH_COLUMN);
 
 // Apply filters
@@ -48,7 +48,7 @@ $where = [];
 $params = [];
 
 $filterStatus  = $_GET['status'] ?? '';
-$filterTranche = $_GET['tranche'] ?? '';
+$filterCohort = $_GET['cohort'] ?? '';
 $filterSearch  = $_GET['search'] ?? '';
 
 if ($filterStatus === 'pending') {
@@ -56,9 +56,9 @@ if ($filterStatus === 'pending') {
 } elseif ($filterStatus === 'approved') {
     $where[] = 'nl.approved = 1';
 }
-if ($filterTranche !== '') {
-    $where[] = 'nl.tranche = ?';
-    $params[] = $filterTranche;
+if ($filterCohort !== '') {
+    $where[] = 'nl.cohort = ?';
+    $params[] = $filterCohort;
 }
 if ($filterSearch !== '') {
     $where[] = '(nl.canonical_name LIKE ? OR nl.pdf_name LIKE ? OR nl.training_name LIKE ? OR nl.billing_name LIKE ?)';
@@ -173,11 +173,11 @@ require APP_ROOT . '/templates/layouts/admin.php';
         </select>
     </div>
     <div class="filter-group">
-        <label>Tranche</label>
-        <select name="tranche">
-            <option value="">All Tranches</option>
-            <?php foreach ($tranches as $t): ?>
-                <option value="<?= htmlspecialchars($t) ?>" <?= $filterTranche === $t ? 'selected' : '' ?>><?= htmlspecialchars($t) ?></option>
+        <label>Cohort</label>
+        <select name="cohort">
+            <option value="">All Cohorts</option>
+            <?php foreach ($cohorts as $t): ?>
+                <option value="<?= htmlspecialchars($t) ?>" <?= $filterCohort === $t ? 'selected' : '' ?>><?= htmlspecialchars($t) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
@@ -200,7 +200,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <th>Training Name</th>
                 <th>PDF / Legal Name</th>
                 <th>Billing Name</th>
-                <th>Tranche</th>
+                <th>Cohort</th>
                 <th>PDF Score</th>
                 <th>Billing Score</th>
                 <th>Status</th>
@@ -217,7 +217,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                         <td><?= htmlspecialchars($r['training_name'] ?: '—') ?></td>
                         <td><?= htmlspecialchars($r['pdf_name'] ?: '—') ?></td>
                         <td><?= htmlspecialchars($r['billing_name'] ?: '—') ?></td>
-                        <td><?= htmlspecialchars($r['tranche'] ?: '—') ?></td>
+                        <td><?= htmlspecialchars($r['cohort'] ?: '—') ?></td>
                         <td><?php
                             $ps = $r['pdf_match_score'];
                             if ($ps !== null) {

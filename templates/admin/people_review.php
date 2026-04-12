@@ -135,8 +135,8 @@ if ($detailId > 0) {
                     <?php if ($person['student_id']): ?>
                         Student ID: <strong><?= htmlspecialchars($person['student_id']) ?></strong> &middot;
                     <?php endif; ?>
-                    <?php if ($person['tranche']): ?>
-                        Tranche: <strong><?= htmlspecialchars($person['tranche']) ?></strong> &middot;
+                    <?php if ($person['cohort']): ?>
+                        Cohort: <strong><?= htmlspecialchars($person['cohort']) ?></strong> &middot;
                     <?php endif; ?>
                     Status: <strong><?= htmlspecialchars($person['status_label'] ?? '—') ?></strong>
                 </div>
@@ -276,30 +276,30 @@ if ($detailId > 0) {
 // ── List view ────────────────────────────────────────────────────────────
 
 // Filter
-$filterTranche = $_GET['tranche'] ?? '';
+$filterCohort = $_GET['cohort'] ?? '';
 $where  = ["cg.import_review_state = 'pending'"];
 $params = [];
-if ($filterTranche !== '') {
-    $where[]  = 'cg.tranche = ?';
-    $params[] = $filterTranche;
+if ($filterCohort !== '') {
+    $where[]  = 'cg.cohort = ?';
+    $params[] = $filterCohort;
 }
 $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
-$sql = "SELECT cg.id, cg.tch_id, cg.full_name, cg.known_as, cg.student_id, cg.tranche,
+$sql = "SELECT cg.id, cg.tch_id, cg.full_name, cg.known_as, cg.student_id, cg.cohort,
                cg.import_notes IS NOT NULL AND cg.import_notes != '' AS has_notes,
                (SELECT COUNT(*) FROM attachments a
                 WHERE a.person_id = cg.id AND a.is_active = 1) AS attachment_count
         FROM persons cg
         $whereSQL
-        ORDER BY cg.tranche, cg.id";
+        ORDER BY cg.cohort, cg.id";
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
 
-$tranches = $db->query(
-    "SELECT DISTINCT tranche FROM persons
-     WHERE import_review_state = 'pending' AND tranche IS NOT NULL
-     ORDER BY tranche"
+$cohorts = $db->query(
+    "SELECT DISTINCT cohort FROM persons
+     WHERE import_review_state = 'pending' AND cohort IS NOT NULL
+     ORDER BY cohort"
 )->fetchAll(PDO::FETCH_COLUMN);
 
 $totalPending = (int)$db->query(
@@ -319,18 +319,18 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
 <form method="GET" action="<?= APP_URL ?>/admin/people/review" class="report-filters">
     <div class="filter-group">
-        <label>Tranche</label>
-        <select name="tranche">
-            <option value="">All Tranches</option>
-            <?php foreach ($tranches as $t): ?>
-                <option value="<?= htmlspecialchars($t) ?>" <?= $filterTranche === $t ? 'selected' : '' ?>>
+        <label>Cohort</label>
+        <select name="cohort">
+            <option value="">All Cohorts</option>
+            <?php foreach ($cohorts as $t): ?>
+                <option value="<?= htmlspecialchars($t) ?>" <?= $filterCohort === $t ? 'selected' : '' ?>>
                     <?= htmlspecialchars($t) ?>
                 </option>
             <?php endforeach; ?>
         </select>
     </div>
     <button type="submit" class="btn btn-primary">Filter</button>
-    <?php if ($filterTranche): ?>
+    <?php if ($filterCohort): ?>
         <a href="<?= APP_URL ?>/admin/people/review" class="btn btn-outline btn-sm">Clear</a>
     <?php endif; ?>
 </form>
@@ -344,7 +344,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <th>Full Name</th>
                 <th>Known As</th>
                 <th>Student ID</th>
-                <th>Tranche</th>
+                <th>Cohort</th>
                 <th>Attachments</th>
                 <th>Notes?</th>
                 <th>Action</th>
@@ -382,7 +382,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                         <td><strong><?= htmlspecialchars($r['full_name']) ?></strong></td>
                         <td><?= htmlspecialchars($r['known_as'] ?? '') ?: '—' ?></td>
                         <td><?= htmlspecialchars($r['student_id'] ?? '') ?: '—' ?></td>
-                        <td><?= htmlspecialchars($r['tranche'] ?? '') ?: '—' ?></td>
+                        <td><?= htmlspecialchars($r['cohort'] ?? '') ?: '—' ?></td>
                         <td><?= (int)$r['attachment_count'] ?></td>
                         <td><?= $r['has_notes'] ? '<span class="badge badge-warning">Yes</span>' : '—' ?></td>
                         <td>

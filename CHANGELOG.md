@@ -2,6 +2,55 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.12] - 2026-04-12
+
+### Changed — Phase 1: cohort rename + drop derivations + data rebuild
+
+**Migration 008** (`008_cohort_rename_and_drop_derivations.sql`):
+- Renamed `tranche` → `cohort` across `persons` and `name_lookup`
+  tables (column + data values "Tranche N" → "Cohort N")
+- Dropped `persons.total_billed` (derivation of caregiver_costs)
+- Dropped `persons.standard_daily_rate` (derivation of rate_history)
+- Dropped `margin_summary` table (entirely derived)
+- All UI labels updated: Tranche → Cohort in dropdowns, table
+  headers, and filter controls across 4 template files
+
+**Data rebuild from source workbooks:**
+- Rebuilt `client_revenue` from the billing workbook panels (80
+  aggregated rows, R1,765,204 total — corrected from the old
+  R1,554,103 which was ingested from a different source)
+- Rebuilt `daily_roster` from the attendance workbook shift matrix
+  (1,619 rows, R692,148 total caregiver cost)
+- **Zero orphan rows** — every revenue row links to a client, every
+  roster row links to both a caregiver AND a client/patient
+  (previously 1,224 of 1,619 roster rows had no client link)
+- Every row carries a `source_ref` column pointing back to the
+  exact cell in the original Excel file for full traceability
+- Created `caregiver_loans` table with 39 rows from the "Money
+  Borrowed" lines in the attendance workbook
+
+**Name normalisation (prerequisite):**
+- Ross manually reviewed and confirmed every caregiver and client
+  name across three sources (PDF intake, billing panels, attendance
+  cells) via the Name Normalisation spreadsheet
+- Three caregiver duplicates merged: TCH-000136 Musa Zulu → 
+  TCH-000064 Musa Glenda Zulu; TCH-000130 Emily Mentula →
+  TCH-000098 Thembi Emily Mpete; TCH-000140 Sylvia Nene →
+  TCH-000029 Sylvia Delisile Nene
+- Two new caregivers created: TCH-000205 Nelly Nkayabu Kaniki,
+  TCH-000206 Ada Stipens
+- 17 "Not Known" client/patient placeholders created
+  (TCH-000207 through TCH-000223) for attendance cell values
+  Tuniti needs to identify
+
+**Dashboard stats after rebuild:**
+- Total Caregivers: 139 (was 140; -3 merges +2 new)
+- Client Accounts: 68 (51 known + 17 Not Known placeholders)
+- Active Clients: 24 (derived from recent revenue)
+- Total Revenue: R1,765,204 (corrected, was R1,554,103)
+- Gross Margin: R1,055,584 (was R844,483)
+- Roster Shifts: 1,619 (unchanged count, but 0 orphans now vs 1,224)
+
 ## [0.9.11] - 2026-04-11
 
 ### Added — Migration 007: clients table retired into persons

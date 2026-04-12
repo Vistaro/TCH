@@ -12,7 +12,7 @@
  * Month columns are NOT filterable (numeric columns don't benefit
  * from text-contains filters — use sort instead).
  *
- * Still supports the existing tranche dropdown at the top as a
+ * Still supports the existing cohort dropdown at the top as a
  * pre-filter applied server-side.
  *
  * Permission: reports_caregiver_earnings.read
@@ -41,18 +41,18 @@ for ($i = 0; $i < 12; $i++) {
 $firstMonth = $anchor->modify('-11 months')->format('Y-m-01');
 $lastMonth  = $anchor->format('Y-m-01');
 
-// ── Server-side pre-filter (tranche dropdown) ───────────────────────────
-$tranches = $db->query(
-    "SELECT DISTINCT tranche FROM persons WHERE tranche IS NOT NULL AND tranche != '' ORDER BY tranche"
+// ── Server-side pre-filter (cohort dropdown) ───────────────────────────
+$cohorts = $db->query(
+    "SELECT DISTINCT cohort FROM persons WHERE cohort IS NOT NULL AND cohort != '' ORDER BY cohort"
 )->fetchAll(PDO::FETCH_COLUMN);
 
-$filterTranche = $_GET['tranche'] ?? '';
+$filterCohort = $_GET['cohort'] ?? '';
 
 $extraWhere = '';
 $extraParams = [];
-if ($filterTranche !== '') {
-    $extraWhere = ' AND cg.tranche = ?';
-    $extraParams[] = $filterTranche;
+if ($filterCohort !== '') {
+    $extraWhere = ' AND cg.cohort = ?';
+    $extraParams[] = $filterCohort;
 }
 
 // ── Fetch flat rows, pivot in PHP ───────────────────────────────────────
@@ -65,7 +65,7 @@ if ($filterTranche !== '') {
 $sql = "SELECT cc.caregiver_id,
                COALESCE(cg.full_name, cc.caregiver_name) AS display_name,
                cc.month_date, cc.amount, cc.days_worked,
-               cg.tranche
+               cg.cohort
         FROM caregiver_costs cc
         LEFT JOIN persons cg ON cc.caregiver_id = cg.id
         WHERE cc.month_date >= ? AND cc.month_date <= ?
@@ -76,14 +76,14 @@ $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $flatRows = $stmt->fetchAll();
 
-// Pivot: display_name → [ month_key => amount, __total__, __tranche__, __id__ ]
+// Pivot: display_name → [ month_key => amount, __total__, __cohort__, __id__ ]
 $matrix = [];
 foreach ($flatRows as $r) {
     $name = $r['display_name'];
     if (!isset($matrix[$name])) {
         $matrix[$name] = [
             'caregiver_id' => $r['caregiver_id'],
-            'tranche'      => $r['tranche'],
+            'cohort'      => $r['cohort'],
             'months'       => array_fill_keys(array_column($months, 'key'), 0.0),
             'total'        => 0.0,
         ];
@@ -121,18 +121,18 @@ function zar_cell(float $v): string {
 
 <form method="GET" action="<?= APP_URL ?>/admin/reports/caregiver-earnings" class="report-filters">
     <div class="filter-group">
-        <label>Tranche</label>
-        <select name="tranche">
-            <option value="">All Tranches</option>
-            <?php foreach ($tranches as $t): ?>
-                <option value="<?= htmlspecialchars($t) ?>" <?= $filterTranche === $t ? 'selected' : '' ?>>
+        <label>Cohort</label>
+        <select name="cohort">
+            <option value="">All Cohorts</option>
+            <?php foreach ($cohorts as $t): ?>
+                <option value="<?= htmlspecialchars($t) ?>" <?= $filterCohort === $t ? 'selected' : '' ?>>
                     <?= htmlspecialchars($t) ?>
                 </option>
             <?php endforeach; ?>
         </select>
     </div>
     <button type="submit" class="btn btn-primary">Filter</button>
-    <?php if ($filterTranche !== ''): ?>
+    <?php if ($filterCohort !== ''): ?>
         <a href="<?= APP_URL ?>/admin/reports/caregiver-earnings" class="btn btn-outline btn-sm">Clear</a>
     <?php endif; ?>
     <div style="margin-left:auto;color:#666;font-size:0.85rem;">
@@ -151,7 +151,7 @@ function zar_cell(float $v): string {
         <thead>
             <tr>
                 <th>Caregiver</th>
-                <th data-no-filter>Tranche</th>
+                <th data-no-filter>Cohort</th>
                 <?php foreach ($months as $m): ?>
                     <th class="number" data-no-filter><?= htmlspecialchars($m['label']) ?></th>
                 <?php endforeach; ?>
@@ -166,7 +166,7 @@ function zar_cell(float $v): string {
                     <?php $rowKey = 'cg-' . (int)$row['caregiver_id']; ?>
                     <tr>
                         <td><?= htmlspecialchars($name) ?></td>
-                        <td><?= htmlspecialchars($row['tranche'] ?? '—') ?></td>
+                        <td><?= htmlspecialchars($row['cohort'] ?? '—') ?></td>
                         <?php foreach ($months as $m): ?>
                             <?php $val = $row['months'][$m['key']] ?? 0; ?>
                             <td class="number">
