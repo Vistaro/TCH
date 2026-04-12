@@ -50,6 +50,13 @@ if (preg_match('#^admin/email-log/(\d+)$#', $route, $m)) {
     exit;
 }
 
+if (preg_match('#^admin/reports/client-profitability/(\d+)$#', $route, $m)) {
+    $_GET['client_id'] = (int)$m[1];
+    requirePagePermission('reports_client_profitability', 'read');
+    require APP_ROOT . '/templates/admin/reports/client_profitability_detail.php';
+    exit;
+}
+
 if (preg_match('#^admin/activity/(\d+)$#', $route, $m)) {
     $_GET['activity_id'] = (int)$m[1];
     requirePagePermission('activity_log', 'read');
@@ -101,6 +108,11 @@ switch ($route) {
     case 'admin/reports/client-billing':
         requirePagePermission('reports_client_billing', 'read');
         require APP_ROOT . '/templates/admin/reports/client_billing.php';
+        break;
+
+    case 'admin/reports/client-profitability':
+        requirePagePermission('reports_client_profitability', 'read');
+        require APP_ROOT . '/templates/admin/reports/client_profitability.php';
         break;
 
     case 'admin/reports/days-worked':
