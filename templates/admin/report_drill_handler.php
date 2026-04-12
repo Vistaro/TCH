@@ -127,21 +127,8 @@ if ($report === 'earnings' || $report === 'days') {
 // ─── BILLING drill ────────────────────────────────────────────────────
 // Show every daily_roster row for this client in the month, with the
 // caregiver who served them and the daily rate.
-//
-// NOTE on the 78% miss rate:
-// Only ~22% of daily_roster rows have client_id set. The other 76%
-// (1224 of 1619 at time of writing) have client_id = NULL and a
-// string client_assigned that uses a different naming convention from
-// client_revenue. A full fix requires a client name reconciliation
-// pass equivalent to the existing name_lookup table for caregivers —
-// that's tracked as FR-0069 on the Hub ("Client name reconciliation").
-// Until that lands this drill does the best it can:
-//   1. Match on daily_roster.client_id = ?  (covers the 22% that ARE linked)
-//   2. Fall back to exact client_assigned = clients.client_name
-//   3. Fall back to LIKE 'first-word%' in case the roster name is a
-//      shortened variant
-//   4. If nothing matches, return an honest empty state explaining
-//      the mismatch and pointing at FR-0069.
+// Post name-normalisation (v0.9.12+): every daily_roster row has a
+// valid client_id FK. No fuzzy name matching needed — just JOIN on id.
 if ($report === 'billing') {
     $client = $db->prepare(
         "SELECT p.full_name FROM clients c
@@ -155,45 +142,21 @@ if ($report === 'billing') {
         exit;
     }
 
-    // Build a tolerant match: client_id = ? OR client_assigned in a set
-    // of reasonable name variants.
-    $baseName    = trim((string)preg_replace('/[-\s]*monthly$/i', '', $clientName));
-    $baseWeekly  = trim((string)preg_replace('/[-\s]*weekly$/i', '', $clientName));
-    $firstWord   = '';
-    if (preg_match('/^([^\s\/\-]+)/', $clientName, $m)) {
-        $firstWord = $m[1];
-    }
-
     $stmt = $db->prepare(
-        "SELECT dr.roster_date, dr.day_of_week, dr.caregiver_name, dr.client_assigned, dr.daily_rate,
-                CASE
-                    WHEN dr.client_id = ?                                    THEN 'id'
-                    WHEN dr.client_assigned = ?                              THEN 'exact'
-                    WHEN dr.client_assigned = ?                              THEN 'monthly'
-                    WHEN dr.client_assigned = ?                              THEN 'weekly'
-                    WHEN ? <> '' AND dr.client_assigned LIKE CONCAT(?, '%')  THEN 'first-word'
-                    ELSE NULL
-                END AS match_type
+        "SELECT dr.roster_date, dr.day_of_week,
+                COALESCE(p_cg.full_name, dr.caregiver_name) AS caregiver_name,
+                dr.client_assigned,
+                dr.cost_rate, dr.bill_rate, dr.daily_rate,
+                dr.status AS shift_status,
+                dr.source_ref
          FROM daily_roster dr
-         WHERE (
-                   dr.client_id = ?
-                OR dr.client_assigned = ?
-                OR dr.client_assigned = ?
-                OR dr.client_assigned = ?
-                OR (? <> '' AND dr.client_assigned LIKE CONCAT(?, '%'))
-               )
+         LEFT JOIN persons p_cg ON p_cg.id = dr.caregiver_id
+         WHERE dr.client_id = ?
            AND dr.roster_date >= ?
            AND dr.roster_date <= ?
-         ORDER BY dr.roster_date, dr.caregiver_name"
+         ORDER BY dr.roster_date, caregiver_name"
     );
-    $stmt->execute([
-        // CASE expressions
-        $entityId, $clientName, $baseName, $baseWeekly, $firstWord, $firstWord,
-        // WHERE clause
-        $entityId, $clientName, $baseName, $baseWeekly, $firstWord, $firstWord,
-        // Date range
-        $monthStart, $monthEnd,
-    ]);
+    $stmt->execute([$entityId, $monthStart, $monthEnd]);
     $rows = $stmt->fetchAll();
 
     if (empty($rows)) {
@@ -207,41 +170,16 @@ if ($report === 'billing') {
         $billing->execute([$entityId, $monthStart, $monthEnd]);
         $billingRow = $billing->fetch();
 
-        echo '<div style="color:#555;line-height:1.6;">';
-        echo '<p><strong>No matching roster entries for this client in this month.</strong></p>';
-        if ($billingRow) {
-            echo '<p>What we <em>do</em> know, from the billing ledger (<code>client_revenue</code>):</p>';
-            echo '<ul style="margin:0.25rem 0 0.75rem 1rem;">';
-            echo '<li>Client: <strong>' . htmlspecialchars($billingRow['client_name']) . '</strong></li>';
-            echo '<li>Month: ' . htmlspecialchars($billingRow['month']) . '</li>';
-            echo '<li>Income: <strong>R' . number_format((float)$billingRow['income'], 0) . '</strong></li>';
-            if (isset($billingRow['expense'])) {
-                echo '<li>Expense: R' . number_format((float)$billingRow['expense'], 0) . '</li>';
-            }
-            if (isset($billingRow['margin'])) {
-                echo '<li>Margin: R' . number_format((float)$billingRow['margin'], 0) . '</li>';
-            }
-            echo '</ul>';
-        }
-        echo '<p style="color:#666;font-size:0.9em;">';
-        echo '<strong>Why:</strong> the billing system (<code>client_revenue</code>) and the roster system '
-            . '(<code>daily_roster</code>) use different client name conventions, and only ~22% of roster rows '
-            . 'are currently linked to a canonical client record. For the other ~78%, no day-level breakdown '
-            . 'can be shown until a name reconciliation pass matches them up.';
-        echo '</p>';
-        echo '<p style="color:#666;font-size:0.9em;">';
-        echo 'This is tracked as <strong>FR-0069</strong> on the Nexus Hub — "Client name reconciliation". ';
-        echo 'Once that lands, every billing client will have its matching roster rows linked and this drill ';
-        echo 'will fill in completely.';
-        echo '</p>';
-        echo '</div>';
+        echo '<p style="color:#999;">No roster shifts recorded for ' . htmlspecialchars($clientName) . ' in this month.</p>';
         exit;
     }
 
     $totalDays = count($rows);
-    $totalRate = 0.0;
+    $totalCost = 0.0;
+    $totalBill = 0.0;
     foreach ($rows as $r) {
-        $totalRate += (float)$r['daily_rate'];
+        $totalCost += (float)($r['cost_rate'] ?? $r['daily_rate'] ?? 0);
+        $totalBill += (float)($r['bill_rate'] ?? 0);
     }
 
     echo '<table class="report-table tch-data-table" style="margin:0;">';
@@ -249,20 +187,30 @@ if ($report === 'billing') {
     echo '<th>Date</th>';
     echo '<th>Day</th>';
     echo '<th>Caregiver</th>';
-    echo '<th class="number" data-no-filter>Rate (ZAR)</th>';
+    echo '<th class="number" data-no-filter>Cost (R)</th>';
+    echo '<th class="number" data-no-filter>Bill (R)</th>';
+    echo '<th>Status</th>';
+    echo '<th style="font-size:0.75rem;color:#999;">Source</th>';
     echo '</tr></thead><tbody>';
     foreach ($rows as $r) {
+        $cost = (float)($r['cost_rate'] ?? $r['daily_rate'] ?? 0);
+        $bill = (float)($r['bill_rate'] ?? 0);
         echo '<tr>';
         echo '<td>' . htmlspecialchars($r['roster_date']) . '</td>';
         echo '<td>' . htmlspecialchars($r['day_of_week']) . '</td>';
         echo '<td>' . htmlspecialchars($r['caregiver_name'] ?? '—') . '</td>';
-        echo '<td class="number">R' . number_format((float)$r['daily_rate'], 0) . '</td>';
+        echo '<td class="number">' . ($cost > 0 ? 'R' . number_format($cost, 0) : '—') . '</td>';
+        echo '<td class="number">' . ($bill > 0 ? 'R' . number_format($bill, 0) : '—') . '</td>';
+        echo '<td><span class="badge badge-' . ($r['shift_status'] === 'delivered' ? 'success' : 'muted') . '">' . ucfirst($r['shift_status'] ?? 'delivered') . '</span></td>';
+        echo '<td style="font-size:0.75rem;color:#999;">' . htmlspecialchars($r['source_ref'] ?? '') . '</td>';
         echo '</tr>';
     }
     echo '<tr class="total-row">';
     echo '<td colspan="2">Total</td>';
     echo '<td>' . $totalDays . ' day' . ($totalDays === 1 ? '' : 's') . '</td>';
-    echo '<td class="number"><strong>R' . number_format($totalRate, 0) . '</strong></td>';
+    echo '<td class="number"><strong>R' . number_format($totalCost, 0) . '</strong></td>';
+    echo '<td class="number"><strong>' . ($totalBill > 0 ? 'R' . number_format($totalBill, 0) : '—') . '</strong></td>';
+    echo '<td colspan="2"></td>';
     echo '</tr>';
     echo '</tbody></table>';
     exit;
