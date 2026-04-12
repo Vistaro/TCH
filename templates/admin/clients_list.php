@@ -1,0 +1,50 @@
+<?php
+$pageTitle = 'Clients';
+$activeNav = 'clients';
+
+$db = getDB();
+
+$sql = "SELECT c.id, c.account_number, c.billing_entity,
+               p.tch_id, p.full_name AS client_name,
+               pt.patient_name,
+               (SELECT COUNT(*) FROM client_revenue cr WHERE cr.client_id = c.id) AS revenue_rows,
+               (SELECT COALESCE(SUM(cr2.income), 0) FROM client_revenue cr2 WHERE cr2.client_id = c.id) AS total_billed,
+               (SELECT COUNT(*) FROM daily_roster dr WHERE dr.client_id = c.id) AS shift_count,
+               (SELECT COALESCE(SUM(dr2.cost_rate), 0) FROM daily_roster dr2 WHERE dr2.client_id = c.id) AS total_cost
+        FROM clients c
+        LEFT JOIN persons p ON p.id = c.person_id
+        LEFT JOIN patients pt ON pt.person_id = c.person_id
+        ORDER BY p.full_name";
+$rows = $db->query($sql)->fetchAll();
+
+require APP_ROOT . '/templates/layouts/admin.php';
+?>
+
+<p style="color:#666;font-size:0.85rem;margin-bottom:1rem;"><?= count($rows) ?> client<?= count($rows) !== 1 ? 's' : '' ?></p>
+
+<table class="report-table tch-data-table">
+    <thead><tr>
+        <th>Account</th><th>Client Name</th><th>Patient Name</th>
+        <th>Entity</th><th>Revenue Months</th><th>Total Billed</th>
+        <th>Shifts</th><th>Total Cost</th><th>Gross Margin</th>
+    </tr></thead>
+    <tbody>
+    <?php foreach ($rows as $r):
+        $margin = (float)$r['total_billed'] - (float)$r['total_cost'];
+    ?>
+    <tr>
+        <td><code><?= htmlspecialchars($r['account_number'] ?? '') ?></code></td>
+        <td><?= htmlspecialchars($r['client_name'] ?? 'Company (no person)') ?></td>
+        <td><?= htmlspecialchars($r['patient_name'] ?? '') ?: '<span style="color:#ccc;">same</span>' ?></td>
+        <td><?= htmlspecialchars($r['billing_entity'] ?? '') ?></td>
+        <td class="number"><?= (int)$r['revenue_rows'] ?></td>
+        <td class="number"><?= (float)$r['total_billed'] > 0 ? 'R' . number_format((float)$r['total_billed'], 0) : '—' ?></td>
+        <td class="number"><?= (int)$r['shift_count'] ?></td>
+        <td class="number"><?= (float)$r['total_cost'] > 0 ? 'R' . number_format((float)$r['total_cost'], 0) : '—' ?></td>
+        <td class="number" style="<?= $margin >= 0 ? 'color:#198754' : 'color:#dc3545' ?>"><?= $margin != 0 ? 'R' . number_format($margin, 0) : '—' ?></td>
+    </tr>
+    <?php endforeach; ?>
+    </tbody>
+</table>
+
+<?php require APP_ROOT . '/templates/layouts/admin_footer.php'; ?>

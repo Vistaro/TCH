@@ -108,6 +108,50 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/reports/days_worked.php';
         break;
 
+    // ─── Entity list pages ────────────────────────────────────────────
+    case 'admin/caregivers':
+        requirePagePermission('caregivers_list', 'read');
+        require APP_ROOT . '/templates/admin/caregivers_list.php';
+        break;
+
+    case 'admin/clients':
+        requirePagePermission('clients_list', 'read');
+        require APP_ROOT . '/templates/admin/clients_list.php';
+        break;
+
+    case 'admin/patients':
+        requirePagePermission('patients_list', 'read');
+        require APP_ROOT . '/templates/admin/patients_list.php';
+        break;
+
+    // ─── Engagements + Roster ──────────────────────────────────────────
+    case 'admin/engagements':
+        requirePagePermission('engagements', 'read');
+        require APP_ROOT . '/templates/admin/engagements.php';
+        break;
+
+    case 'admin/roster/input':
+        requirePagePermission('roster_input', 'read');
+        require APP_ROOT . '/templates/admin/roster_input.php';
+        break;
+
+    // ─── Student tracking ──────────────────────────────────────────────
+    case 'admin/students':
+        requirePagePermission('student_tracking', 'read');
+        require APP_ROOT . '/templates/admin/student_tracking.php';
+        break;
+
+    // ─── Config pages ──────────────────────────────────────────────────
+    case 'admin/products':
+        requirePagePermission('products', 'read');
+        require APP_ROOT . '/templates/admin/products.php';
+        break;
+
+    case 'admin/config/activity-types':
+        requirePagePermission('config_activity_types', 'read');
+        require APP_ROOT . '/templates/admin/activity_types_config.php';
+        break;
+
     case 'admin/names':
         requirePagePermission('names_reconcile', 'read');
         require APP_ROOT . '/templates/admin/names.php';

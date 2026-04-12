@@ -2,6 +2,60 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.14] - 2026-04-12
+
+### Added — Phase 4+5+6: Engagements, roster input, student tracking, admin pages
+
+**Migration 010** (`010_engagements_roster_students.sql`):
+
+Schema for the full engagement-to-billing pipeline + student tracking:
+
+- **`caregiver_products`** (139 rows) — which caregivers are qualified
+  for which products. Seeded: all caregivers qualified for Day Rate.
+- **`patient_products`** (68 rows) — which products each patient needs.
+  Seeded: all patients need Day Rate.
+- **`engagements`** — the contract: caregiver × patient × product ×
+  date range × cost_rate × bill_rate. Status: active/completed/cancelled.
+- **`daily_roster` enhanced** — added `engagement_id`, `product_id`,
+  `cost_rate`, `bill_rate`, `status` (planned/delivered/cancelled/disputed),
+  `shift_start`/`shift_end`, `created_by_user_id`, `confirmed_by_user_id`.
+  Existing 1,619 rows backfilled: cost_rate = daily_rate, product = Day Rate,
+  status = delivered.
+- **`student_enrollments`** (123 rows) — tracks enrollment through to
+  graduation. Status: enrolled/in_training/ojt/qualified/graduated/dropped.
+  Seeded from existing student data.
+- **`training_attendance`** — classroom/practical/OJT attendance per day.
+- **`student_scores`** — individual module/course scores.
+- **`patient_expenses`** — non-shift costs (Uber, equipment etc.)
+  allocated to patients/clients.
+
+### Added — 8 new admin pages
+
+All pages are live on both dev and prod, permission-gated to Super Admin:
+
+| URL | Page | What it does |
+|---|---|---|
+| `/admin/caregivers` | Caregiver List | Filterable list with cohort, status, day rate, shift count, total earned |
+| `/admin/clients` | Client List | All clients with revenue, shifts, cost, and gross margin per client |
+| `/admin/patients` | Patient List | All patients with client link, shift count, last shift date |
+| `/admin/engagements` | Engagements | Create + manage caregiver-patient contracts with cost/bill rates. Auto-populates cost rate from caregiver's day rate. Status management (complete/cancel). |
+| `/admin/roster/input` | Roster Input | Record shifts from an engagement — selects engagement, date, marks as delivered/planned. Shows recent 30 days of shifts with cancel capability. |
+| `/admin/students` | Student Tracking | Dashboard cards (enrolled/in-training/qualified/graduated/placed) + filterable list with cohort, scores, attendance, practical status, graduation date, placement status |
+| `/admin/products` | Products | CRUD for the product catalogue (code, name, description, active flag) |
+| `/admin/config/activity-types` | Activity Types | CRUD for the activity/task type lookup (name, icon, colour, sort order) |
+
+### How the engagement → shift → billing flow works
+
+1. Create an engagement: pick a caregiver, patient, product, set cost rate + bill rate + dates
+2. Record shifts against that engagement (Roster Input page) — each shift inherits the rates
+3. Client Billing report shows revenue per client per month (from client_revenue today; from roster bill_rate × delivered shifts in Phase 5 completion)
+4. Caregiver Earnings shows pay per caregiver per month (from caregiver_costs today; from roster cost_rate × delivered shifts in Phase 5 completion)
+5. Gross margin per client = sum(bill_rate) - sum(cost_rate) across delivered shifts
+
+The full "compute revenue from roster" switchover (D2 completion) is queued
+for when enough engagements + shifts are entered via the new pages to
+replace the workbook-ingested data.
+
 ## [0.9.13] - 2026-04-12
 
 ### Added — Phase 2+3: Table decomposition + reports on role tables
