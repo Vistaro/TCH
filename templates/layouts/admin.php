@@ -40,13 +40,38 @@ $user = currentUser();
                 <li><a href="<?= APP_URL ?>/admin" class="<?= ($activeNav ?? '') === 'dashboard' ? 'active' : '' ?>">&#9632; Dashboard</a></li>
             <?php endif; ?>
 
-            <?php if (userCan('reports_caregiver_earnings', 'read') || userCan('reports_client_billing', 'read') || userCan('reports_days_worked', 'read')): ?>
+            <?php if (userCan('caregivers_list', 'read') || userCan('clients_list', 'read') || userCan('patients_list', 'read') || userCan('engagements', 'read') || userCan('roster_input', 'read') || userCan('student_tracking', 'read')): ?>
+                <li class="nav-heading">Records</li>
+                <?php if (userCan('student_tracking', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/students" class="<?= ($activeNav ?? '') === 'student-tracking' ? 'active' : '' ?>">&#9632; Student Tracking</a></li>
+                <?php endif; ?>
+                <?php if (userCan('caregivers_list', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/caregivers" class="<?= ($activeNav ?? '') === 'caregivers' ? 'active' : '' ?>">&#9632; Caregivers</a></li>
+                <?php endif; ?>
+                <?php if (userCan('clients_list', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/clients" class="<?= ($activeNav ?? '') === 'clients' ? 'active' : '' ?>">&#9632; Clients</a></li>
+                <?php endif; ?>
+                <?php if (userCan('patients_list', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/patients" class="<?= ($activeNav ?? '') === 'patients' ? 'active' : '' ?>">&#9632; Patients</a></li>
+                <?php endif; ?>
+                <?php if (userCan('engagements', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/engagements" class="<?= ($activeNav ?? '') === 'engagements' ? 'active' : '' ?>">&#9632; Engagements</a></li>
+                <?php endif; ?>
+                <?php if (userCan('roster_input', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/roster/input" class="<?= ($activeNav ?? '') === 'roster-input' ? 'active' : '' ?>">&#9632; Roster Input</a></li>
+                <?php endif; ?>
+            <?php endif; ?>
+
+            <?php if (userCan('reports_caregiver_earnings', 'read') || userCan('reports_client_billing', 'read') || userCan('reports_days_worked', 'read') || userCan('reports_client_profitability', 'read')): ?>
                 <li class="nav-heading">Reports</li>
-                <?php if (userCan('reports_caregiver_earnings', 'read')): ?>
-                    <li><a href="<?= APP_URL ?>/admin/reports/caregiver-earnings" class="<?= ($activeNav ?? '') === 'report-cg-earnings' ? 'active' : '' ?>">&#9632; Caregiver Earnings</a></li>
+                <?php if (userCan('reports_client_profitability', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/reports/client-profitability" class="<?= ($activeNav ?? '') === 'report-client-profitability' ? 'active' : '' ?>">&#9632; Client Profitability</a></li>
                 <?php endif; ?>
                 <?php if (userCan('reports_client_billing', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/reports/client-billing" class="<?= ($activeNav ?? '') === 'report-client-billing' ? 'active' : '' ?>">&#9632; Client Billing</a></li>
+                <?php endif; ?>
+                <?php if (userCan('reports_caregiver_earnings', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/reports/caregiver-earnings" class="<?= ($activeNav ?? '') === 'report-cg-earnings' ? 'active' : '' ?>">&#9632; Caregiver Earnings</a></li>
                 <?php endif; ?>
                 <?php if (userCan('reports_days_worked', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/reports/days-worked" class="<?= ($activeNav ?? '') === 'report-days-worked' ? 'active' : '' ?>">&#9632; Days Worked</a></li>
@@ -58,17 +83,12 @@ $user = currentUser();
                 <li><a href="<?= APP_URL ?>/admin/enquiries" class="<?= ($activeNav ?? '') === 'enquiries' ? 'active' : '' ?>">&#9632; Enquiries</a></li>
             <?php endif; ?>
 
-            <?php if (userCan('people_review', 'read') || userCan('names_reconcile', 'read')): ?>
+            <?php if (userCan('people_review', 'read')): ?>
                 <li class="nav-heading">Data</li>
-                <?php if (userCan('people_review', 'read')): ?>
-                    <li><a href="<?= APP_URL ?>/admin/people/review" class="<?= ($activeNav ?? '') === 'people-review' ? 'active' : '' ?>">&#9632; Person Review</a></li>
-                <?php endif; ?>
-                <?php if (userCan('names_reconcile', 'read')): ?>
-                    <li><a href="<?= APP_URL ?>/admin/names" class="<?= ($activeNav ?? '') === 'names' ? 'active' : '' ?>">&#9632; Name Reconciliation</a></li>
-                <?php endif; ?>
+                <li><a href="<?= APP_URL ?>/admin/people/review" class="<?= ($activeNav ?? '') === 'people-review' ? 'active' : '' ?>">&#9632; Person Review</a></li>
             <?php endif; ?>
 
-            <?php if (userCan('users', 'read') || userCan('roles', 'read') || userCan('activity_log', 'read') || userCan('email_log', 'read')): ?>
+            <?php if (userCan('users', 'read') || userCan('roles', 'read') || userCan('activity_log', 'read') || userCan('email_log', 'read') || userCan('products', 'read') || userCan('config_activity_types', 'read')): ?>
                 <li class="nav-heading">Admin</li>
                 <?php if (userCan('users', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/users" class="<?= ($activeNav ?? '') === 'users' ? 'active' : '' ?>">&#9632; Users</a></li>
@@ -81,6 +101,12 @@ $user = currentUser();
                 <?php endif; ?>
                 <?php if (userCan('email_log', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/email-log" class="<?= ($activeNav ?? '') === 'email-log' ? 'active' : '' ?>">&#9632; Email Outbox</a></li>
+                <?php endif; ?>
+                <?php if (userCan('products', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/products" class="<?= ($activeNav ?? '') === 'products' ? 'active' : '' ?>">&#9632; Products</a></li>
+                <?php endif; ?>
+                <?php if (userCan('config_activity_types', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/config/activity-types" class="<?= ($activeNav ?? '') === 'config-activity-types' ? 'active' : '' ?>">&#9632; Activity Types</a></li>
                 <?php endif; ?>
             <?php endif; ?>
 
