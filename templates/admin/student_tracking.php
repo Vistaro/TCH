@@ -20,8 +20,13 @@ $sql = "SELECT p.id, p.tch_id, p.full_name, p.known_as,
                (SELECT COUNT(*) FROM training_attendance ta WHERE ta.enrollment_id = se.id) AS attendance_days,
                (SELECT COUNT(*) FROM student_scores ss WHERE ss.enrollment_id = se.id) AS score_count,
                (SELECT AVG(ss2.score) FROM student_scores ss2 WHERE ss2.enrollment_id = se.id) AS avg_module_score,
-               (SELECT CASE WHEN EXISTS (SELECT 1 FROM caregivers cg WHERE cg.person_id = p.id)
-                       THEN 'Yes' ELSE 'No' END) AS is_caregiver
+               (SELECT CASE WHEN EXISTS (
+                         SELECT 1 FROM daily_roster dr
+                         WHERE dr.caregiver_id = p.id AND dr.status = 'delivered'
+                       ) OR EXISTS (
+                         SELECT 1 FROM engagements e
+                         WHERE e.caregiver_person_id = p.id AND e.status = 'active'
+                       ) THEN 'Yes' ELSE 'No' END) AS is_placed
         FROM student_enrollments se
         JOIN students s ON s.person_id = se.student_person_id
         JOIN persons p ON p.id = se.student_person_id
@@ -38,7 +43,7 @@ $totalEnrolled = count($rows);
 $graduated = count(array_filter($rows, fn($r) => $r['enrollment_status'] === 'graduated'));
 $inTraining = count(array_filter($rows, fn($r) => in_array($r['enrollment_status'], ['enrolled','in_training','ojt'])));
 $qualified = count(array_filter($rows, fn($r) => $r['enrollment_status'] === 'qualified'));
-$placedAsCaregivers = count(array_filter($rows, fn($r) => $r['is_caregiver'] === 'Yes'));
+$placedAsCaregivers = count(array_filter($rows, fn($r) => $r['is_placed'] === 'Yes'));
 
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
@@ -95,7 +100,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
         <td><?= htmlspecialchars($r['practical_status'] ?? '') ?: '—' ?></td>
         <td class="number"><?= (int)$r['attendance_days'] ?: '—' ?></td>
         <td><?= $r['graduated_at'] ?? '—' ?></td>
-        <td><?= $r['is_caregiver'] === 'Yes' ? '<span style="color:#198754">Yes</span>' : '—' ?></td>
+        <td><?= $r['is_placed'] === 'Yes' ? '<span style="color:#198754">Yes</span>' : '—' ?></td>
     </tr>
     <?php endforeach; ?>
     </tbody>
