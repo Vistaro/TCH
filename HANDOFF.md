@@ -1,72 +1,69 @@
-# Handoff — TCH — 2026-04-13 16:30
+# Handoff — TCH — 2026-04-13 21:30
 
 ## State
 
-Live on prod at https://tch.intelligentae.co.uk. Everything from v0.9.18 + v0.9.19
-promoted to prod today (rsync + prod-webroot snapshot). Dev has one extra commit
-ahead of prod: the sticky-header CSS fix + products seed + copy tidy.
-
-Overall shape: **feature-complete for Students** (profile, create, edit, print,
-graduate, approval, Notes, source-data card, photo replace). **Client/Patient
-profile cards are fully specced but not yet built** — that's the headline item
-for next session.
+Live on prod at **v0.9.21** (rolled up today). Client + Patient profiles fully
+built and deployed. Admin role locked down to read-only with no misleading
+write UI. Orange DEV banner now shows on dev, not on prod. Approaching Tuniti
+UAT — urgent blocker is DEV/PROD DB separation (TODO #13).
 
 ## Last session did
 
-- Full 9-item batch on dev: password policy, student edit/create/print/graduate,
-  user avatar, user currency + live FX rates, phone display formatting,
-  Yes/No on Students list, mojibake repair in 1,216 attendance notes, pending
-  invite list + revoke, reporter button rename + position fix.
-- Built the Tuniti attendance import end-to-end: 109 students got avg_score,
-  1,216 weekly P/A rows, 1,982 source-cited Notes.
-- Split all 9 cohort intake PDFs into 123 per-student single-page PDFs.
-- Backfilled 16 missing student/enrollment rows so counts now reconcile:
-  139 caregivers = 139 students = 139 enrollments.
-- Renamed menu + copy: Engagements → Care Scheduling, Roster Input → Care Approval.
-- Investigated + explained the R 17,472 wages drift between ledgers — logged as
-  D3 / FR-roster-rebuild (HIGH).
-- Wrote DESIGN_client_patient_profiles.md full spec (schema, dedup, archive,
-  multi-phone/email, client↔patient link, "same person" toggle). All open
-  questions answered by Ross.
-- Created README.md, ARCHITECTURE.md, DECISIONS.md at repo root.
-- Seeded 5 products from the public site (Full-Time, Post-Operative, Palliative,
-  Respite, Errand). Day Rate retained for backfill.
-- Set up `system_settings` table + Tuniti office GPS
-  (-25.861856, 28.258634) for the patient-distance feature.
+- **Shipped v0.9.21 to prod** (20+ files, 4 migrations, ~3,600 lines of new code):
+  full Client+Patient profile/create/edit/archive with duplicate detection,
+  "Same person" smart banners (blue for genuinely-one-human, yellow for legacy
+  data mismatches), multi-row phones/emails/addresses, Phase-1 billing-history
+  (`patient_client_history`), What's New release-notes gate, releases admin.
+- **Bill-payer guardrail** added to `/admin/engagements` — hard-blocks creating
+  a care schedule when the patient has no client linked.
+- **Tightened the admin role's read-only view** so Andre + Donnay (pending setup)
+  see no misleading write buttons — Notes "+ Add Note" + releases admin
+  create/edit form both now gated on edit permission.
+- **DEV banner** (FR-0067) live — orange stripe on every admin page when
+  `APP_ENV != production`.
+- **Hardened prod error-display** (BUG-0035) — `includes/config.php` now forces
+  `display_errors=off` whenever APP_ENV=production, regardless of php.ini.
+- **Verified BUG-0036** fix for Super Admin wrong-password summary.
+- **Closed on the Hub:** FR-0067, FR-0069, FR-0070, FR-0072, FR-0073 implemented;
+  BUG-0035, BUG-0036 fixed.
+- **Discussed design items** D1 (engagements cleanup), D2 (roster redesign
+  single-source cost+revenue), D3 (re-ingest from Client Billing Spreadsheet).
 
 ## In flight (not finished)
 
-- **BUG-sticky-header** — last attempt (border-collapse separate) deployed just
-  before wrap. Ross to confirm after a hard browser refresh (Ctrl+F5).
-  Fallback if still broken: switch to numbered pagination.
+- **Tuniti's reply to the 10-record split candidates email** — HTML + CSV
+  templates saved to `_global/output/TCH/Tuniti Split Candidates Apr-26.*`.
+  When she replies, a one-shot migration splits the conflated records.
+- **Andre + Donnay admin accounts** — permissions matrix is correct, welcome
+  email draft ready in session minutes. Waiting on Ross to create the accounts.
 
 ## Open items needing attention
 
-- **HIGH:**
-  - BUG-sticky-header (verify after cache bust)
-  - UAT-tuniti (build the test plan, give Tuniti dev access)
-  - FR-roster-rebuild (single source of truth for caregiver wages)
-  - UAT-product-remap (Tuniti to reclassify the 1,619 historical shifts
-    from default Day Rate to the correct product)
-- **Build queued (next session headline):** Client/Patient profile cards.
-  Spec in `docs/DESIGN_client_patient_profiles.md`.
-- **MEDIUM:** FR-admin-config (landing + system_settings UI), FR-client-expenses,
-  FR-caregiver-loans, D1/D2/D3 (engagement + roster redesign), DQ0–DQ2 data
-  quality sweeps, UI1 edit client↔patient relationship.
-- **Blockers waiting on Ross:** genuinely none for the next session. Stale
-  items (onboarding PDF, attachment list, training data) all superseded by
-  work already done. Product list was the only real one — now seeded.
+- **Bugs (Hub):** 1 open — BUG-0031 (smoke-test leftover, ignore).
+- **FRs (Hub):** FR-0074 (edit caregivers pre-approval, medium),
+  FR-0071 (engagement first-class, high — largely done, needs close-out),
+  FR-0065 (centralise reporter on Hub, medium),
+  FR-0076/77/78/79 (governance audit items).
+- **ToDos (repo):**
+  - 🔴 **#13 URGENT** separate DEV/PROD DBs before Tuniti UAT (Ross creates
+    empty DB via StackCP, Claude runs the dump/restore/smoke-test — ~30 min)
+  - **#14** historic 10-record split (waiting on Tuniti's reply)
+  - **#15** Phase-2 re-assign time-stamping (flip on once historic data locked)
+  - **#16** onboarding workflow (care proposal + email acceptance + guardrail
+    extension) — ~10–12 hrs
+  - **#18** schedule UI rework (pick patient first, bill-payer derived) — ~1.5 hrs
+  - **#12** Hub token path for session-start briefing script
+- **Blockers:** none today.
 
 ## Next session should
 
-1. **Build the Client + Patient profile cards** per
-   `docs/DESIGN_client_patient_profiles.md`. All open design questions
-   confirmed by Ross: 1 client → many patients; one client status enum
-   (active + archived); break out `person_addresses` table from the start;
-   dedup threshold = Levenshtein ≤3 OR metaphone match OR phone/email/ID
-   exact. Estimated ~1 day.
-2. After Client/Patient: **FR-roster-rebuild / D3** — re-ingest from the
-   Client Billing Spreadsheet so wages come from one source.
-3. If BUG-sticky-header is still reported after hard refresh, implement
-   pagination as the fallback.
-4. Kick off the UAT pack for Tuniti — structured test tasks on dev.
+1. **D1 cleanup** (Ross parked for tomorrow) — move `day_rate`, `billing_freq`,
+   `shift_type`, `schedule` off `persons` onto `engagements` as defaults.
+   Small tidy; unlocks D2/D3. ~1 hr.
+2. **When Ross has empty DB from StackCP**, execute TODO #13 (DB separation):
+   `mysqldump` prod → restore to dev DB → update dev `.env` → smoke-test →
+   close FR-0076 on Hub. ~30 min.
+3. **Process Tuniti's reply** on the 10-record split when it arrives —
+   one-shot migration with audit log + Notes timeline entries per split.
+4. **If time**, scope D2 + D3 properly (roster redesign + spreadsheet
+   re-ingest) — this is the big one. Do it as a clean focused session.
