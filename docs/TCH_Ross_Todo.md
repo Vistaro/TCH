@@ -18,6 +18,12 @@
 
 ---
 
+## Bugs — active
+
+| # | Item | Priority | Notes |
+|---|------|----------|-------|
+| BUG-setup-pw | **User registration broken — `/setup-password` returns HTTP 500** | HIGH | Added 2026-04-12. Repro: admin clicks "Invite" → invite email arrives → recipient clicks the link → lands on `tch.intelligentae.co.uk/setup-password` → browser shows "This page isn't working — HTTP ERROR 500". New users cannot complete registration. Check server error log for the stack trace first. Screenshot: `OneDrive\Desktop\Failure on User Create Post PW.png`. Should also be filed on the Hub once triaged. |
+
 ## Blocking Next Session
 
 | # | Item | Priority | Notes |
@@ -48,6 +54,7 @@
 
 | # | Item | Notes |
 |---|------|-------|
+| UI0 | **Dashboard month filter — replace pills with a date-range or year/quarter picker when months exceed ~12** | The current horizontal pill buttons work well for 6 months but won't scale. When data spans 12+ months, switch to a date-range picker or a year → quarter → month drill-down. Low priority until we pass 12 months of live data. |
 | UI1 | **Edit client ↔ patient relationship from the Patient record** | On the patient edit screen, show "Billed to: [Client name]" with an edit control so the billing relationship can be changed. Applies both to the current one-record-is-both-client-and-patient rows and to the split rows from DQ2. Becomes genuinely multi-record when a corporate Client pays for multiple Patients. Build when we first need to correct one of the DQ2 rows. |
 
 ## Design items — billing/engagements model (added 2026-04-11)

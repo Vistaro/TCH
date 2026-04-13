@@ -43,7 +43,7 @@ $user = currentUser();
             <?php if (userCan('caregivers_list', 'read') || userCan('clients_list', 'read') || userCan('patients_list', 'read') || userCan('engagements', 'read') || userCan('roster_input', 'read') || userCan('student_tracking', 'read')): ?>
                 <li class="nav-heading">Records</li>
                 <?php if (userCan('student_tracking', 'read')): ?>
-                    <li><a href="<?= APP_URL ?>/admin/students" class="<?= ($activeNav ?? '') === 'student-tracking' ? 'active' : '' ?>">&#9632; Student Tracking</a></li>
+                    <li><a href="<?= APP_URL ?>/admin/students" class="<?= ($activeNav ?? '') === 'student-tracking' ? 'active' : '' ?>">&#9632; Students</a></li>
                 <?php endif; ?>
                 <?php if (userCan('caregivers_list', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/caregivers" class="<?= ($activeNav ?? '') === 'caregivers' ? 'active' : '' ?>">&#9632; Caregivers</a></li>
@@ -85,7 +85,7 @@ $user = currentUser();
 
             <?php if (userCan('people_review', 'read')): ?>
                 <li class="nav-heading">Data</li>
-                <li><a href="<?= APP_URL ?>/admin/people/review" class="<?= ($activeNav ?? '') === 'people-review' ? 'active' : '' ?>">&#9632; Person Review</a></li>
+                <li><a href="<?= APP_URL ?>/admin/people/review" class="<?= ($activeNav ?? '') === 'people-review' ? 'active' : '' ?>">&#9632; Pending Approvals</a></li>
             <?php endif; ?>
 
             <?php if (userCan('users', 'read') || userCan('roles', 'read') || userCan('activity_log', 'read') || userCan('email_log', 'read') || userCan('products', 'read') || userCan('config_activity_types', 'read')): ?>

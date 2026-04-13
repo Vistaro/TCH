@@ -64,6 +64,13 @@ if (preg_match('#^admin/activity/(\d+)$#', $route, $m)) {
     exit;
 }
 
+if (preg_match('#^admin/students/(\d+)$#', $route, $m)) {
+    $_GET['student_id'] = (int)$m[1];
+    requirePagePermission('student_view', 'read');
+    require APP_ROOT . '/templates/admin/student_view.php';
+    exit;
+}
+
 // ─── Static routes ──────────────────────────────────────────────────────
 
 switch ($route) {

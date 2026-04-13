@@ -2,6 +2,102 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.17] - 2026-04-13
+
+### Added — Student detail page + Tuniti attendance import + Notes timeline
+
+**New page: `/admin/students/{id}` (Student Detail)** — first proper
+single-student detail page. Replaces the read-only detail view that
+lived inside `/admin/people/review`.
+
+- Profile card with photo, TCH ID, cohort, training summary, personal,
+  contact, address, **emergency contact + 2nd emergency contact**.
+- **Edit-in-place per section** (Personal, Contact, Address, NoK 1,
+  NoK 2). Every edit writes to `activity_log` (audit before/after) AND
+  drops one Note per changed field in the timeline.
+- **Approve button** when `import_review_state='pending'`. Reject removed
+  by design — fix via Edit then Approve.
+- Per-student PDF (split from cohort intake PDF) attached.
+- Collapsible **Course Attendance** card: per-week date / module /
+  classroom-or-practical / Present-or-Absent + summary footer.
+- Collapsible **Notes** card mirroring Nexus CRM Activities & Tasks
+  pattern. + Add Note / + Add Task buttons.
+
+**New module: Notes timeline (`includes/activities_render.php`)** —
+mirrors Nexus CRM pattern, single `activities` table, polymorphic via
+`entity_type`/`entity_id`, type cosmetic only. User-facing label is
+"Notes" so non-technical users see plain language.
+
+**Migration 011** — `activities` source columns: `source`, `source_ref`
+(e.g. `Ross Intake 1-9.xlsx#Cohort 1!N5`), `source_batch`. Two indexes.
+Pattern recommended by Nexus CRM agent — TCH first to ship structured
+provenance.
+
+**Migration 012** — `student_view` page registration in `pages` table
+with Super Admin permission.
+
+**Migration 013** — `country VARCHAR(60) DEFAULT 'South Africa'` added
+to `persons`. All 207 existing rows backfilled. Country dropdown
+grouped (SA default, then 53 African countries A–Z).
+
+**Migration 014** — phone numbers normalised to E.164. 123 SA
+local-format numbers across mobile / secondary / NoK / NoK-2 rewritten
+to `+27...`. Edit screens now use a country-code dropdown + national
+number input.
+
+**Migration 015** — 205 legacy `persons.import_notes` (machine-generated
+PDF-import audit) migrated into the Notes timeline as System-type
+entries tagged `source='import-history'`, batch `pre-2026-04-13`.
+Original column preserved.
+
+**Migration 016** — `students.practical_status` widened
+`varchar(30)` → `varchar(100)` so full facility names like
+"Lonehill Manor Retirement Estate" don't truncate.
+
+### Tuniti attendance + summary import
+
+`tools/intake_parser/import_attendance.py` reads
+`Ross Intake 1-9 (3).xlsx` and writes:
+
+- 109 students got `avg_score`
+- 107 students got `practical_status`
+- 1,216 weekly attendance rows in `training_attendance`
+  (per-week P/A from cell fill colours: green=Present, red=Absent)
+- 1,982 Notes posted, one per imported value, each carrying a
+  `source_ref` back to the originating spreadsheet cell
+
+Name reconciliation: 123 attendance-sheet names matched to live
+`students` per cohort. Two manual overrides
+(Nelly → TCH-000003, "Wisani Precious Mash" → TCH-000008). Recon
+workbook at `_global\output\TCH\Tuniti Attendance Name Recon Apr-26.xlsx`.
+
+### PDF splitting
+
+`tools/intake_parser/split_cohort_pdfs.py` split 9 cohort intake PDFs
+into 123 per-student single-page PDFs. Attachment rows updated to point
+at the per-student file. Mapping rule: Nth-lowest person_id in cohort
+N = Nth page of `Intake N.pdf` (verified for Cohort 1; Cohorts 2-9
+inherit parser ordering, spot-check recommended). Mapping CSV at
+`_global\output\TCH\intake_pdf_split_mapping_apr-26.csv`.
+
+### Removed
+
+- Reject workflow on student records (by design — Edit then Approve).
+- Inline detail view from `/admin/people/review` — page now redirects
+  `?id=N` requests to `/admin/students/N`. Queue list preserved.
+
+### Renamed (menu)
+
+- "Student Tracking" → **Students**
+- "Person Review" → **Pending Approvals**
+
+### Rollback
+
+Each migration preceded by logical backup of the affected table(s) at
+`~/db-backups/tch/` on the server. Attendance import rollback: restore
+`students` + `training_attendance` + `activities` from
+`pre-attendance-import_20260413-*.sql`.
+
 ## [0.9.14] - 2026-04-12
 
 ### Added — Phase 4+5+6: Engagements, roster input, student tracking, admin pages

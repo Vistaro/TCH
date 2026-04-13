@@ -66,212 +66,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
     exit;
 }
 
-// ── Detail view ──────────────────────────────────────────────────────────
+// ── Detail view: now lives at /admin/students/{id} ──────────────────────
+// Single source of truth — the student detail page handles full profile,
+// approve/reject, and notes timeline. Anything still landing here with
+// ?id=N gets a clean redirect.
 $detailId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-
 if ($detailId > 0) {
-    $stmt = $db->prepare(
-        "SELECT cg.*,
-                ps.label AS status_label,
-                ls.label AS lead_source_label
-         FROM persons cg
-         LEFT JOIN students st     ON st.person_id = cg.id
-         LEFT JOIN person_statuses ps ON ps.id = st.status_id
-         LEFT JOIN lead_sources    ls ON ls.id = st.lead_source_id
-         WHERE cg.id = ?"
-    );
-    $stmt->execute([$detailId]);
-    $person = $stmt->fetch();
-
-    if (!$person) {
-        http_response_code(404);
-        $pageTitle = 'Person Not Found';
-        require APP_ROOT . '/templates/layouts/admin.php';
-        echo '<p>No person record with id ' . (int)$detailId . '.</p>';
-        echo '<p><a href="' . APP_URL . '/admin/people/review">Back to review queue</a></p>';
-        require APP_ROOT . '/templates/layouts/admin_footer.php';
-        return;
-    }
-
-    // Load attachments
-    $stmt = $db->prepare(
-        "SELECT a.*, at.code AS type_code, at.label AS type_label
-         FROM attachments a
-         JOIN attachment_types at ON at.id = a.attachment_type_id
-         WHERE a.person_id = ? AND a.is_active = 1
-         ORDER BY at.sort_order, a.uploaded_at"
-    );
-    $stmt->execute([$detailId]);
-    $attachments = $stmt->fetchAll();
-
-    // Find the profile photo (most recent active)
-    $photoPath = null;
-    foreach ($attachments as $a) {
-        if ($a['type_code'] === 'profile_photo') {
-            $photoPath = $a['file_path'];
-            break;
-        }
-    }
-
-    require APP_ROOT . '/templates/layouts/admin.php';
-    ?>
-
-    <div style="margin-bottom:1rem;">
-        <a href="<?= APP_URL ?>/admin/people/review" class="btn btn-outline btn-sm">&larr; Back to queue</a>
-    </div>
-
-    <div class="person-card">
-        <div class="person-card-header">
-            <?php if ($photoPath): ?>
-                <img class="person-photo"
-                     src="<?= APP_URL ?>/uploads/<?= htmlspecialchars($photoPath) ?>"
-                     alt="<?= htmlspecialchars($person['full_name']) ?>">
-            <?php else: ?>
-                <div class="person-photo person-photo-placeholder">No photo</div>
-            <?php endif; ?>
-            <div class="person-card-title">
-                <h2><?= htmlspecialchars($person['full_name']) ?></h2>
-                <div class="person-card-tch-id"><?= htmlspecialchars($person['tch_id'] ?? '—') ?></div>
-                <div class="person-card-meta">
-                    <?php if ($person['student_id']): ?>
-                        Student ID: <strong><?= htmlspecialchars($person['student_id']) ?></strong> &middot;
-                    <?php endif; ?>
-                    <?php if ($person['cohort']): ?>
-                        Cohort: <strong><?= htmlspecialchars($person['cohort']) ?></strong> &middot;
-                    <?php endif; ?>
-                    Status: <strong><?= htmlspecialchars($person['status_label'] ?? '—') ?></strong>
-                </div>
-            </div>
-        </div>
-
-        <div class="person-card-grid">
-            <!-- Personal block -->
-            <div class="person-card-section">
-                <h3>Personal</h3>
-                <dl>
-                    <dt>Known As</dt>     <dd><?= htmlspecialchars($person['known_as']    ?? '') ?: '—' ?></dd>
-                    <dt>Title</dt>        <dd><?= htmlspecialchars($person['title']       ?? '') ?: '—' ?></dd>
-                    <dt>Initials</dt>     <dd><?= htmlspecialchars($person['initials']    ?? '') ?: '—' ?></dd>
-                    <dt>ID / Passport</dt><dd><?= htmlspecialchars($person['id_passport'] ?? '') ?: '—' ?></dd>
-                    <dt>Date of Birth</dt><dd><?= htmlspecialchars($person['dob']         ?? '') ?: '—' ?></dd>
-                    <dt>Gender</dt>       <dd><?= htmlspecialchars($person['gender']      ?? '') ?: '—' ?></dd>
-                    <dt>Nationality</dt>  <dd><?= htmlspecialchars($person['nationality'] ?? '') ?: '—' ?></dd>
-                    <dt>Home Lang</dt>    <dd><?= htmlspecialchars($person['home_language']  ?? '') ?: '—' ?></dd>
-                    <dt>Other Lang</dt>   <dd><?= htmlspecialchars($person['other_language'] ?? '') ?: '—' ?></dd>
-                </dl>
-            </div>
-
-            <!-- Contact block -->
-            <div class="person-card-section">
-                <h3>Contact</h3>
-                <dl>
-                    <dt>Mobile</dt>       <dd><?= htmlspecialchars($person['mobile']           ?? '') ?: '—' ?></dd>
-                    <dt>Secondary</dt>    <dd><?= htmlspecialchars($person['secondary_number'] ?? '') ?: '—' ?></dd>
-                    <dt>Email</dt>        <dd><?= htmlspecialchars($person['email']            ?? '') ?: '—' ?></dd>
-                    <dt>Lead Source</dt>  <dd><?= htmlspecialchars($person['lead_source_label'] ?? '') ?: '—' ?></dd>
-                    <?php if ($person['referred_by_name']): ?>
-                    <dt>Referred By</dt>  <dd><?= htmlspecialchars($person['referred_by_name']) ?>
-                                              <?= $person['referred_by_contact'] ? '(' . htmlspecialchars($person['referred_by_contact']) . ')' : '' ?></dd>
-                    <?php endif; ?>
-                </dl>
-            </div>
-
-            <!-- Address block -->
-            <div class="person-card-section">
-                <h3>Home Address</h3>
-                <dl>
-                    <dt>Complex/Estate</dt><dd><?= htmlspecialchars($person['complex_estate'] ?? '') ?: '—' ?></dd>
-                    <dt>Street</dt>        <dd><?= htmlspecialchars($person['street_address'] ?? '') ?: '—' ?></dd>
-                    <dt>Suburb</dt>        <dd><?= htmlspecialchars($person['suburb']         ?? '') ?: '—' ?></dd>
-                    <dt>City</dt>          <dd><?= htmlspecialchars($person['city']           ?? '') ?: '—' ?></dd>
-                    <dt>Province</dt>      <dd><?= htmlspecialchars($person['province']       ?? '') ?: '—' ?></dd>
-                    <dt>Postal Code</dt>   <dd><?= htmlspecialchars($person['postal_code']    ?? '') ?: '—' ?></dd>
-                </dl>
-            </div>
-
-            <!-- NoK block -->
-            <div class="person-card-section">
-                <h3>Emergency Contact</h3>
-                <dl>
-                    <dt>Name</dt>         <dd><?= htmlspecialchars($person['nok_name']         ?? '') ?: '—' ?></dd>
-                    <dt>Relationship</dt> <dd><?= htmlspecialchars($person['nok_relationship'] ?? '') ?: '—' ?></dd>
-                    <dt>Contact</dt>      <dd><?= htmlspecialchars($person['nok_contact']      ?? '') ?: '—' ?></dd>
-                    <dt>Email</dt>        <dd><?= htmlspecialchars($person['nok_email']        ?? '') ?: '—' ?></dd>
-                </dl>
-                <?php if ($person['nok_2_name']): ?>
-                <h3 style="margin-top:1rem;">Emergency Contact (2nd)</h3>
-                <dl>
-                    <dt>Name</dt>         <dd><?= htmlspecialchars($person['nok_2_name'])         ?></dd>
-                    <dt>Relationship</dt> <dd><?= htmlspecialchars($person['nok_2_relationship'] ?? '') ?: '—' ?></dd>
-                    <dt>Contact</dt>      <dd><?= htmlspecialchars($person['nok_2_contact']      ?? '') ?: '—' ?></dd>
-                    <dt>Email</dt>        <dd><?= htmlspecialchars($person['nok_2_email']        ?? '') ?: '—' ?></dd>
-                </dl>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- Attachments -->
-        <div class="person-card-section">
-            <h3>Attachments</h3>
-            <?php if (empty($attachments)): ?>
-                <p style="color:#999;">No attachments.</p>
-            <?php else: ?>
-                <ul class="attachment-list">
-                    <?php foreach ($attachments as $a): ?>
-                        <li>
-                            <strong><?= htmlspecialchars($a['type_label']) ?></strong>
-                            &mdash;
-                            <a href="<?= APP_URL ?>/uploads/<?= htmlspecialchars($a['file_path']) ?>"
-                               target="_blank" rel="noopener">
-                                <?= htmlspecialchars($a['original_filename'] ?: basename($a['file_path'])) ?>
-                            </a>
-                            <?php if ($a['source_page']): ?>
-                                <span style="color:#999;">(page <?= (int)$a['source_page'] ?>)</span>
-                            <?php endif; ?>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
-            <?php endif; ?>
-        </div>
-
-        <!-- Import notes (machine-generated audit) -->
-        <?php if ($person['import_notes']): ?>
-        <div class="person-card-section">
-            <h3>Import Notes (audit)</h3>
-            <pre class="import-notes"><?= htmlspecialchars($person['import_notes']) ?></pre>
-        </div>
-        <?php endif; ?>
-
-        <!-- Human notes -->
-        <?php if ($person['notes']): ?>
-        <div class="person-card-section">
-            <h3>Notes</h3>
-            <p><?= nl2br(htmlspecialchars($person['notes'])) ?></p>
-        </div>
-        <?php endif; ?>
-
-        <!-- Actions -->
-        <?php if ($person['import_review_state'] === 'pending'): ?>
-        <div class="person-card-actions">
-            <form method="POST" style="display:inline;">
-                <?= csrfField() ?>
-                <input type="hidden" name="person_id" value="<?= (int)$person['id'] ?>">
-                <input type="hidden" name="return_to" value="list">
-                <button type="submit" name="action" value="approve" class="btn btn-primary">
-                    Approve &amp; Return to Queue
-                </button>
-                <button type="submit" name="action" value="reject" class="btn btn-danger"
-                        onclick="return confirm('Reject this import? Person row stays in DB but is marked rejected.');">
-                    Reject
-                </button>
-            </form>
-        </div>
-        <?php endif; ?>
-    </div>
-
-    <?php
-    require APP_ROOT . '/templates/layouts/admin_footer.php';
-    return;
+    header('Location: ' . APP_URL . '/admin/students/' . $detailId);
+    exit;
 }
 
 // ── List view ────────────────────────────────────────────────────────────
@@ -388,8 +190,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
                         <td><?= (int)$r['attachment_count'] ?></td>
                         <td><?= $r['has_notes'] ? '<span class="badge badge-warning">Yes</span>' : '—' ?></td>
                         <td>
-                            <a href="<?= APP_URL ?>/admin/people/review?id=<?= (int)$r['id'] ?>"
-                               class="btn btn-primary btn-sm">View</a>
+                            <a href="<?= APP_URL ?>/admin/students/<?= (int)$r['id'] ?>"
+                               class="btn btn-primary btn-sm">Open</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
