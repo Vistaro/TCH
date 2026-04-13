@@ -2,6 +2,77 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.21] - 2026-04-13 (prod) — Client + Patient profiles, dedup, archive, billing history, "What's New" gate, bill-payer guardrail
+
+Rolls up all work since v0.9.20 into one prod cut.
+
+### Added — Bill-payer guardrail at schedule time
+
+- `templates/admin/engagements.php` — on create, explicitly checks `patients.client_id IS NOT NULL`. If not, hard-blocks the INSERT with a friendly error + a "Link a client to this patient →" button that goes straight to the patient profile's re-assign control. Rule: liability is confirmed at scheduling, never at approval (too late by then). No override — by design. Form stays open with values submitted so nothing is lost.
+
+### Added — Phase-1 billing history (patient_client_history)
+
+- **Migration 027** — new `patient_client_history` table (patient_person_id, client_id, valid_from, valid_to, changed_by_user_id, reason). Seeded one open row per existing patient (`valid_from = NULL` "since record began", `valid_to = NULL` "current").
+- Patient profile `?edit=client` dropdown now writes through the history row and shows a yellow "Data-cleanup phase — re-assigns rewrite history" banner + optional reason field. Phase 1: UPDATE the open row (retroactive correction). Phase 2 (future TODO #15): close-old-open-new at change-date, banner removed, historic shifts stay billed to previous client.
+- New "Billing history" panel on patient profile shows the row stripe.
+- New "Link existing patient" dropdown on client profile (same Phase-1 semantics).
+
+### Added — "What's New" gate after deploy
+
+- **Migration 026** — `releases` table + `users.last_release_seen_id` + two new pages (`whats_new` for all roles, `releases_admin` for Super Admin). Seeded this release entry.
+- `/admin/whats-new` — shows unread releases with a small Markdown-ish renderer (`## heading`, `- bullet`, `**bold**`, `*italic*`). "Got it" marks seen and redirects to dashboard.
+- `/admin/releases` — Super Admin CRUD for release entries.
+- Login flow updated: after successful login, if newest published release > user's `last_release_seen_id`, redirect to `/admin/whats-new` instead of the dashboard.
+
+### Added — Client + Patient profiles build
+
+- **Migration 024** — `person_phones`, `person_emails`, `person_addresses` (multi-row, primary flag, FK to persons; backfilled from legacy scalar columns). Name parts on persons (`salutation`, `first_name`, `middle_names`, `last_name` — `full_name` remains canonical display, auto-recomposed when parts edited; best-effort split of existing full_name populates parts). Archive columns on persons (`archived_at`, `archived_by_user_id`, `archived_reason` + `idx_persons_archived`). Registered `client_view` + `patient_view` pages + Super Admin grants.
+- `includes/contact_methods.php` — helpers for the multi-row tables (get/save, replace-all, single primary). Save helpers mirror primary rows back to legacy scalar columns on persons so existing reports keep working through transition.
+- `includes/dedup.php` — `findPossibleDuplicates(personType, candidate, limit)`: exact phone (in person_phones), exact email, exact ID/passport, name Levenshtein ≤3 OR same soundex. Scoped to same person_type.
+- `/admin/clients/new` + `/admin/patients/new` — create forms with two-stage POST. First submit runs dedup; if matches found, form re-renders with a yellow "Possible matches" panel. User can open an existing record or tick "create anyway" and re-submit. Decision logged in timeline.
+- `/admin/clients/{id}` + `/admin/patients/{id}` — full profile pages mirroring student detail pattern. Sections: Personal / Phones (multi-row edit + primary radio + +Add) / Emails (same) / Address / Billing (clients) / Billed-To (patients) / Linked Patients / Notes timeline. Photo replace + audit log on every save.
+- **Archive / unarchive** — every profile, soft-delete with optional reason. Default lists hide archived rows; "Show archived" toggle reveals them muted.
+- **"Same person" toggle + smart banner** — blue banner for genuinely one human (patient_name matches full_name); yellow "Legacy data" banner when patient_name diverges from client full_name (Androilla/Praxia case) flagging for cleanup.
+- **Re-assign client** and (new) **Link existing patient** controls.
+- `clients_list.php` / `patients_list.php` — clickable rows, `+ New` button, `Show archived` toggle.
+
+### Added — Products default price
+
+- **Migration 025** — `products.default_price DECIMAL(10,2)`. Products admin page now has a Default Price column + form field. Pre-fills new bookings, user can override per customer / per shift.
+
+### Updated — create forms (Client + Patient)
+
+- Removed standalone "Full name (overrides parts)" field — `full_name` is now derived from salutation + first + middle + last parts on submit.
+- **First name** and **Last name** marked required (red asterisks + HTML `required`). Patient form: **Client (bill-payer)** also required.
+- Billing entity is now read-only "TCH Placements" on create and on profile (fixed `'TCH'` on insert). No dropdown; cannot be changed.
+- Create forms restyled to match the view profile: same `.person-card` / `.person-card-section` shell, same `<dl class="edit-dl">` rows, same section headers. Feels like "empty profile being filled in."
+
+### Routing additions (`public/index.php`)
+
+- `admin/clients/new`, `admin/clients/{id}`
+- `admin/patients/new`, `admin/patients/{id}`
+- `admin/whats-new`, `admin/releases`
+
+### Housekeeping
+
+- `.gitignore` covers `*.mp3`, `*.wav`, `*.m4a`.
+- Removed empty `db/` folder at repo root.
+- 3 Hub FRs raised (FR-0077/78/79) covering AUDIT_ROOT storage, intake_parser docs, rolled-up schema_current.sql.
+- Products mojibake fix on 6 rows (`â€"` → em-dash). Future migrations run with `--default-character-set=utf8mb4`.
+- README / ARCHITECTURE / DECISIONS updated.
+
+### TODOs for follow-up (not in this release)
+
+- #13 🔴 **URGENT** — separate DEV and PROD databases before Tuniti UAT (currently shared, FR-0076 exception)
+- #14 — historic cleanup: split 10 conflated client/patient `persons` rows (Androilla/Praxia etc.). Driven by Tuniti confirmation of the 10-row list.
+- #15 — switch patient re-assign from Phase-1 (retroactive) to Phase-2 (time-stamped) once historic data is locked
+- #16 — full client/patient onboarding workflow: care proposal document + email acceptance + guardrail extension requiring `status='accepted'` before scheduling
+- #18 — schedule input UI rework: pick patient first, bill-payer becomes read-only
+
+### Rollback
+
+All migrations (024, 025, 026, 027) are idempotent with explicit rollback SQL in comments. Legacy scalar columns (`persons.mobile` / `email` / flat address) remain populated and authoritative for code that hasn't migrated to the multi-row tables yet — so rolling back template changes is safe even without reverting the migrations.
+
 ## [unreleased] - 2026-04-13 (dev) — Client + Patient profiles
 
 ### Added — full Client + Patient profile build (per `docs/DESIGN_client_patient_profiles.md`)
