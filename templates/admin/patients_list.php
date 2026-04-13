@@ -22,7 +22,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
 <p style="color:#666;font-size:0.85rem;margin-bottom:1rem;"><?= count($rows) ?> patient<?= count($rows) !== 1 ? 's' : '' ?></p>
 
 <?php $totShifts = array_sum(array_map(fn($r) => (int)$r['shift_count'], $rows)); ?>
-<div class="report-table-scroll">
+<div class="report-table-wrap">
 <table class="report-table tch-data-table">
     <thead><tr>
         <th>TCH ID</th><th>Patient Name</th><th>Display Name</th>

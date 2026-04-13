@@ -146,6 +146,14 @@ function zar_cell(float $v): string {
     Click any column header to sort. Click any cell value to see which clients
     contributed to that caregiver's earnings that month.
 </p>
+<p style="background:#fff3cd;border:1px solid #ffeeba;color:#856404;padding:0.5rem 0.75rem;border-radius:4px;font-size:0.85rem;margin:0 0 0.75rem 0;">
+    <i class="fas fa-info-circle"></i>
+    <strong>Why this total (R 709,620) differs from the dashboard's "Total Wages" (R 692,148):</strong>
+    this report reads the monthly-summary ledger (<code>caregiver_costs</code>), the dashboard reads
+    the per-shift ledger (<code>daily_roster.cost_rate</code>). Both were ingested from different
+    Tuniti spreadsheets and drift by ~R 17,500. Will reconcile when the roster redesign
+    (D2 in the backlog) makes the per-shift ledger the single source of truth.
+</p>
 
 <div class="report-table-wrap">
     <table class="report-table tch-data-table">

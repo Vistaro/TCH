@@ -107,7 +107,7 @@ foreach ($rows as $r) {
     $countPlaced += $r['is_placed'] === 'Yes' ? 1 : 0;
 }
 ?>
-<div class="report-table-scroll">
+<div class="report-table-wrap">
 <table class="report-table tch-data-table">
     <thead><tr>
         <th>TCH ID</th><th>Name</th><th>Cohort</th><th>Enrolled</th>

@@ -711,21 +711,26 @@ h3 { font-size: 1.35rem; }
     background: #FFFFFF;
     border-radius: 10px;
     border: 1px solid #eee;
-    overflow: hidden;
+    /* overflow removed — would break position:sticky on thead */
 }
 
-/* Sticky header when wrapped in a scrollable container */
+/* Sticky thead — page-level. Applies to any .report-table regardless of
+   whether it's inside .report-table-wrap or .report-table-scroll. */
+.report-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #F7F8F9;
+}
+
+/* Optional scroll-within-container wrapper (rarely needed now that sticky
+   is handled page-level). */
 .report-table-scroll {
-    max-height: 70vh;
+    max-height: calc(100vh - 220px);
     overflow: auto;
     background: #FFFFFF;
     border-radius: 10px;
     border: 1px solid #eee;
-}
-.report-table-scroll .report-table th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
 }
 
 /* Totals row */

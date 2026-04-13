@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Roster Input';
+$pageTitle = 'Care Approval';
 $activeNav = 'roster-input';
 
 $db = getDB();

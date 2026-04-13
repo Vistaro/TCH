@@ -64,7 +64,7 @@ foreach ($rows as $r) {
     $totEarned += (float)$r['total_earned'];
 }
 ?>
-<div class="report-table-scroll">
+<div class="report-table-wrap">
 <table class="report-table tch-data-table">
     <thead><tr>
         <th>TCH ID</th><th>Name</th><th>Known As</th><th>Cohort</th>

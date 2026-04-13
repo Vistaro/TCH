@@ -65,12 +65,10 @@ function _ph($v) { return $v !== null && $v !== '' ? htmlspecialchars((string)$v
   table.fields { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 10pt; }
   table.fields td { padding: 3pt 6pt; vertical-align: top; }
   table.fields td.label { width: 28%; color: #555; }
-  table.fields td.value { border-bottom: 1px solid #ccc; }
+  table.fields td.value { /* no underline — keeps the page uncluttered */ }
   h3.section { font-size: 11pt; color: #10B2B4; margin: 12pt 0 4pt; padding-bottom: 2pt; border-bottom: 1px solid #10B2B4; }
   .two-col { display:grid; grid-template-columns: 1fr 1fr; gap: 0 16pt; }
   .footer { margin-top: 16pt; padding-top: 6pt; border-top: 1px solid #999; font-size: 8pt; color: #777; display:flex; justify-content:space-between; }
-  .signature-row { margin-top: 14pt; display:grid; grid-template-columns: 1fr 1fr; gap: 16pt; }
-  .signature-row .line { border-top: 1px solid #000; padding-top: 2pt; font-size: 9pt; color:#555; min-height: 36pt; }
   .no-print { padding: 8mm 0; text-align:center; }
   .no-print a, .no-print button { background:#10B2B4; color:#fff; padding: 6pt 14pt; border:none;
                                   border-radius:3pt; text-decoration:none; font-size:10pt; cursor:pointer; margin:0 4pt; }
@@ -194,11 +192,6 @@ function _ph($v) { return $v !== null && $v !== '' ? htmlspecialchars((string)$v
       <td class="label">Qualified</td>        <td class="value"><?= _ph($person['qualified']) ?></td>
     </tr>
   </table>
-
-  <div class="signature-row">
-    <div><div class="line">Student signature</div></div>
-    <div><div class="line">Tuniti / TCH representative</div></div>
-  </div>
 
   <div class="footer">
     <span><?= htmlspecialchars($person['tch_id'] ?? '') ?> · <?= htmlspecialchars($person['full_name']) ?></span>

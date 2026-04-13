@@ -61,10 +61,10 @@ if ($user && empty($user['avatar_path'])) {
                     <li><a href="<?= APP_URL ?>/admin/patients" class="<?= ($activeNav ?? '') === 'patients' ? 'active' : '' ?>">&#9632; Patients</a></li>
                 <?php endif; ?>
                 <?php if (userCan('engagements', 'read')): ?>
-                    <li><a href="<?= APP_URL ?>/admin/engagements" class="<?= ($activeNav ?? '') === 'engagements' ? 'active' : '' ?>">&#9632; Engagements</a></li>
+                    <li><a href="<?= APP_URL ?>/admin/engagements" class="<?= ($activeNav ?? '') === 'engagements' ? 'active' : '' ?>">&#9632; Care Scheduling</a></li>
                 <?php endif; ?>
                 <?php if (userCan('roster_input', 'read')): ?>
-                    <li><a href="<?= APP_URL ?>/admin/roster/input" class="<?= ($activeNav ?? '') === 'roster-input' ? 'active' : '' ?>">&#9632; Roster Input</a></li>
+                    <li><a href="<?= APP_URL ?>/admin/roster/input" class="<?= ($activeNav ?? '') === 'roster-input' ? 'active' : '' ?>">&#9632; Care Approval</a></li>
                 <?php endif; ?>
             <?php endif; ?>
 

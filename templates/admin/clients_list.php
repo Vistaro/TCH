@@ -32,7 +32,7 @@ foreach ($rows as $r) {
 }
 $totMargin = $totRev - $totCost;
 ?>
-<div class="report-table-scroll">
+<div class="report-table-wrap">
 <table class="report-table tch-data-table">
     <thead><tr>
         <th>Account</th><th>Client Name</th><th>Patient Name</th>
