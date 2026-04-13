@@ -10,7 +10,7 @@
 /* ── Floating trigger button (bottom-right) ─────────────────────────────── */
 .tch-reporter-btn {
     position: fixed;
-    bottom: 24px;
+    bottom: 72px;
     right: 24px;
     z-index: 1000;
     display: flex;
@@ -403,6 +403,6 @@
     }
     .tch-reporter-btn {
         right: 12px;
-        bottom: 16px;
+        bottom: 64px;
     }
 }

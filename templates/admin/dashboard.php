@@ -171,8 +171,13 @@ function monthToggleUrl(string $ym, array $selected): string {
         <div class="dash-card-sub"><?= $totalRevenue > 0 ? round($grossMargin / $totalRevenue * 100) . '%' : '—' ?></div>
     </div>
     <div class="dash-card accent">
-        <div class="dash-card-label">Roster Shifts</div>
+        <div class="dash-card-label" title="One row per shift delivered: caregiver × patient × day">
+            Roster Shifts
+            <i class="fas fa-info-circle" style="font-size:0.7em;color:#6c757d;cursor:help;"
+               title="One row per shift delivered: caregiver × patient × day"></i>
+        </div>
         <div class="dash-card-value"><?= number_format($rosterShifts) ?></div>
+        <div class="dash-card-sub">Days of care delivered</div>
     </div>
 </div>
 

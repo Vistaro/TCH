@@ -56,6 +56,15 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </div>
 </form>
 
+<?php
+// Column totals
+$totShifts = 0; $totEarned = 0;
+foreach ($rows as $r) {
+    $totShifts += (int)$r['shift_count'];
+    $totEarned += (float)$r['total_earned'];
+}
+?>
+<div class="report-table-scroll">
 <table class="report-table tch-data-table">
     <thead><tr>
         <th>TCH ID</th><th>Name</th><th>Known As</th><th>Cohort</th>
@@ -66,7 +75,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     <?php foreach ($rows as $r): ?>
     <tr>
         <td><code><?= htmlspecialchars($r['tch_id']) ?></code></td>
-        <td><?= htmlspecialchars($r['full_name']) ?></td>
+        <td><a href="<?= APP_URL ?>/admin/students/<?= (int)$r['id'] ?>"><?= htmlspecialchars($r['full_name']) ?></a></td>
         <td><?= htmlspecialchars($r['known_as'] ?? '') ?></td>
         <td><?= htmlspecialchars($r['cohort'] ?? 'N/K') ?></td>
         <td><span class="badge badge-<?= $r['cg_status'] === 'placed' ? 'success' : ($r['cg_status'] === 'available' ? 'info' : 'muted') ?>"><?= ucfirst($r['cg_status']) ?></span></td>
@@ -77,6 +86,15 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </tr>
     <?php endforeach; ?>
     </tbody>
+    <tfoot>
+        <tr class="totals-row">
+            <td colspan="6">Total — <?= count($rows) ?> caregiver<?= count($rows) !== 1 ? 's' : '' ?></td>
+            <td class="number"><?= number_format($totShifts) ?></td>
+            <td class="number">R<?= number_format($totEarned, 0) ?></td>
+            <td></td>
+        </tr>
+    </tfoot>
 </table>
+</div>
 
 <?php require APP_ROOT . '/templates/layouts/admin_footer.php'; ?>

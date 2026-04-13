@@ -714,6 +714,57 @@ h3 { font-size: 1.35rem; }
     overflow: hidden;
 }
 
+/* Sticky header when wrapped in a scrollable container */
+.report-table-scroll {
+    max-height: 70vh;
+    overflow: auto;
+    background: #FFFFFF;
+    border-radius: 10px;
+    border: 1px solid #eee;
+}
+.report-table-scroll .report-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+/* Totals row */
+.report-table tfoot td,
+.report-table tr.totals-row td {
+    font-weight: 700;
+    background: #F1F3F5;
+    border-top: 2px solid #ddd;
+    color: #1f2937;
+}
+
+/* Pagination control */
+.tch-paging {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #eee;
+    background: #fff;
+    font-size: 0.85rem;
+    color: #495057;
+}
+.tch-paging .pages a, .tch-paging .pages span {
+    padding: 0.2rem 0.55rem;
+    margin: 0 0.1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 3px;
+    color: #495057;
+    text-decoration: none;
+    background: #fff;
+}
+.tch-paging .pages a:hover { background: #f0f0f0; }
+.tch-paging .pages .current {
+    background: #10B2B4; color: #fff; border-color: #10B2B4;
+}
+.tch-paging .pages .disabled {
+    opacity: 0.4; pointer-events: none;
+}
+
 .report-table {
     width: 100%;
     border-collapse: collapse;

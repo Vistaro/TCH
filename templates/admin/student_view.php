@@ -353,6 +353,18 @@ $stmt = $db->prepare(
 $stmt->execute([$personId]);
 $attendanceRows = $stmt->fetchAll();
 
+// ── Tuniti source-data rows (cell ↔ value pairs from the import) ─────
+$stmt = $db->prepare(
+    "SELECT subject, notes, source_ref, activity_date
+     FROM activities
+     WHERE entity_type = 'persons' AND entity_id = ?
+       AND source = 'import'
+       AND source_ref LIKE 'Ross Intake 1-9%'
+     ORDER BY source_ref"
+);
+$stmt->execute([$personId]);
+$sourceRows = $stmt->fetchAll();
+
 $photoPath = null;
 foreach ($attachments as $a) {
     if ($a['type_code'] === 'profile_photo') {
@@ -740,6 +752,59 @@ require APP_ROOT . '/templates/layouts/admin.php';
         <?php endforeach; ?>
         </tbody>
     </table>
+</details>
+<?php endif; ?>
+
+<?php if ($sourceRows):
+    // Group by tab name (parsed from source_ref like "file.xlsx#1st Intake!N3")
+    $byTab = [];
+    foreach ($sourceRows as $sr) {
+        $tab = '(unknown tab)';
+        $cell = '';
+        if (preg_match('/#([^!]+)!([A-Z]+\d+)/', $sr['source_ref'], $m)) {
+            $tab = $m[1]; $cell = $m[2];
+        }
+        $byTab[$tab][] = ['cell' => $cell] + $sr;
+    }
+?>
+<details class="card" style="margin-top:1.5rem;">
+    <summary style="cursor:pointer;padding:0.75rem 1rem;background:#f8f9fa;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0;">Tuniti Source Data
+            <span style="font-weight:400;font-size:0.85rem;color:#6c757d;margin-left:0.5rem;">
+                <?= count($sourceRows) ?> values from <?= count($byTab) ?> tab<?= count($byTab) === 1 ? '' : 's' ?>
+            </span>
+        </h3>
+        <span style="color:#6c757d;font-size:0.85rem;">▾ click to expand</span>
+    </summary>
+    <?php foreach ($byTab as $tab => $rows): ?>
+        <div style="padding:0.5rem 1rem;border-top:1px solid #f0f0f0;">
+            <div style="font-weight:600;color:#495057;margin-bottom:0.3rem;">
+                <i class="fas fa-table"></i> Tab: <?= _esc($tab) ?>
+                <span style="font-weight:400;color:#6c757d;font-size:0.85rem;">
+                    (<?= count($rows) ?> cell<?= count($rows) === 1 ? '' : 's' ?>)
+                </span>
+            </div>
+            <table style="width:100%;font-size:0.9rem;">
+                <thead><tr style="background:#f8f9fa;">
+                    <th style="text-align:left;padding:0.3rem;width:80px;">Cell</th>
+                    <th style="text-align:left;padding:0.3rem;width:200px;">Field</th>
+                    <th style="text-align:left;padding:0.3rem;">Value imported</th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($rows as $r): ?>
+                    <tr style="border-top:1px solid #f0f0f0;">
+                        <td style="padding:0.3rem;"><code><?= _esc($r['cell']) ?></code></td>
+                        <td style="padding:0.3rem;"><?= _esc($r['subject']) ?></td>
+                        <td style="padding:0.3rem;"><?= _esc($r['notes']) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endforeach; ?>
+    <div style="padding:0.5rem 1rem;background:#f8f9fa;border-top:1px solid #eee;font-size:0.85rem;color:#6c757d;">
+        Source workbook: <code>Ross Intake 1-9 (3).xlsx</code> &middot; imported 13 Apr 2026
+    </div>
 </details>
 <?php endif; ?>
 

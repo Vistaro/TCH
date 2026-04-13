@@ -99,6 +99,15 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </div>
 </form>
 
+<?php
+$totDays = 0; $countGrad = 0; $countPlaced = 0;
+foreach ($rows as $r) {
+    $totDays    += (int)$r['attendance_days'];
+    $countGrad  += !empty($r['graduated_at']) ? 1 : 0;
+    $countPlaced += $r['is_placed'] === 'Yes' ? 1 : 0;
+}
+?>
+<div class="report-table-scroll">
 <table class="report-table tch-data-table">
     <thead><tr>
         <th>TCH ID</th><th>Name</th><th>Cohort</th><th>Enrolled</th>
@@ -128,6 +137,15 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </tr>
     <?php endforeach; ?>
     </tbody>
+    <tfoot>
+        <tr class="totals-row">
+            <td colspan="8">Total — <?= count($rows) ?> student<?= count($rows) !== 1 ? 's' : '' ?></td>
+            <td class="number"><?= number_format($totDays) ?></td>
+            <td><?= $countGrad ?></td>
+            <td><?= $countPlaced ?></td>
+        </tr>
+    </tfoot>
 </table>
+</div>
 
 <?php require APP_ROOT . '/templates/layouts/admin_footer.php'; ?>

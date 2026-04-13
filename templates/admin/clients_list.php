@@ -22,6 +22,17 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
 <p style="color:#666;font-size:0.85rem;margin-bottom:1rem;"><?= count($rows) ?> client<?= count($rows) !== 1 ? 's' : '' ?></p>
 
+<?php
+$totRev=0; $totCost=0; $totShifts=0; $totMonths=0;
+foreach ($rows as $r) {
+    $totRev    += (float)$r['total_billed'];
+    $totCost   += (float)$r['total_cost'];
+    $totShifts += (int)$r['shift_count'];
+    $totMonths += (int)$r['revenue_rows'];
+}
+$totMargin = $totRev - $totCost;
+?>
+<div class="report-table-scroll">
 <table class="report-table tch-data-table">
     <thead><tr>
         <th>Account</th><th>Client Name</th><th>Patient Name</th>
@@ -45,6 +56,17 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </tr>
     <?php endforeach; ?>
     </tbody>
+    <tfoot>
+        <tr class="totals-row">
+            <td colspan="4">Total — <?= count($rows) ?> client<?= count($rows) !== 1 ? 's' : '' ?></td>
+            <td class="number"><?= number_format($totMonths) ?></td>
+            <td class="number">R<?= number_format($totRev, 0) ?></td>
+            <td class="number"><?= number_format($totShifts) ?></td>
+            <td class="number">R<?= number_format($totCost, 0) ?></td>
+            <td class="number" style="<?= $totMargin >= 0 ? 'color:#198754' : 'color:#dc3545' ?>">R<?= number_format($totMargin, 0) ?></td>
+        </tr>
+    </tfoot>
 </table>
+</div>
 
 <?php require APP_ROOT . '/templates/layouts/admin_footer.php'; ?>

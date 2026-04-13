@@ -50,6 +50,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
             $newClId     = $_POST['linked_client_id'] !== '' ? (int)$_POST['linked_client_id'] : null;
             $newCcy      = strtoupper(trim($_POST['currency_code'] ?? 'ZAR')) ?: 'ZAR';
             if (!preg_match('/^[A-Z]{3}$/', $newCcy)) $newCcy = 'ZAR';
+            // Email change is Super Admin only.
+            $isSuper = ((int)($me['role_id'] ?? 0) === 1);
+            $newEmail = $isSuper ? strtolower(trim($_POST['email'] ?? '')) : $target['email'];
+            if ($newEmail !== '' && !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+                $flash = 'Invalid email address — change not saved.';
+                $flashType = 'error';
+                $newEmail = $target['email'];
+            } elseif ($newEmail !== $target['email']) {
+                // Reject if another active user already owns the new address
+                $clash = $db->prepare('SELECT id FROM users WHERE email = ? AND id != ?');
+                $clash->execute([$newEmail, $userId]);
+                if ($clash->fetchColumn()) {
+                    $flash = 'Another user already has that email — change not saved.';
+                    $flashType = 'error';
+                    $newEmail = $target['email'];
+                }
+            }
 
             if ($newFullName === '' || $newRoleId === 0) {
                 $flash = 'Full name and role are required.';
@@ -64,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
                 $roleSlug = $r->fetchColumn() ?: 'admin';
 
                 $before = [
+                    'email'               => $target['email'],
                     'full_name'           => $target['full_name'],
                     'role_id'             => (int)$target['role_id'],
                     'manager_id'          => $target['manager_id'] !== null ? (int)$target['manager_id'] : null,
@@ -72,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
                     'currency_code'       => $target['currency_code'] ?? 'ZAR',
                 ];
                 $after = [
+                    'email'               => $newEmail,
                     'full_name'           => $newFullName,
                     'role_id'             => $newRoleId,
                     'manager_id'          => $newMgrId,
@@ -82,12 +101,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
 
                 $stmt = $db->prepare(
                     'UPDATE users
-                     SET full_name = ?, role_id = ?, role = ?, manager_id = ?,
+                     SET email = ?, username = ?,
+                         full_name = ?, role_id = ?, role = ?, manager_id = ?,
                          linked_caregiver_id = ?, linked_client_id = ?,
                          currency_code = ?
                      WHERE id = ?'
                 );
                 $stmt->execute([
+                    $newEmail, substr($newEmail, 0, 50),
                     $newFullName, $newRoleId, $roleSlug, $newMgrId, $newCgId, $newClId, $newCcy, $userId
                 ]);
 
@@ -278,8 +299,15 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
                 <div class="form-group">
                     <label>Email (login)</label>
-                    <input type="email" class="form-control" value="<?= htmlspecialchars($target['email']) ?>" disabled>
-                    <small style="color:#666;">Email changes are not supported in this UI.</small>
+                    <?php $isSuperEdit = ((int)($me['role_id'] ?? 0) === 1); ?>
+                    <input type="email" name="email" class="form-control"
+                           value="<?= htmlspecialchars($target['email']) ?>"
+                           <?= $isSuperEdit ? 'required' : 'disabled' ?>>
+                    <small style="color:#666;">
+                        <?= $isSuperEdit
+                            ? 'You can change this — login email and username will both update. The user will need to use the new address next time they sign in.'
+                            : 'Only Super Admin can change a user\'s email.' ?>
+                    </small>
                 </div>
 
                 <div class="form-group">

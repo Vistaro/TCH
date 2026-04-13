@@ -24,6 +24,15 @@
 |---|------|----------|-------|
 | ~~BUG-setup-pw~~ | ~~**User registration broken — `/setup-password` returns HTTP 500**~~ | **FIXED 2026-04-13** | Root cause: `users` table was missing the `linked_client_id` column, but `setup_password.php` + `users_detail.php` both referenced it in INSERT/UPDATE. Every invite acceptance 500'd on "Unknown column 'linked_client_id'". Migration 017 added the column + index. Diagnosed by running the full POST path via a server-side diagnostic script. |
 
+## Pending design — features queued (added 2026-04-13)
+
+| # | Item | Priority | Notes |
+|---|------|----------|-------|
+| FR-help-report | **Combined Help + Report widget** | LOW | The floating bottom-right button currently just opens the bug/FR reporter. Long-term: turn it into a Help+Report dropdown — Help links to docs / FAQ / shortcuts; Report opens the existing reporter panel. Wait until there's actual help content to link to before building. |
+| FR-client-expenses | **Client expenses workflow** | MEDIUM | We need a way to capture costs incurred *for* a client (not caregiver pay): equipment hire, transport, third-party medical, etc. Design Q's: (a) where does it live — a tab on the patient record, or a standalone Expenses page? (b) approval workflow (does Tuniti or finance approve before it hits the client invoice?) (c) currency + receipt attachment. (d) flow into the Client Profitability report — should reduce gross margin. Add a `patient_expenses` UI (table already exists, currently empty). |
+| FR-caregiver-loans | **Caregiver loans — balances, payments, repayments** | MEDIUM | `caregiver_loans` table already holds R 58,802 outstanding across some caregivers. Need: (a) view current loan balance per caregiver on their record; (b) record a new loan disbursement (cash advance); (c) record a repayment (deducted from a future wage); (d) running balance maintained by application of repayments to oldest loan first; (e) flow into Caregiver Earnings report — repayments shown as a deduction line, loans shown as a credit line. **Loans should NOT impact Gross Margin** — they're a cash-flow item, not a P&L cost. |
+| FR-pagination | **Pagination on long table pages** | LOW | Current fix: sticky header + scroll wrapper handles up to ~200 rows comfortably. If we ever hit 500+ rows, switch to numbered pagination (10/25/50/100 per page picker + first/prev/next/last). Defer until needed. |
+
 ## Blocking Next Session
 
 | # | Item | Priority | Notes |
