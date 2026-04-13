@@ -22,7 +22,7 @@
 
 | # | Item | Priority | Notes |
 |---|------|----------|-------|
-| BUG-setup-pw | **User registration broken — `/setup-password` returns HTTP 500** | HIGH | Added 2026-04-12. Repro: admin clicks "Invite" → invite email arrives → recipient clicks the link → lands on `tch.intelligentae.co.uk/setup-password` → browser shows "This page isn't working — HTTP ERROR 500". New users cannot complete registration. Check server error log for the stack trace first. Screenshot: `OneDrive\Desktop\Failure on User Create Post PW.png`. Should also be filed on the Hub once triaged. |
+| ~~BUG-setup-pw~~ | ~~**User registration broken — `/setup-password` returns HTTP 500**~~ | **FIXED 2026-04-13** | Root cause: `users` table was missing the `linked_client_id` column, but `setup_password.php` + `users_detail.php` both referenced it in INSERT/UPDATE. Every invite acceptance 500'd on "Unknown column 'linked_client_id'". Migration 017 added the column + index. Diagnosed by running the full POST path via a server-side diagnostic script. |
 
 ## Blocking Next Session
 
