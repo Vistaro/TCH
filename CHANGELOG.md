@@ -39,6 +39,25 @@ All notable changes to the TCH Placements project.
 
 All of the above is **on DEV only**. No prod deploy yet.
 
+## [0.9.20 → prod] - 2026-04-13
+
+Everything from 0.9.18 + 0.9.19 promoted to PROD via `rsync dev → tch/`
+after prod-webroot snapshot `prod-webroot-pre-0920-20260413-160734.tgz`.
+DB changes already in place (shared DB — migrations 011–023 all applied
+to the single schema).
+
+### Added post-promote (still dev-only at wrap time)
+
+- Migration 023 — seeded 5 products from the public site (Full-Time,
+  Post-Operative, Palliative, Respite, Errand). Day Rate kept as id 1.
+- Copy tidy: "Engagements" → "Care Scheduling", "Roster Input" →
+  "Care Approval", "+ New Engagement" → "+ New Care Schedule",
+  "+ Record Shift" → "+ Approve Delivered Care".
+- Sticky-header fix — `border-collapse: separate` on `.report-table`
+  so Chrome/Edge stop blocking `position: sticky` on thead. Header
+  underline + row separators moved onto th/td explicitly.
+  Logged BUG-sticky-header HIGH for verification after cache bust.
+
 ## [0.9.17] - 2026-04-13
 
 ### Added — Student detail page + Tuniti attendance import + Notes timeline
