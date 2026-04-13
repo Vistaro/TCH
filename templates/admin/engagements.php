@@ -5,6 +5,10 @@ $activeNav = 'engagements';
 $db = getDB();
 $user = currentEffectiveUser();
 
+$flash = '';
+$flashType = 'error';
+$patientLinkUrl = null;
+
 // ── Handle create ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_token'] ?? '')) {
     $action = $_POST['action'] ?? '';
@@ -19,24 +23,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
         $endDate   = $_POST['end_date'] ?? '';
         $notes     = trim($_POST['notes'] ?? '');
 
-        if ($cgId && $patientId && $productId && $costRate > 0 && $billRate > 0 && $startDate) {
-            // Look up the client from the patient
-            $clientId = (int)$db->prepare('SELECT client_id FROM patients WHERE person_id = ?')
-                                ->execute([$patientId]) ? $db->query('SELECT client_id FROM patients WHERE person_id = ' . $patientId)->fetchColumn() : 0;
+        if (!($cgId && $patientId && $productId && $costRate > 0 && $billRate > 0 && $startDate)) {
+            $flash = 'Please fill in caregiver, patient, product, both rates, and a start date.';
+        } else {
+            // ── Bill-payer guardrail: patient MUST have a client linked ──
+            // Rule: liability is confirmed at scheduling time, never later.
+            // If the patient has no client on file, block the create and
+            // point the user at the patient profile to fix it.
+            $stmt = $db->prepare('SELECT client_id FROM patients WHERE person_id = ?');
+            $stmt->execute([$patientId]);
+            $clientId = (int)$stmt->fetchColumn();
 
-            $stmt = $db->prepare(
-                'INSERT INTO engagements (caregiver_person_id, patient_person_id, client_id, product_id,
-                 cost_rate, bill_rate, start_date, end_date, notes, created_by_user_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            );
-            $stmt->execute([$cgId, $patientId, $clientId, $productId,
-                            $costRate, $billRate, $startDate, $endDate ?: null, $notes,
-                            $user['id'] ?? null]);
-            $engId = (int)$db->lastInsertId();
-            logActivity('engagement_created', 'engagements', 'engagements', $engId,
-                "Created engagement #$engId", null,
-                ['caregiver' => $cgId, 'patient' => $patientId, 'product' => $productId,
-                 'cost_rate' => $costRate, 'bill_rate' => $billRate, 'start' => $startDate]);
+            if ($clientId <= 0) {
+                $flash = 'Cannot schedule care for this patient — no bill-paying client is linked. '
+                       . 'Open the patient profile and set the client first.';
+                $patientLinkUrl = APP_URL . '/admin/patients/' . $patientId . '?edit=client';
+            } else {
+                $stmt = $db->prepare(
+                    'INSERT INTO engagements (caregiver_person_id, patient_person_id, client_id, product_id,
+                     cost_rate, bill_rate, start_date, end_date, notes, created_by_user_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                );
+                $stmt->execute([$cgId, $patientId, $clientId, $productId,
+                                $costRate, $billRate, $startDate, $endDate ?: null, $notes,
+                                $user['id'] ?? null]);
+                $engId = (int)$db->lastInsertId();
+                logActivity('engagement_created', 'engagements', 'engagements', $engId,
+                    "Created engagement #$engId", null,
+                    ['caregiver' => $cgId, 'patient' => $patientId, 'client' => $clientId, 'product' => $productId,
+                     'cost_rate' => $costRate, 'bill_rate' => $billRate, 'start' => $startDate]);
+                header('Location: ' . APP_URL . '/admin/engagements');
+                exit;
+            }
         }
     } elseif ($action === 'update_status' && userCan('engagements', 'edit')) {
         $engId = (int)($_POST['engagement_id'] ?? 0);
@@ -46,9 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
             logActivity('engagement_status_changed', 'engagements', 'engagements', $engId,
                 "Status changed to $newStatus", null, ['status' => $newStatus]);
         }
+        header('Location: ' . APP_URL . '/admin/engagements');
+        exit;
     }
-    header('Location: ' . APP_URL . '/admin/engagements');
-    exit;
+    // Fall through to re-render the page with $flash set
 }
 
 // ── Data ─────────────────────────────────────────────────────
@@ -80,6 +99,19 @@ $productOptions = $db->query("SELECT * FROM products WHERE is_active = 1 ORDER B
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
 
+<?php $createFormOpen = !empty($flash); ?>
+
+<?php if ($flash): ?>
+    <div style="background:<?= $flashType === 'error' ? '#f8d7da' : '#cce5ff' ?>;color:<?= $flashType === 'error' ? '#721c24' : '#004085' ?>;padding:0.75rem 1rem;border-radius:4px;margin-bottom:1rem;border-left:4px solid <?= $flashType === 'error' ? '#dc3545' : '#0d6efd' ?>;">
+        <?= htmlspecialchars($flash) ?>
+        <?php if (!empty($patientLinkUrl)): ?>
+            <div style="margin-top:0.5rem;">
+                <a href="<?= htmlspecialchars($patientLinkUrl) ?>" class="btn btn-outline btn-sm">Link a client to this patient &rarr;</a>
+            </div>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
+
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
     <p style="color:#666;font-size:0.85rem;"><?= count($engagements) ?> care schedule<?= count($engagements) !== 1 ? 's' : '' ?></p>
     <?php if (userCan('engagements', 'create')): ?>
@@ -87,7 +119,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     <?php endif; ?>
 </div>
 
-<div id="create-form" style="display:none;background:#f8f9fa;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
+<div id="create-form" style="display:<?= $createFormOpen ? 'block' : 'none' ?>;background:#f8f9fa;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
     <h3 style="margin-top:0;">Create Care Schedule</h3>
     <form method="POST">
         <?= csrfField() ?>
