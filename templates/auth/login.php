@@ -33,6 +33,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: ' . APP_URL . '/reset-password?token=' . $raw . '&forced=1');
                     exit;
                 }
+                // After successful login, gate on "What's New" — if there
+                // are published releases newer than the user has acknowledged,
+                // redirect to /admin/whats-new instead of the dashboard.
+                $db = getDB();
+                $newest = (int)$db->query('SELECT COALESCE(MAX(id), 0) FROM releases WHERE is_published = 1')->fetchColumn();
+                $stmt = $db->prepare('SELECT COALESCE(last_release_seen_id, 0) FROM users WHERE id = ?');
+                $stmt->execute([(int)$user['id']]);
+                $lastSeen = (int)$stmt->fetchColumn();
+                if ($newest > $lastSeen) {
+                    header('Location: ' . APP_URL . '/admin/whats-new');
+                    exit;
+                }
                 header('Location: ' . APP_URL . '/admin');
                 exit;
             }

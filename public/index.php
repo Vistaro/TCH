@@ -70,9 +70,47 @@ if ($route === 'admin/students/new') {
     exit;
 }
 
+if ($route === 'admin/clients/new') {
+    requirePagePermission('client_view', 'create');
+    require APP_ROOT . '/templates/admin/client_create.php';
+    exit;
+}
+
+if ($route === 'admin/patients/new') {
+    requirePagePermission('patient_view', 'create');
+    require APP_ROOT . '/templates/admin/patient_create.php';
+    exit;
+}
+
+if (preg_match('#^admin/clients/(\d+)$#', $route, $m)) {
+    $_GET['client_id'] = (int)$m[1];
+    requirePagePermission('client_view', 'read');
+    require APP_ROOT . '/templates/admin/client_view.php';
+    exit;
+}
+
+if (preg_match('#^admin/patients/(\d+)$#', $route, $m)) {
+    $_GET['patient_id'] = (int)$m[1];
+    requirePagePermission('patient_view', 'read');
+    require APP_ROOT . '/templates/admin/patient_view.php';
+    exit;
+}
+
 if ($route === 'admin/config/fx-rates') {
     requirePagePermission('config_fx_rates', 'read');
     require APP_ROOT . '/templates/admin/config_fx_rates.php';
+    exit;
+}
+
+if ($route === 'admin/whats-new') {
+    requirePagePermission('whats_new', 'read');
+    require APP_ROOT . '/templates/admin/whats_new.php';
+    exit;
+}
+
+if ($route === 'admin/releases') {
+    requirePagePermission('releases_admin', 'read');
+    require APP_ROOT . '/templates/admin/releases_admin.php';
     exit;
 }
 

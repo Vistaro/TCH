@@ -13,6 +13,30 @@ New entries go at the top.
 
 ---
 
+## 2026-04-13 — Multi-row contact tables (phones / emails / addresses), legacy columns kept as fallback
+
+**Chose:** Build new `person_phones`, `person_emails`, `person_addresses` tables with primary flags + FKs to `persons`. Keep the legacy scalar columns (`persons.mobile`, `secondary_number`, `email`, and the flat address columns) **in place** as a fallback. The new save helpers mirror the *primary* row from each new table back into the matching legacy column on every write.
+**Over:** A clean cut-over (drop the legacy columns the moment the new tables exist), or a "shim view" that recomputes the legacy columns at read time.
+**Because:** Plenty of code outside the new templates still reads the legacy columns directly (reports, exports, the public site, the in-app reporter widget). A clean cut-over would mean a multi-day audit + refactor across the codebase before a single client/patient page could go live. The shim-view approach hides the legacy columns behind a query layer but doesn't help PHP code that does `SELECT mobile FROM persons` (which is most of it). Keeping the legacy columns + mirroring the primary on write means the new functionality ships now, the rest of the codebase migrates incrementally as files are touched, and there is one source of truth at any moment (the new table, with the mirror as a denormalised cache that is always written from it). The mirror is allowed because it fits the "stored value represents *no* derivation" exception in the SoT rule — it's literally a copy of one row, not a summary.
+
+## 2026-04-13 — Soft-archive (no delete) + default exclusion in lists
+
+**Chose:** Add `archived_at` / `archived_by_user_id` / `archived_reason` to `persons`. List queries default to `WHERE archived_at IS NULL`; a "Show archived" toggle reveals them with muted styling. Restore is one click. Never delete.
+**Over:** Hard delete with the existing `activity_log_delete()` undelete pathway, or a separate `clients_archive` / `patients_archive` table.
+**Because:** Audit defensibility for billing-adjacent records. A client with paid invoices in `client_revenue` cannot be deleted without orphaning revenue rows; archive keeps the FK target alive while hiding the record from working views. The undelete pathway is meant for accidental dev-time deletes, not "this customer left us". Separate archive tables would duplicate every column and double maintenance cost — a single nullable timestamp on persons is the cheapest correct shape.
+
+## 2026-04-13 — `clients.id = persons.id` convention preserved on new client creation
+
+**Chose:** When creating a new client via `/admin/clients/new`, INSERT the `clients` row with `id = persons.id` (using the just-allocated person ID), not letting AUTO_INCREMENT pick.
+**Over:** Letting `clients` use its own AUTO_INCREMENT id and joining via `clients.person_id`.
+**Because:** Migration 009 deliberately seeded `clients.id = persons.id` so existing FKs on `client_revenue.client_id` and `daily_roster.client_id` (which point at `persons.id`-style values) continue to resolve. Letting AUTO_INCREMENT diverge for newly-created clients would break that invariant — half the table would have `clients.id = persons.id`, the other half wouldn't, and every JOIN involving billing or roster would need to be hand-corrected. Cheap to preserve, expensive to undo later.
+
+## 2026-04-13 — Two-stage POST for create-with-dedup (no JS modal)
+
+**Chose:** Server-side dedup runs on first POST; if matches found, the form re-renders with the matches inline above it and a "Create anyway" tickbox. Second POST with `dedup_confirmed=1` skips dedup and inserts.
+**Over:** A JavaScript modal on the create page that intercepts submit, calls a JSON dedup endpoint, and shows matches in-overlay before proceeding.
+**Because:** The two-stage server flow works without JS, has no API surface to maintain, and the user state lives in the form's hidden field rather than a JS variable. Worst case (user gets distracted, comes back later, hits Create) is they get the dedup screen again — never a silent-create-of-a-duplicate. The JS modal would be slicker but adds an endpoint, an XHR layer, and an "is the JS loaded yet" race.
+
 ## 2026-04-13 — Structured source-citation columns on `activities`
 
 **Chose:** Add `source`, `source_ref`, `source_batch` columns to the

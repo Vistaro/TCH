@@ -2,6 +2,46 @@
 
 All notable changes to the TCH Placements project.
 
+## [unreleased] - 2026-04-13 (dev) — Client + Patient profiles
+
+### Added — full Client + Patient profile build (per `docs/DESIGN_client_patient_profiles.md`)
+
+- **Migration 024** — `024_client_patient_profiles.sql` (idempotent):
+  - `person_phones` table — multi-phone per person + primary flag, FK to persons, backfilled from `persons.mobile` + `persons.secondary_number`.
+  - `person_emails` table — multi-email per person + primary flag, FK to persons, backfilled from `persons.email`.
+  - `person_addresses` table — multi-address per person (Ross's call: break out from the start), backfilled with the existing flat address columns as the primary address. Includes optional `latitude` / `longitude` for the patient-distance feature.
+  - `persons.salutation`, `first_name`, `middle_names`, `last_name` — name parts; `full_name` remains the canonical display string and is auto-recomposed when parts are edited. Best-effort split of existing `full_name` populates the new columns.
+  - `persons.archived_at`, `archived_by_user_id`, `archived_reason` + `idx_persons_archived` — soft-archive (never delete).
+  - Registered new admin pages `client_view`, `patient_view` + Super Admin CRUD grants.
+  - Legacy `persons.mobile` / `secondary_number` / `email` and flat-address columns are LEFT IN PLACE for one release as a fallback while the rest of the app moves to the new tables.
+
+- **`includes/contact_methods.php`** — helpers for the multi-row contact tables: `getPersonPhones / getPersonEmails / getPersonAddresses`, `savePersonPhones / savePersonEmails` (replace-all pattern, only one primary wins), `savePrimaryAddress`, plus `parsePhonesFromPost / parseEmailsFromPost` for sub-form parsing. The save helpers also mirror the primary phone/email and the primary address back into the legacy `persons` columns so existing reports keep working through the transition.
+
+- **`includes/dedup.php`** — `findPossibleDuplicates(personType, candidate, limit)` scans un-archived persons for: exact phone match (in `person_phones`), exact email match (in `person_emails`), exact ID/passport match, and Levenshtein-≤3 OR same-soundex name match. Scoped to same `person_type` when given. Returns scored, ordered candidates with reasons.
+
+- **`/admin/clients/new`** + **`/admin/patients/new`** — create forms with two-stage POST: first POST runs dedup; if matches found, the form re-renders above with a "Possible matches" panel listing them (TCH ID, name, type, why-matched, "Open" link). User can either pick an existing record, or tick "None of those matches are this person — create anyway" and re-submit. Dedup decision is logged in the new record's Notes timeline.
+
+- **`/admin/clients/{id}`** + **`/admin/patients/{id}`** — full profile pages mirroring the student detail pattern. Sections: Personal (incl. salutation/first/middle/last + auto-recomposed full_name), Phones (multi-row edit with primary radio + +Add row), Emails (same), Address, Billing (clients only), Linked Patients (clients only), and the existing Notes timeline. Photo replace + audit-log + activity-log on every save.
+
+- **Archive / unarchive** — every profile has an Archive button (with optional reason). Archived rows hide from the default list views; a "Show archived" toggle reveals them with muted styling.
+
+- **"Same person" toggle** — on a Client profile, a button creates a `patients` row pointing at the same `persons.id` (billed to themselves) and adds `patient` to the `person_type` SET. On a Patient profile, the mirrored button creates a `clients` row + an account number, and re-points the patient row to bill themselves. Both directions logged in the timeline.
+
+- **Re-assign client (patient → other client)** — `?edit=client` on a patient profile reveals a dropdown of other un-archived clients; submitting POSTs `change_client` with audit + timeline entries on both sides.
+
+- **Updated `clients_list.php` + `patients_list.php`** — clickable rows (whole row navigates to detail), inline name links don't navigate, "+ New" button, "Show archived / Hide archived" toggle, archived rows shown muted with `(archived)` badge.
+
+### Routing (`public/index.php`)
+
+- Added `admin/clients/new` (gates `client_view.create`) and `admin/patients/new` (gates `patient_view.create`).
+- Added parametric routes `admin/clients/{id}` and `admin/patients/{id}` (gates `*_view.read`); `*_view.edit` enforced inline for save handlers.
+
+### Notes / known gaps
+
+- Migration 024 must be applied to the dev DB **before** the new pages will load (queries reference the new columns and tables). Apply via `mysql … < database/024_client_patient_profiles.sql`.
+- Code paths elsewhere in the app still read `persons.mobile / email / flat-address` directly; that's intentional — the new tables are the primary source going forward, and the helpers mirror primary values back to the legacy columns so nothing breaks while the rest of the app migrates over.
+- Smoke testing on the live UI is **not done** in this session — no browser access. Ross to apply the migration, then click through: list → detail (read), edit each section, +Add phone, +Add email, photo replace, archive + restore, "Same person" toggle, re-assign client. Any breakages get logged as Bugs in the Hub.
+
 ## [unreleased] - 2026-04-13 (dev) — governance audit follow-ups
 
 ### Housekeeping

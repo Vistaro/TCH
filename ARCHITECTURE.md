@@ -90,17 +90,47 @@ columns that had drifted during a dedup — see DECISIONS.md.
 ### People: one table, three roles
 
 ```
-persons  (id, tch_id, person_type SET, full_name, …)
+persons  (id, tch_id, person_type SET, full_name + name parts,
+          archived_at, …)
            │
            ├── caregivers (person_id PK, …)  for caregiver-specific fields
-           ├── clients    (id, person_id, …)  for client-specific fields
-           ├── patients   (person_id PK, …)  for patient-specific fields
-           └── students   (person_id PK, cohort, avg_score, qualified, …)
+           ├── clients    (id, person_id, account_number, billing_…)
+           ├── patients   (person_id PK, client_id, patient_name)
+           ├── students   (person_id PK, cohort, avg_score, qualified, …)
+           ├── person_phones    (multi-phone, primary flag)
+           ├── person_emails    (multi-email, primary flag)
+           └── person_addresses (multi-address, primary flag)
 ```
 
 `person_type` is a SET so one human can be both caregiver and student
 (normally true — caregivers-in-training). TCH IDs are assigned once
 (`TCH-000001`) and survive name changes.
+
+**Name parts (added migration 024)** — `salutation`, `first_name`,
+`middle_names`, `last_name`. `full_name` remains the canonical display
+string; on edit it auto-recomposes from the parts. Best-effort split
+of historical `full_name` populated the parts on migration.
+
+**Archive (added migration 024)** — `archived_at`,
+`archived_by_user_id`, `archived_reason`. Soft-delete only; list
+queries default `WHERE archived_at IS NULL` with a "Show archived"
+toggle. There is no hard-delete pathway for client/patient records.
+
+**Multi-contact tables (added migration 024)** —
+`person_phones` / `person_emails` / `person_addresses` carry one row
+per contact method with a `is_primary` flag. The legacy scalar
+columns (`persons.mobile`, `secondary_number`, `email`, and the flat
+address columns) are mirrored from the *primary* row of each new
+table on every save and remain authoritative for code that hasn't
+been migrated to read from the new tables yet. See `DECISIONS.md` for
+the rationale for keeping the mirror.
+
+**Client identity convention** — `clients.id = persons.id` for every
+row (set explicitly on insert in both migration 009 and the new
+client_create handler). Existing FKs on `client_revenue.client_id`
+and `daily_roster.client_id` were populated with `persons.id`-style
+values, so this invariant must hold going forward — never let
+`clients` use AUTO_INCREMENT alone for new rows.
 
 ### Training lifecycle
 
@@ -156,6 +186,13 @@ request**.
 - **`includes/permissions.php`** — `userCan()`, `requirePagePermission()`,
   hierarchy visibility helpers, `logActivity()`.
 - **`includes/activities_render.php`** — Notes timeline render + save.
+- **`includes/contact_methods.php`** — multi-row phone/email/address
+  helpers (`getPersonPhones`, `savePersonPhones`, etc.). Save helpers
+  mirror the primary row back to the legacy scalar columns on persons.
+- **`includes/dedup.php`** — `findPossibleDuplicates(personType,
+  candidate)` for the create-form dedup screen. Match signals: exact
+  phone (in person_phones), exact email (in person_emails), exact
+  ID/passport, name Levenshtein ≤ 3 OR same soundex.
 - **`includes/activity_log_render.php`** / **`_revert.php`** — renders
   the audit log and implements revert (undo a past mutation) without
   destroying history.
