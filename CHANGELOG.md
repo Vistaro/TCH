@@ -2,6 +2,20 @@
 
 All notable changes to the TCH Placements project.
 
+## [unreleased] - 2026-04-13 (dev) — governance audit follow-ups
+
+### Housekeeping
+
+- `.gitignore` — added `*.mp3`, `*.wav`, `*.m4a` so stray audio scratch files (e.g. `audio_extract.mp3`) can't land in history via a careless `git add .`.
+- Removed empty `db/` folder at repo root (purpose unknown, `database/` is the real migrations folder — avoids future confusion).
+- `dev` already tracks `origin/dev` (audit claim was stale; `git status` reports ahead/behind cleanly).
+
+### Deferred to Hub FRs (drafts written to `_global/output/TCH/FR-drafts-governance-audit Apr-26.md`)
+
+- **FR 1** — Two-tier audit-artefact storage (`AUDIT_ROOT` config indirection); keeps customer-audit binaries out of git future while preserving existing history; avoids LFS (incompatible with rsync-to-StackCP deploy).
+- **FR 2** — Document `tools/intake_parser/` in ARCHITECTURE.md + agree retention policy for its `output/` folder.
+- **FR 3** — Rolled-up `database/schema_current.sql` refreshed at each version milestone to speed onboarding and audits.
+
 ## [0.9.18] - 2026-04-13 (dev)
 
 ### Added — Password policy + per-user / global force reset
