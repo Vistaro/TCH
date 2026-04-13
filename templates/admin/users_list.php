@@ -52,6 +52,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
             }
         }
     }
+
+    // Revoke a pending invite
+    if (($_POST['action'] ?? '') === 'revoke_invite' && $canEdit) {
+        $inviteId = (int)($_POST['invite_id'] ?? 0);
+        if ($inviteId > 0) {
+            $stmt = $db->prepare(
+                'SELECT * FROM user_invites WHERE id = ? AND used_at IS NULL'
+            );
+            $stmt->execute([$inviteId]);
+            $inv = $stmt->fetch();
+            if ($inv) {
+                // Marking expired rather than deleting — keeps the audit trail intact
+                $db->prepare('UPDATE user_invites SET expires_at = NOW() WHERE id = ?')->execute([$inviteId]);
+                logActivity(
+                    'user_invite_revoked', 'users', 'user_invites', $inviteId,
+                    'Revoked invite for ' . $inv['email'],
+                    ['expires_at' => $inv['expires_at']],
+                    ['expires_at' => date('Y-m-d H:i:s')]
+                );
+                $flash = 'Invite to ' . $inv['email'] . ' revoked.';
+            }
+        }
+    }
 }
 
 // ── Filters ─────────────────────────────────────────────────────────────
@@ -100,6 +123,16 @@ $roles = $db->query('SELECT id, name FROM roles ORDER BY id')->fetchAll();
 $totalUsers   = (int)$db->query('SELECT COUNT(*) FROM users')->fetchColumn();
 $activeUsers  = (int)$db->query('SELECT COUNT(*) FROM users WHERE is_active = 1')->fetchColumn();
 $pendingInvites = (int)$db->query('SELECT COUNT(*) FROM user_invites WHERE used_at IS NULL AND expires_at > NOW()')->fetchColumn();
+$pendingInviteRows = $db->query(
+    "SELECT i.id, i.email, i.full_name, i.expires_at,
+            r.name AS role_name,
+            cu.full_name AS invited_by_name
+     FROM user_invites i
+     LEFT JOIN roles r ON r.id = i.role_id
+     LEFT JOIN users cu ON cu.id = i.created_by
+     WHERE i.used_at IS NULL AND i.expires_at > NOW()
+     ORDER BY i.created_at DESC"
+)->fetchAll();
 
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
@@ -114,10 +147,41 @@ require APP_ROOT . '/templates/layouts/admin.php';
         <div class="dash-card-value"><?= $activeUsers ?></div>
         <div class="dash-card-sub">of <?= $totalUsers ?> total</div>
     </div>
-    <div class="dash-card accent">
+    <div class="dash-card accent" style="flex:2;">
         <div class="dash-card-label">Pending Invites</div>
-        <div class="dash-card-value"><?= $pendingInvites ?></div>
-        <div class="dash-card-sub">Outstanding invitations</div>
+        <div style="display:flex;align-items:flex-start;gap:1rem;">
+            <div class="dash-card-value"><?= $pendingInvites ?></div>
+            <?php if ($pendingInviteRows): ?>
+                <div style="flex:1;font-size:0.85rem;">
+                    <?php foreach ($pendingInviteRows as $inv):
+                        $expiresTs = strtotime($inv['expires_at']);
+                        $daysLeft = max(0, (int)ceil(($expiresTs - time()) / 86400));
+                    ?>
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.25rem 0;border-bottom:1px dotted #eee;">
+                            <div>
+                                <strong><?= htmlspecialchars($inv['full_name']) ?></strong>
+                                &middot; <?= htmlspecialchars($inv['email']) ?>
+                                &middot; <?= htmlspecialchars($inv['role_name'] ?? '—') ?>
+                                <span style="color:#6c757d;">(invited by <?= htmlspecialchars($inv['invited_by_name'] ?? 'unknown') ?>, expires in <?= $daysLeft ?>d)</span>
+                            </div>
+                            <?php if ($canEdit): ?>
+                                <form method="POST" style="display:inline;margin-left:0.5rem;">
+                                    <?= csrfField() ?>
+                                    <input type="hidden" name="action" value="revoke_invite">
+                                    <input type="hidden" name="invite_id" value="<?= (int)$inv['id'] ?>">
+                                    <button type="submit" class="btn btn-outline btn-sm"
+                                            onclick="return confirm('Revoke the invite for <?= htmlspecialchars(addslashes($inv['email'])) ?>?');">
+                                        Revoke
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="dash-card-sub" style="padding-top:0.5rem;">No outstanding invitations</div>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 
