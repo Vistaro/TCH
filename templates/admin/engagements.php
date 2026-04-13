@@ -81,14 +81,14 @@ require APP_ROOT . '/templates/layouts/admin.php';
 ?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-    <p style="color:#666;font-size:0.85rem;"><?= count($engagements) ?> engagement<?= count($engagements) !== 1 ? 's' : '' ?></p>
+    <p style="color:#666;font-size:0.85rem;"><?= count($engagements) ?> care schedule<?= count($engagements) !== 1 ? 's' : '' ?></p>
     <?php if (userCan('engagements', 'create')): ?>
-    <button class="btn btn-primary" onclick="document.getElementById('create-form').style.display='block'">+ New Engagement</button>
+    <button class="btn btn-primary" onclick="document.getElementById('create-form').style.display='block'">+ New Care Schedule</button>
     <?php endif; ?>
 </div>
 
 <div id="create-form" style="display:none;background:#f8f9fa;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
-    <h3 style="margin-top:0;">Create Engagement</h3>
+    <h3 style="margin-top:0;">Create Care Schedule</h3>
     <form method="POST">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="create">
@@ -127,7 +127,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <div><label>End Date (optional)</label><input type="date" name="end_date" class="form-control"></div>
         </div>
         <div style="margin-top:0.75rem;"><label>Notes</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
-        <button type="submit" class="btn btn-primary" style="margin-top:0.75rem;">Create Engagement</button>
+        <button type="submit" class="btn btn-primary" style="margin-top:0.75rem;">Create Care Schedule</button>
         <button type="button" class="btn" onclick="this.closest('#create-form').style.display='none'">Cancel</button>
     </form>
 </div>
@@ -140,7 +140,7 @@ document.getElementById('eng-cg-select')?.addEventListener('change', function() 
 </script>
 
 <?php if (empty($engagements)): ?>
-<p style="color:#999;">No engagements yet. Create one to assign a caregiver to a patient.</p>
+<p style="color:#999;">No care schedules yet. Create one to assign a caregiver to a patient.</p>
 <?php else: ?>
 <table class="report-table tch-data-table">
     <thead><tr>
@@ -173,7 +173,7 @@ document.getElementById('eng-cg-select')?.addEventListener('change', function() 
                 <input type="hidden" name="action" value="update_status">
                 <input type="hidden" name="engagement_id" value="<?= $e['id'] ?>">
                 <input type="hidden" name="new_status" value="completed">
-                <button type="submit" class="btn btn-sm" onclick="return confirm('Complete this engagement?')">Complete</button>
+                <button type="submit" class="btn btn-sm" onclick="return confirm('Mark this care schedule complete?')">Complete</button>
             </form>
             <?php endif; ?>
         </td>

@@ -103,23 +103,23 @@ require APP_ROOT . '/templates/layouts/admin.php';
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
     <p style="color:#666;font-size:0.85rem;">Recent 30 days: <?= count($recentShifts) ?> shift<?= count($recentShifts) !== 1 ? 's' : '' ?></p>
     <?php if (userCan('roster_input', 'create')): ?>
-    <button class="btn btn-primary" onclick="document.getElementById('create-form').style.display='block'">+ Record Shift</button>
+    <button class="btn btn-primary" onclick="document.getElementById('create-form').style.display='block'">+ Approve Delivered Care</button>
     <?php endif; ?>
 </div>
 
 <?php if (empty($activeEngagements)): ?>
 <div style="background:#fff3cd;padding:1rem;border-radius:8px;margin-bottom:1rem;">
-    No active engagements. <a href="<?= APP_URL ?>/admin/engagements">Create one first</a> to assign a caregiver to a patient.
+    No active care schedules. <a href="<?= APP_URL ?>/admin/engagements">Create one first</a> to assign a caregiver to a patient.
 </div>
 <?php else: ?>
 <div id="create-form" style="display:none;background:#f8f9fa;padding:1rem;border-radius:8px;margin-bottom:1.5rem;">
-    <h3 style="margin-top:0;">Record Shift</h3>
+    <h3 style="margin-top:0;">Approve Delivered Care</h3>
     <form method="POST">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="create_shift">
         <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.75rem;align-items:end;">
             <div>
-                <label>Engagement</label>
+                <label>Care Schedule</label>
                 <select name="engagement_id" required class="form-control">
                     <option value="">Select...</option>
                     <?php foreach ($activeEngagements as $e): ?>
