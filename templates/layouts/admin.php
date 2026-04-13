@@ -19,6 +19,12 @@ if ($user && empty($user['avatar_path'])) {
 ?>
 <?php require APP_ROOT . '/templates/layouts/header.php'; ?>
 
+<?php if (defined('APP_ENV') && APP_ENV !== 'production'): ?>
+<div style="background:#ff9800;color:#fff;text-align:center;padding:0.35rem 1rem;font-size:0.85rem;font-weight:600;letter-spacing:0.05em;border-bottom:2px solid #c66900;">
+    ⚠ DEV ENVIRONMENT — <?= htmlspecialchars(strtoupper(APP_ENV)) ?> — changes here do NOT affect live customer data.
+</div>
+<?php endif; ?>
+
 <?php if (function_exists('isImpersonating') && isImpersonating()):
     $realUser = currentRealUser();
 ?>

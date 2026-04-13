@@ -42,6 +42,22 @@ define('APP_URL', $_ENV['APP_URL'] ?? 'https://tch.intelligentae.co.uk');
 define('APP_NAME', $_ENV['APP_NAME'] ?? 'TCH Placements');
 define('SESSION_LIFETIME', (int)($_ENV['SESSION_LIFETIME'] ?? 3600));
 
+// Error-display discipline — prevents BUG-0035 style leaks regardless of
+// php.ini or future .htaccess edits. In production we log but never
+// display (PHP errors with stack + SQL snippets can expose credentials).
+if (APP_ENV === 'production') {
+    error_reporting(E_ALL);
+    ini_set('display_errors',        '0');
+    ini_set('display_startup_errors','0');
+    ini_set('log_errors',            '1');
+} else {
+    // Dev: show errors so we catch things fast.
+    error_reporting(E_ALL);
+    ini_set('display_errors',        '1');
+    ini_set('display_startup_errors','1');
+    ini_set('log_errors',            '1');
+}
+
 // Nexus Hub integration — in-app Bug/FR reporter proxies submissions here.
 // The token is generated in the Hub web UI (Super Admin > Tokens > Create)
 // and MUST be scoped to the 'tch' project for safety. Never commit the
