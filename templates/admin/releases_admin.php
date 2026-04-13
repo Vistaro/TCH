@@ -62,6 +62,8 @@ if (!empty($_GET['edit'])) {
     $editing = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
+$canWrite = userCan('releases_admin', 'create') || userCan('releases_admin', 'edit');
+
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
 
@@ -70,6 +72,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     <a href="<?= APP_URL ?>/admin/whats-new" class="btn btn-outline btn-sm">Preview What's New</a>
 </div>
 
+<?php if ($canWrite): ?>
 <div class="person-card" style="margin-bottom:1.5rem;">
     <div class="person-card-header">
         <div class="person-card-title">
@@ -108,10 +111,12 @@ require APP_ROOT . '/templates/layouts/admin.php';
         </div>
     </form>
 </div>
+<?php endif; // $canWrite ?>
 
 <table class="report-table tch-data-table">
     <thead><tr>
-        <th>Version</th><th>Title</th><th>Released</th><th>Published</th><th></th>
+        <th>Version</th><th>Title</th><th>Released</th><th>Published</th>
+        <?php if ($canWrite): ?><th></th><?php endif; ?>
     </tr></thead>
     <tbody>
     <?php foreach ($releases as $r): ?>
@@ -120,7 +125,9 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <td><?= htmlspecialchars($r['title']) ?></td>
             <td><?= htmlspecialchars(date('d M Y H:i', strtotime($r['released_at']))) ?></td>
             <td><?= $r['is_published'] ? '✓' : '—' ?></td>
-            <td><a href="<?= APP_URL ?>/admin/releases?edit=<?= (int)$r['id'] ?>" class="btn btn-link btn-sm">Edit</a></td>
+            <?php if ($canWrite): ?>
+                <td><a href="<?= APP_URL ?>/admin/releases?edit=<?= (int)$r['id'] ?>" class="btn btn-link btn-sm">Edit</a></td>
+            <?php endif; ?>
         </tr>
     <?php endforeach; ?>
     </tbody>

@@ -151,8 +151,12 @@ function logSystemActivity(
 
 /**
  * Echo the full Activities & Tasks panel for the given entity.
+ *
+ * $canPost gates the "+ Add Note" / "+ Add Task" buttons and the form.
+ * Read-only viewers (admins with only .read) should pass false so they
+ * don't see write controls that silently fail on submit.
  */
-function renderActivityTimeline(string $entityType, int $entityId): void
+function renderActivityTimeline(string $entityType, int $entityId, bool $canPost = true): void
 {
     $rows  = fetchActivitiesForEntity($entityType, $entityId);
     $types = getDB()->query('SELECT id, name FROM activity_types WHERE is_active = 1 ORDER BY sort_order')->fetchAll();
@@ -167,12 +171,15 @@ function renderActivityTimeline(string $entityType, int $entityId): void
                 </span>
             </h3>
             <div onclick="event.stopPropagation();event.preventDefault();" style="display:flex;gap:0.5rem;align-items:center;">
-                <button type="button" class="btn btn-primary btn-sm" onclick="event.stopPropagation();var p=this.closest('details');if(!p.open)p.open=true;document.getElementById('activity-form').style.display='block';document.getElementById('activity-is-task').value='0';document.getElementById('act-assign-row').style.display='none';">+ Add Note</button>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation();var p=this.closest('details');if(!p.open)p.open=true;document.getElementById('activity-form').style.display='block';document.getElementById('activity-is-task').value='1';document.getElementById('act-assign-row').style.display='';">+ Add Task</button>
+                <?php if ($canPost): ?>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="event.stopPropagation();var p=this.closest('details');if(!p.open)p.open=true;document.getElementById('activity-form').style.display='block';document.getElementById('activity-is-task').value='0';document.getElementById('act-assign-row').style.display='none';">+ Add Note</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="event.stopPropagation();var p=this.closest('details');if(!p.open)p.open=true;document.getElementById('activity-form').style.display='block';document.getElementById('activity-is-task').value='1';document.getElementById('act-assign-row').style.display='';">+ Add Task</button>
+                <?php endif; ?>
                 <span style="color:#6c757d;font-size:0.85rem;margin-left:0.5rem;">▾</span>
             </div>
         </summary>
 
+        <?php if ($canPost): ?>
         <form id="activity-form" method="POST" style="display:none;padding:1rem;border-bottom:1px solid #eee;background:#f8f9fa;">
             <?= $csrf ?>
             <input type="hidden" name="action" value="save_activity">
@@ -215,6 +222,7 @@ function renderActivityTimeline(string $entityType, int $entityId): void
                 <button type="submit" class="btn btn-primary">Save</button>
             </div>
         </form>
+        <?php endif; // $canPost ?>
 
         <div class="activity-list" style="padding:0.5rem 0;">
             <?php if (!$rows): ?>

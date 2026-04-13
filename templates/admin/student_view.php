@@ -808,6 +808,6 @@ require APP_ROOT . '/templates/layouts/admin.php';
 </details>
 <?php endif; ?>
 
-<?php renderActivityTimeline('persons', $personId); ?>
+<?php renderActivityTimeline('persons', $personId, $canEdit); ?>
 
 <?php require APP_ROOT . '/templates/layouts/admin_footer.php'; ?>

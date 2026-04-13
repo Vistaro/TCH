@@ -751,6 +751,6 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </div>
 </div>
 
-<?php renderActivityTimeline('persons', $personId); ?>
+<?php renderActivityTimeline('persons', $personId, $canEdit); ?>
 
 <?php require APP_ROOT . '/templates/layouts/admin_footer.php'; ?>
