@@ -2,6 +2,43 @@
 
 All notable changes to the TCH Placements project.
 
+## [0.9.18] - 2026-04-13 (dev)
+
+### Added — Password policy + per-user / global force reset
+
+- **Migration 018** — new `user_password_history` table (last 5 hashes per user, auto-pruned).
+- **`includes/password_policy.php`** — central rules (min 10 chars, letter+digit+symbol, no name/email substring, no reuse of last 5). Help text rendered on setup-password, reset-password, login screens.
+- **Login flow respects `must_reset_password`** — flagged users are redirected straight into a forced reset (with banner) before any session is established. Excludes the user who triggers a global reset.
+- **Global "Force password reset — all users"** on `/admin/users` (Super Admin only, requires re-auth). Logs `password_reset_forced_bulk` to `activity_log`.
+
+### Added — Student admin: edit, create, print, mark-graduated, photo
+
+- **Edit-in-place extended** to the Training section (course_start, avg_score, practical_status, qualified) — writes to `students` table; logs to `activity_log` + Note timeline.
+- **Mark as Graduated** action on the student detail page — sets `student_enrollments.graduated_at = today` + `status='graduated'`.
+- **Photo replace** on student detail. Uploads to `uploads/people/<TCH-ID>/profile_<ts>.<ext>`, marks old `profile_photo` attachment inactive, inserts new.
+- **Add Student** page at `/admin/students/new` — minimal-fields form, allocates next TCH ID, creates `persons` + `students` + `student_enrollments` rows in one transaction.
+- **Print / PDF** view at `/admin/students/{id}/print` — single-page A4 layout matching the original Tuniti intake PDF; auto-opens browser print dialog (user picks Save as PDF or printer).
+
+### Added — User profile: avatar + display currency
+
+- **Migration 019** — `users.avatar_path`. Upload UI on `/admin/users/{id}`. Avatar shown in the admin top-bar across the site.
+- **Migration 020** — `users.currency_code` (default ZAR), new `fx_rates` table cached from open.er-api.com (free, unauthenticated). 166 currencies. Refreshed on demand or auto when stale (>24h). New page `/admin/config/fx-rates`. Dashboard money values now render the ZAR figure on top with the user's preferred currency converted underneath in smaller text when ≠ ZAR.
+
+### Quick wins
+
+- **Phone display formatting** — E.164 numbers display as `+27 63 239 9863` (SA-aware grouping). Applied across student profile + print view.
+- **Yes/No on Students list** — Graduated and Placed columns now show Yes (green) or No (grey) instead of dashes.
+- **Mojibake fix** — UTF-8/Windows-1252 double-encoded em dashes in 1,216 attendance notes + activity entries cleaned up via REPLACE on the corrupted byte sequence (`C3A2 E282AC E2809D` → `-`).
+- **Pending-invites detail + revoke** on `/admin/users` — list shows name · email · role · invited-by · expires-in-Nd, with per-row Revoke button.
+
+### Fixed
+
+- **BUG-setup-pw** (Migration 017) — `users.linked_client_id` column was missing despite being referenced by both setup-password and user-detail edit. Every invite acceptance was 500'ing.
+
+### Status
+
+All of the above is **on DEV only**. No prod deploy yet.
+
 ## [0.9.17] - 2026-04-13
 
 ### Added — Student detail page + Tuniti attendance import + Notes timeline

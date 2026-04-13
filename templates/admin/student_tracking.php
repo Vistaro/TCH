@@ -51,6 +51,12 @@ $placedAsCaregivers = count(array_filter($rows, fn($r) => $r['is_placed'] === 'Y
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
 
+<?php if (userCan('student_view', 'create')): ?>
+<div style="margin-bottom:1rem;text-align:right;">
+    <a href="<?= APP_URL ?>/admin/students/new" class="btn btn-primary">+ Add Student</a>
+</div>
+<?php endif; ?>
+
 <div class="dash-cards" style="margin-bottom:1.5rem;">
     <div class="dash-card accent"><div class="dash-card-label">Enrolled</div><div class="dash-card-value"><?= $totalEnrolled ?></div></div>
     <div class="dash-card accent"><div class="dash-card-label">In Training / OJT</div><div class="dash-card-value"><?= $inTraining ?></div></div>
@@ -113,8 +119,12 @@ require APP_ROOT . '/templates/layouts/admin.php';
         <td class="number"><?= $r['avg_score'] ? number_format((float)$r['avg_score'] * 100, 1) . '%' : ($r['avg_module_score'] ? number_format((float)$r['avg_module_score'], 1) . '%' : '—') ?></td>
         <td><?= htmlspecialchars($r['practical_status'] ?? '') ?: '—' ?></td>
         <td class="number"><?= (int)$r['attendance_days'] ?: '—' ?></td>
-        <td><?= $r['graduated_at'] ?? '—' ?></td>
-        <td><?= $r['is_placed'] === 'Yes' ? '<span style="color:#198754">Yes</span>' : '—' ?></td>
+        <td><?= !empty($r['graduated_at'])
+                ? '<span style="color:#198754;font-weight:600;">Yes</span>'
+                : '<span style="color:#6c757d;">No</span>' ?></td>
+        <td><?= $r['is_placed'] === 'Yes'
+                ? '<span style="color:#198754;font-weight:600;">Yes</span>'
+                : '<span style="color:#6c757d;">No</span>' ?></td>
     </tr>
     <?php endforeach; ?>
     </tbody>

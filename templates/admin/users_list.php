@@ -53,6 +53,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
         }
     }
 
+    // Global force-reset-all — Super Admin only. Excludes the triggering user
+    // so they can't lock themselves out mid-session. Re-auth required.
+    if (($_POST['action'] ?? '') === 'force_reset_all'
+            && (int)($me['role_id'] ?? 0) === 1) {
+        $reauthPw = $_POST['reauth_password'] ?? '';
+        $meFull = fetchUserById((int)$me['id']);
+        if (!$meFull || !password_verify($reauthPw, $meFull['password_hash'])) {
+            $flash = 'Password confirmation failed — nothing changed.';
+        } else {
+            $stmt = $db->prepare(
+                'SELECT id, email FROM users
+                 WHERE id != ? AND is_active = 1 AND must_reset_password = 0'
+            );
+            $stmt->execute([(int)$me['id']]);
+            $targets = $stmt->fetchAll();
+            if ($targets) {
+                $ids = array_column($targets, 'id');
+                $ph  = implode(',', array_fill(0, count($ids), '?'));
+                $db->prepare("UPDATE users SET must_reset_password = 1 WHERE id IN ($ph)")
+                   ->execute($ids);
+                logActivity(
+                    'password_reset_forced_bulk', 'users', 'users', null,
+                    'Force-reset triggered for ' . count($targets) . ' users by ' . ($me['email'] ?? '?'),
+                    null,
+                    ['affected_user_ids' => $ids]
+                );
+                $flash = 'Force-reset set for ' . count($targets)
+                       . ' user(s). They will be required to change password on next login.';
+            } else {
+                $flash = 'No eligible users to force-reset.';
+            }
+        }
+    }
+
     // Revoke a pending invite
     if (($_POST['action'] ?? '') === 'revoke_invite' && $canEdit) {
         $inviteId = (int)($_POST['invite_id'] ?? 0);
@@ -217,8 +251,37 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </form>
     <?php if ($canCreate): ?>
         <a href="<?= APP_URL ?>/admin/users/invite" class="btn btn-primary">+ Invite User</a>
+        <?php if ((int)($me['role_id'] ?? 0) === 1): ?>
+            <button type="button" class="btn btn-outline btn-sm" style="margin-left:0.5rem;"
+                    onclick="document.getElementById('force-reset-all-form').style.display='block';">
+                Force password reset — all users
+            </button>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
+
+<?php if ((int)($me['role_id'] ?? 0) === 1): ?>
+<form id="force-reset-all-form" method="POST"
+      style="display:none;margin:0 0 1rem;padding:1rem;background:#fff3cd;border:1px solid #ffeeba;border-radius:4px;">
+    <?= csrfField() ?>
+    <input type="hidden" name="action" value="force_reset_all">
+    <h4 style="margin:0 0 0.5rem;color:#856404;">Force password reset — all users</h4>
+    <p style="font-size:0.9rem;margin:0 0 0.75rem;">
+        Every active user except you will be required to choose a new password at
+        their next sign-in. Your own account is excluded so you cannot lock
+        yourself out. Confirm your current password to proceed.
+    </p>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+        <input type="password" name="reauth_password" class="form-control"
+               placeholder="Your current password" required style="max-width:260px;">
+        <button type="submit" class="btn btn-danger btn-sm"
+                onclick="return confirm('Are you sure? Every other active user will be forced to change their password on next login.');">
+            Yes — force reset all
+        </button>
+        <a href="#" class="btn btn-link" onclick="document.getElementById('force-reset-all-form').style.display='none';return false;">Cancel</a>
+    </div>
+</form>
+<?php endif; ?>
 
 <div class="report-table-wrap">
     <table class="name-table tch-data-table">

@@ -10,6 +10,12 @@
  */
 initSession();
 $user = currentUser();
+if ($user && empty($user['avatar_path'])) {
+    $u2 = fetchUserById((int)$user['id']);
+    if ($u2 && !empty($u2['avatar_path'])) {
+        $user['avatar_path'] = $u2['avatar_path'];
+    }
+}
 ?>
 <?php require APP_ROOT . '/templates/layouts/header.php'; ?>
 
@@ -108,6 +114,9 @@ $user = currentUser();
                 <?php if (userCan('config_activity_types', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/config/activity-types" class="<?= ($activeNav ?? '') === 'config-activity-types' ? 'active' : '' ?>">&#9632; Activity Types</a></li>
                 <?php endif; ?>
+                <?php if (userCan('config_fx_rates', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/config/fx-rates" class="<?= ($activeNav ?? '') === 'config-fx-rates' ? 'active' : '' ?>">&#9632; FX Rates</a></li>
+                <?php endif; ?>
             <?php endif; ?>
 
             <li class="nav-separator">
@@ -122,6 +131,10 @@ $user = currentUser();
             <h1><?= htmlspecialchars($pageTitle ?? 'Admin') ?></h1>
             <div class="admin-user">
                 <span><?= htmlspecialchars($user['full_name'] ?? $user['email'] ?? $user['username'] ?? '') ?></span>
-                <div class="admin-user-avatar"><?= strtoupper(substr($user['full_name'] ?? $user['email'] ?? $user['username'] ?? '?', 0, 1)) ?></div>
+                <?php if (!empty($user['avatar_path'])): ?>
+                    <img class="admin-user-avatar" src="<?= APP_URL ?>/uploads/<?= htmlspecialchars($user['avatar_path']) ?>" alt="" style="object-fit:cover;">
+                <?php else: ?>
+                    <div class="admin-user-avatar"><?= strtoupper(substr($user['full_name'] ?? $user['email'] ?? $user['username'] ?? '?', 0, 1)) ?></div>
+                <?php endif; ?>
             </div>
         </div>

@@ -2,6 +2,9 @@
 $pageTitle = 'Dashboard';
 $activeNav = 'dashboard';
 
+require_once APP_ROOT . '/includes/currency.php';
+refreshFxRatesIfStale(24);  // auto-refresh once a day on first dashboard hit
+
 $db = getDB();
 
 // ── Month filter ─────────────────────────────────────────────
@@ -156,15 +159,15 @@ function monthToggleUrl(string $ym, array $selected): string {
 <div class="dash-cards">
     <div class="dash-card accent">
         <div class="dash-card-label">Total Revenue</div>
-        <div class="dash-card-value">R<?= number_format($totalRevenue, 0) ?></div>
+        <div class="dash-card-value"><?= formatMoney((float)$totalRevenue) ?></div>
     </div>
     <div class="dash-card accent">
         <div class="dash-card-label">Total Wages</div>
-        <div class="dash-card-value">R<?= number_format($totalWages, 0) ?></div>
+        <div class="dash-card-value"><?= formatMoney((float)$totalWages) ?></div>
     </div>
     <div class="dash-card accent">
         <div class="dash-card-label">Gross Margin</div>
-        <div class="dash-card-value">R<?= number_format($grossMargin, 0) ?></div>
+        <div class="dash-card-value"><?= formatMoney((float)$grossMargin) ?></div>
         <div class="dash-card-sub"><?= $totalRevenue > 0 ? round($grossMargin / $totalRevenue * 100) . '%' : '—' ?></div>
     </div>
     <div class="dash-card accent">

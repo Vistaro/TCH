@@ -48,6 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
             $newMgrId    = $_POST['manager_id'] !== '' ? (int)$_POST['manager_id'] : null;
             $newCgId     = $_POST['linked_caregiver_id'] !== '' ? (int)$_POST['linked_caregiver_id'] : null;
             $newClId     = $_POST['linked_client_id'] !== '' ? (int)$_POST['linked_client_id'] : null;
+            $newCcy      = strtoupper(trim($_POST['currency_code'] ?? 'ZAR')) ?: 'ZAR';
+            if (!preg_match('/^[A-Z]{3}$/', $newCcy)) $newCcy = 'ZAR';
 
             if ($newFullName === '' || $newRoleId === 0) {
                 $flash = 'Full name and role are required.';
@@ -67,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
                     'manager_id'          => $target['manager_id'] !== null ? (int)$target['manager_id'] : null,
                     'linked_caregiver_id' => $target['linked_caregiver_id'] !== null ? (int)$target['linked_caregiver_id'] : null,
                     'linked_client_id'    => $target['linked_client_id'] !== null ? (int)$target['linked_client_id'] : null,
+                    'currency_code'       => $target['currency_code'] ?? 'ZAR',
                 ];
                 $after = [
                     'full_name'           => $newFullName,
@@ -74,16 +77,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
                     'manager_id'          => $newMgrId,
                     'linked_caregiver_id' => $newCgId,
                     'linked_client_id'    => $newClId,
+                    'currency_code'       => $newCcy,
                 ];
 
                 $stmt = $db->prepare(
                     'UPDATE users
                      SET full_name = ?, role_id = ?, role = ?, manager_id = ?,
-                         linked_caregiver_id = ?, linked_client_id = ?
+                         linked_caregiver_id = ?, linked_client_id = ?,
+                         currency_code = ?
                      WHERE id = ?'
                 );
                 $stmt->execute([
-                    $newFullName, $newRoleId, $roleSlug, $newMgrId, $newCgId, $newClId, $userId
+                    $newFullName, $newRoleId, $roleSlug, $newMgrId, $newCgId, $newClId, $newCcy, $userId
                 ]);
 
                 logActivity('user_edited', 'users', 'users', $userId,
@@ -91,6 +96,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
 
                 $flash = 'User updated.';
                 $target = fetchUserById($userId);
+            }
+        } elseif ($action === 'upload_avatar') {
+            if (empty($_FILES['avatar']) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
+                $flash = 'No file uploaded or upload failed.'; $flashType = 'error';
+            } else {
+                $tmp  = $_FILES['avatar']['tmp_name'];
+                $size = (int)$_FILES['avatar']['size'];
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $mime = $finfo->file($tmp);
+                $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+                if (!isset($allowed[$mime])) {
+                    $flash = 'Avatar must be JPG, PNG or WebP.'; $flashType = 'error';
+                } elseif ($size > 5 * 1024 * 1024) {
+                    $flash = 'Avatar must be 5 MB or smaller.'; $flashType = 'error';
+                } else {
+                    $ext = $allowed[$mime];
+                    $filename = 'avatar_' . date('Ymd-His') . '.' . $ext;
+                    $relPath  = "users/{$userId}/{$filename}";
+                    $absDir   = APP_ROOT . '/public/uploads/users/' . $userId;
+                    if (!is_dir($absDir)) { @mkdir($absDir, 0755, true); }
+                    if (!move_uploaded_file($tmp, $absDir . '/' . $filename)) {
+                        $flash = 'Failed to save avatar.'; $flashType = 'error';
+                    } else {
+                        $oldPath = $target['avatar_path'];
+                        $db->prepare('UPDATE users SET avatar_path = ? WHERE id = ?')
+                           ->execute([$relPath, $userId]);
+                        logActivity('avatar_uploaded', 'users', 'users', $userId,
+                            'Avatar updated for ' . $target['email'],
+                            ['avatar_path' => $oldPath],
+                            ['avatar_path' => $relPath]);
+                        $flash = 'Avatar updated.';
+                        $target = fetchUserById($userId);
+                    }
+                }
             }
         } elseif ($action === 'force_reset') {
             // Send the user a password-reset link
@@ -180,8 +219,25 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
 <div class="person-card">
     <div class="person-card-header">
-        <div class="person-photo person-photo-placeholder">
-            <?= strtoupper(substr($target['full_name'] ?? $target['email'], 0, 1)) ?>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0.4rem;">
+            <?php if (!empty($target['avatar_path'])): ?>
+                <img class="person-photo" src="<?= APP_URL ?>/uploads/<?= htmlspecialchars($target['avatar_path']) ?>" alt="">
+            <?php else: ?>
+                <div class="person-photo person-photo-placeholder">
+                    <?= strtoupper(substr($target['full_name'] ?? $target['email'], 0, 1)) ?>
+                </div>
+            <?php endif; ?>
+            <?php if ($canEdit): ?>
+                <form method="POST" enctype="multipart/form-data" style="margin:0;text-align:center;">
+                    <?= csrfField() ?>
+                    <input type="hidden" name="action" value="upload_avatar">
+                    <label class="btn btn-outline btn-sm" style="margin:0;cursor:pointer;">
+                        <i class="fas fa-camera"></i> <?= !empty($target['avatar_path']) ? 'Change' : 'Add' ?> avatar
+                        <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp"
+                               style="display:none;" onchange="this.form.submit();">
+                    </label>
+                </form>
+            <?php endif; ?>
         </div>
         <div class="person-card-title">
             <h2><?= htmlspecialchars($target['full_name']) ?></h2>
@@ -260,6 +316,24 @@ require APP_ROOT . '/templates/layouts/admin.php';
                     <label>Linked Client ID</label>
                     <input type="number" name="linked_client_id" class="form-control" min="0"
                            value="<?= htmlspecialchars((string)($target['linked_client_id'] ?? '')) ?>">
+                </div>
+
+                <div class="form-group">
+                    <label>Display currency</label>
+                    <select name="currency_code" class="form-control">
+                        <?php
+                        require_once APP_ROOT . '/includes/currency.php';
+                        $allCcy = getDB()->query('SELECT currency_code FROM fx_rates ORDER BY (currency_code != "ZAR"), currency_code')->fetchAll(PDO::FETCH_COLUMN);
+                        $cur = strtoupper($target['currency_code'] ?? 'ZAR');
+                        if (!in_array($cur, $allCcy, true)) $allCcy = array_merge([$cur], $allCcy);
+                        foreach ($allCcy as $ccy):
+                        ?>
+                            <option value="<?= htmlspecialchars($ccy) ?>" <?= $cur === $ccy ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($ccy) ?><?= $ccy === 'ZAR' ? ' (base)' : '' ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small style="color:#666;">All values are stored in ZAR. When set to anything else, the dashboard will show a converted figure underneath each ZAR amount.</small>
                 </div>
 
                 <button type="submit" class="btn btn-primary">Save Changes</button>

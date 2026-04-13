@@ -19,15 +19,16 @@ $personId = (int)($_GET['student_id'] ?? 0);
 $db       = getDB();
 $canEdit  = userCan('student_view', 'edit');
 
-// ── Editable section whitelist (section_name => list of person columns) ──
+// ── Editable section whitelist ───────────────────────────────────────────
+// Each section maps to a target table + column list. Sections writing to
+// `persons` and `students` use the same save pipeline.
 $editableSections = [
-    'personal' => ['known_as','title','initials','id_passport','dob','gender',
-                   'nationality','home_language','other_language'],
-    'contact'  => ['mobile','secondary_number','email'],
-    'address'  => ['complex_estate','street_address','suburb','city','province',
-                   'postal_code','country'],
-    'nok'      => ['nok_name','nok_relationship','nok_contact','nok_email'],
-    'nok2'     => ['nok_2_name','nok_2_relationship','nok_2_contact','nok_2_email'],
+    'personal' => ['table' => 'persons',  'cols' => ['known_as','title','initials','id_passport','dob','gender','nationality','home_language','other_language']],
+    'contact'  => ['table' => 'persons',  'cols' => ['mobile','secondary_number','email']],
+    'address'  => ['table' => 'persons',  'cols' => ['complex_estate','street_address','suburb','city','province','postal_code','country']],
+    'nok'      => ['table' => 'persons',  'cols' => ['nok_name','nok_relationship','nok_contact','nok_email']],
+    'nok2'     => ['table' => 'persons',  'cols' => ['nok_2_name','nok_2_relationship','nok_2_contact','nok_2_email']],
+    'training' => ['table' => 'students', 'cols' => ['course_start','avg_score','practical_status','qualified']],
 ];
 
 $flash = '';
@@ -43,6 +44,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
         header('Location: ' . APP_URL . '/admin/students/' . $personId);
         exit;
     }
+}
+
+// ── Handle Photo Upload POST ────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+        && ($_POST['action'] ?? '') === 'upload_photo' && $canEdit) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $flash = 'Invalid form submission.'; $flashType = 'error';
+    } elseif (empty($_FILES['photo']) || $_FILES['photo']['error'] !== UPLOAD_ERR_OK) {
+        $flash = 'No file uploaded or upload failed.'; $flashType = 'error';
+    } else {
+        $tmp  = $_FILES['photo']['tmp_name'];
+        $size = (int)$_FILES['photo']['size'];
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($tmp);
+        $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+        if (!isset($allowed[$mime])) {
+            $flash = 'Photo must be JPG, PNG or WebP.'; $flashType = 'error';
+        } elseif ($size > 5 * 1024 * 1024) {
+            $flash = 'Photo must be 5 MB or smaller.'; $flashType = 'error';
+        } else {
+            // Look up the person's tch_id for the upload path
+            $tchId = $person['tch_id'] ?? ('id-' . $personId);
+            $ext = $allowed[$mime];
+            $filename = 'profile_' . date('Ymd-His') . '.' . $ext;
+            $relPath  = "people/{$tchId}/{$filename}";
+            $absDir   = APP_ROOT . '/public/uploads/people/' . $tchId;
+            if (!is_dir($absDir)) {
+                @mkdir($absDir, 0755, true);
+            }
+            if (!move_uploaded_file($tmp, $absDir . '/' . $filename)) {
+                $flash = 'Failed to save the uploaded file.'; $flashType = 'error';
+            } else {
+                // Mark older profile_photo rows as inactive
+                $db->prepare(
+                    "UPDATE attachments SET is_active = 0
+                     WHERE person_id = ?
+                     AND attachment_type_id = (SELECT id FROM attachment_types WHERE code='profile_photo')
+                     AND is_active = 1"
+                )->execute([$personId]);
+
+                // Insert new
+                $db->prepare(
+                    "INSERT INTO attachments (person_id, attachment_type_id, file_path, original_filename, mime_type, file_size_bytes, is_active, uploaded_at)
+                     VALUES (?, (SELECT id FROM attachment_types WHERE code='profile_photo'), ?, ?, ?, ?, 1, NOW())"
+                )->execute([$personId, $relPath, $_FILES['photo']['name'], $mime, $size]);
+
+                logActivity('photo_uploaded', 'student_view', 'persons', $personId,
+                    'New profile photo uploaded for ' . $person['full_name'],
+                    null, ['file_path' => $relPath]);
+                logSystemActivity('persons', $personId, 'Profile photo updated',
+                    'New photo uploaded by ' . (currentEffectiveUser()['full_name'] ?? '?')
+                    . ' (' . $size . ' bytes, ' . $mime . ')',
+                    'student_view#photo', 'photo-' . date('Ymd'));
+
+                $flash = 'New photo saved.'; $flashType = 'success';
+            }
+        }
+    }
+    header('Location: ' . APP_URL . '/admin/students/' . $personId
+           . '?msg=' . urlencode($flash) . '&type=' . urlencode($flashType));
+    exit;
+}
+
+// ── Handle Mark-Graduated POST ──────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+        && ($_POST['action'] ?? '') === 'mark_graduated' && $canEdit) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $flash = 'Invalid form submission.'; $flashType = 'error';
+    } else {
+        $stmt = $db->prepare(
+            'SELECT id, status, graduated_at FROM student_enrollments
+             WHERE student_person_id = ? ORDER BY enrolled_at DESC LIMIT 1'
+        );
+        $stmt->execute([$personId]);
+        $enr = $stmt->fetch();
+        if (!$enr) {
+            $flash = 'No enrollment record for this student.'; $flashType = 'error';
+        } else {
+            $before = ['status' => $enr['status'], 'graduated_at' => $enr['graduated_at']];
+            $db->prepare(
+                "UPDATE student_enrollments
+                 SET status = 'graduated',
+                     graduated_at = COALESCE(graduated_at, CURDATE())
+                 WHERE id = ?"
+            )->execute([(int)$enr['id']]);
+            $me = currentEffectiveUser();
+            logActivity('student_graduated', 'student_view', 'student_enrollments', (int)$enr['id'],
+                'Marked ' . $person['full_name'] . ' as graduated',
+                $before, ['status' => 'graduated', 'graduated_at' => date('Y-m-d')]);
+            logSystemActivity('persons', $personId,
+                'Marked as graduated',
+                'Graduated on ' . date('d M Y') . ' by ' . ($me['full_name'] ?? '?'),
+                'student_view#graduated',
+                'graduation-' . date('Ymd'));
+            $flash = 'Student marked as graduated.'; $flashType = 'success';
+        }
+    }
+    header('Location: ' . APP_URL . '/admin/students/' . $personId
+           . '?msg=' . urlencode($flash) . '&type=' . urlencode($flashType));
+    exit;
 }
 
 // ── Handle Approve POST ─────────────────────────────────────────────────
@@ -98,17 +199,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
             $flash = 'Unknown section.';
             $flashType = 'error';
         } else {
-            // Load BEFORE snapshot
-            $stmt = $db->prepare('SELECT * FROM persons WHERE id = ?');
-            $stmt->execute([$personId]);
-            $beforeRow = $stmt->fetch(PDO::FETCH_ASSOC);
+            $secDef    = $editableSections[$section];
+            $table     = $secDef['table'];
+            $colList   = $secDef['cols'];
+            $pkCol     = ($table === 'students') ? 'person_id' : 'id';
 
-            // Build new values
+            $stmt = $db->prepare("SELECT * FROM `$table` WHERE `$pkCol` = ?");
+            $stmt->execute([$personId]);
+            $beforeRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
             $newValues = [];
-            foreach ($editableSections[$section] as $col) {
+            foreach ($colList as $col) {
                 $val = $_POST[$col] ?? null;
                 if (is_string($val)) $val = trim($val);
                 if ($val === '') $val = null;
+                // avg_score input is shown as percent (0..100); store as 0..1 decimal
+                if ($section === 'training' && $col === 'avg_score' && $val !== null) {
+                    $val = round((float)$val / 100, 4);
+                }
                 $newValues[$col] = $val;
             }
 
@@ -120,8 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
                 'nok_2_contact'    => ['nok_2_contact_dial', 'nok_2_contact_national'],
             ];
             foreach ($phoneCols as $col => [$dialKey, $natKey]) {
-                if (in_array($col, $editableSections[$section], true)
-                        && isset($_POST[$dialKey], $_POST[$natKey])) {
+                if (in_array($col, $colList, true) && isset($_POST[$dialKey], $_POST[$natKey])) {
                     $newValues[$col] = joinE164(
                         (string)$_POST[$dialKey],
                         (string)$_POST[$natKey]
@@ -142,7 +249,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
                 $flash = 'No changes to save.';
                 $flashType = 'info';
             } else {
-                // Build UPDATE
                 $set = [];
                 $params = [];
                 foreach ($newValues as $col => $val) {
@@ -150,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
                     $params[] = $val;
                 }
                 $params[] = $personId;
-                $sql = "UPDATE persons SET " . implode(',', $set) . " WHERE id = ?";
+                $sql = "UPDATE `$table` SET " . implode(',', $set) . " WHERE `$pkCol` = ?";
                 $stmt = $db->prepare($sql);
                 $stmt->execute($params);
 
@@ -278,7 +384,12 @@ require APP_ROOT . '/templates/layouts/admin.php';
 ?>
 
 <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;">
-    <a href="<?= APP_URL ?>/admin/students" class="btn btn-outline btn-sm">&larr; Back to students</a>
+    <div>
+        <a href="<?= APP_URL ?>/admin/students" class="btn btn-outline btn-sm">&larr; Back to students</a>
+        <a href="<?= APP_URL ?>/admin/students/<?= $personId ?>/print" target="_blank" class="btn btn-outline btn-sm">
+            <i class="fas fa-print"></i> Print / PDF
+        </a>
+    </div>
     <?php if ($canEdit && ($person['import_review_state'] ?? null) === 'pending'): ?>
         <form method="POST" style="display:inline;">
             <?= csrfField() ?>
@@ -303,11 +414,24 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
 <div class="person-card">
     <div class="person-card-header">
-        <?php if ($photoPath): ?>
-            <img class="person-photo" src="<?= APP_URL ?>/uploads/<?= _esc($photoPath) ?>" alt="<?= _esc($person['full_name']) ?>">
-        <?php else: ?>
-            <div class="person-photo person-photo-placeholder">No photo</div>
-        <?php endif; ?>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0.4rem;">
+            <?php if ($photoPath): ?>
+                <img class="person-photo" src="<?= APP_URL ?>/uploads/<?= _esc($photoPath) ?>" alt="<?= _esc($person['full_name']) ?>">
+            <?php else: ?>
+                <div class="person-photo person-photo-placeholder">No photo</div>
+            <?php endif; ?>
+            <?php if ($canEdit): ?>
+                <form method="POST" enctype="multipart/form-data" style="margin:0;text-align:center;">
+                    <?= csrfField() ?>
+                    <input type="hidden" name="action" value="upload_photo">
+                    <label class="btn btn-outline btn-sm" style="margin:0;cursor:pointer;">
+                        <i class="fas fa-camera"></i> Replace photo
+                        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp"
+                               style="display:none;" onchange="this.form.submit();">
+                    </label>
+                </form>
+            <?php endif; ?>
+        </div>
         <div class="person-card-title">
             <h2><?= _esc($person['full_name']) ?></h2>
             <div class="person-card-tch-id"><?= _esc($person['tch_id'] ?? '—') ?></div>
@@ -325,20 +449,47 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
     <div class="person-card-grid">
 
-        <!-- Training summary (read-only for now) -->
+        <!-- Training -->
         <div class="person-card-section">
-            <h3>Training</h3>
-            <dl>
-                <dt>Cohort</dt>          <dd><?= _esc($enrol['cohort']        ?? '—') ?></dd>
-                <dt>Enrolled</dt>        <dd><?= _esc($enrol['enrolled_at']   ?? '—') ?></dd>
-                <dt>Course Start</dt>    <dd><?= _esc($person['course_start'] ?? '—') ?></dd>
-                <dt>Average Score</dt>   <dd><?= $person['avg_score'] !== null
-                                                ? number_format((float)$person['avg_score'] * 100, 1) . '%'
-                                                : '—' ?></dd>
-                <dt>Practical / OJT</dt> <dd><?= _esc($person['practical_status'] ?? '—') ?: '—' ?></dd>
-                <dt>Qualified</dt>       <dd><?= _esc($person['qualified']        ?? '—') ?: '—' ?></dd>
-                <dt>Graduated</dt>       <dd><?= _esc($enrol['graduated_at']  ?? '—') ?: '—' ?></dd>
-            </dl>
+            <h3>Training <?= _editLink($personId, 'training', $canEdit && $editSection !== 'training') ?></h3>
+            <?php if ($editSection === 'training'): ?>
+                <form method="POST">
+                    <?= csrfField() ?>
+                    <input type="hidden" name="action" value="save_section">
+                    <input type="hidden" name="section" value="training">
+                    <dl class="edit-dl">
+                        <dt>Course Start</dt>    <dd><input class="form-control" type="date" name="course_start" value="<?= _esc($person['course_start']) ?>"></dd>
+                        <dt>Average Score (%)</dt><dd><input class="form-control" type="number" step="0.1" min="0" max="100" name="avg_score" value="<?= $person['avg_score'] !== null ? round((float)$person['avg_score'] * 100, 1) : '' ?>"></dd>
+                        <dt>Practical / OJT</dt> <dd><input class="form-control" name="practical_status" value="<?= _esc($person['practical_status']) ?>"></dd>
+                        <dt>Qualified</dt>       <dd><input class="form-control" name="qualified" value="<?= _esc($person['qualified']) ?>"></dd>
+                    </dl>
+                    <?= _formActions($personId) ?>
+                </form>
+            <?php else: ?>
+                <dl>
+                    <dt>Cohort</dt>          <dd><?= _esc($enrol['cohort']        ?? '—') ?></dd>
+                    <dt>Enrolled</dt>        <dd><?= _esc($enrol['enrolled_at']   ?? '—') ?></dd>
+                    <dt>Course Start</dt>    <dd><?= _esc($person['course_start'] ?? '—') ?></dd>
+                    <dt>Average Score</dt>   <dd><?= $person['avg_score'] !== null
+                                                    ? number_format((float)$person['avg_score'] * 100, 1) . '%'
+                                                    : '—' ?></dd>
+                    <dt>Practical / OJT</dt> <dd><?= _esc($person['practical_status'] ?? '—') ?: '—' ?></dd>
+                    <dt>Qualified</dt>       <dd><?= _esc($person['qualified']        ?? '—') ?: '—' ?></dd>
+                    <dt>Graduated</dt>       <dd>
+                        <?= _esc($enrol['graduated_at'] ?? '') ?: '—' ?>
+                        <?php if ($canEdit && empty($enrol['graduated_at'])): ?>
+                            <form method="POST" style="display:inline;margin-left:0.5rem;">
+                                <?= csrfField() ?>
+                                <input type="hidden" name="action" value="mark_graduated">
+                                <button type="submit" class="btn btn-outline btn-sm"
+                                        onclick="return confirm('Mark this student as graduated today?');">
+                                    Mark as Graduated
+                                </button>
+                            </form>
+                        <?php endif; ?>
+                    </dd>
+                </dl>
+            <?php endif; ?>
         </div>
 
         <!-- Personal -->
@@ -413,8 +564,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 </form>
             <?php else: ?>
                 <dl>
-                    <dt>Mobile</dt>    <dd><?= _esc($person['mobile']) ?: '—' ?></dd>
-                    <dt>Secondary</dt> <dd><?= _esc($person['secondary_number']) ?: '—' ?></dd>
+                    <dt>Mobile</dt>    <dd><?= _esc(formatPhoneForDisplay($person['mobile'])) ?: '—' ?></dd>
+                    <dt>Secondary</dt> <dd><?= _esc(formatPhoneForDisplay($person['secondary_number'])) ?: '—' ?></dd>
                     <dt>Email</dt>     <dd><?= _esc($person['email']) ?: '—' ?></dd>
                 </dl>
             <?php endif; ?>
@@ -478,7 +629,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <dl>
                     <dt>Name</dt>         <dd><?= _esc($person['nok_name']) ?: '—' ?></dd>
                     <dt>Relationship</dt> <dd><?= _esc($person['nok_relationship']) ?: '—' ?></dd>
-                    <dt>Contact</dt>      <dd><?= _esc($person['nok_contact']) ?: '—' ?></dd>
+                    <dt>Contact</dt>      <dd><?= _esc(formatPhoneForDisplay($person['nok_contact'])) ?: '—' ?></dd>
                     <dt>Email</dt>        <dd><?= _esc($person['nok_email']) ?: '—' ?></dd>
                 </dl>
             <?php endif; ?>
@@ -510,7 +661,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <dl>
                     <dt>Name</dt>         <dd><?= _esc($person['nok_2_name']) ?: '—' ?></dd>
                     <dt>Relationship</dt> <dd><?= _esc($person['nok_2_relationship']) ?: '—' ?></dd>
-                    <dt>Contact</dt>      <dd><?= _esc($person['nok_2_contact']) ?: '—' ?></dd>
+                    <dt>Contact</dt>      <dd><?= _esc(formatPhoneForDisplay($person['nok_2_contact'])) ?: '—' ?></dd>
                     <dt>Email</dt>        <dd><?= _esc($person['nok_2_email']) ?: '—' ?></dd>
                 </dl>
             <?php endif; ?>
@@ -570,7 +721,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
             // Notes have shape "Module — Present|Absent (from sheet!cell)"
             $module = $att['notes'] ?? '';
             $status = '';
-            if (preg_match('/^(.*?)\s+—\s+(Present|Absent)/u', $module, $m)) {
+            if (preg_match('/^(.*?)\s+[-—]\s+(Present|Absent)/u', $module, $m)) {
                 $module = trim($m[1]);
                 $status = $m[2];
             }

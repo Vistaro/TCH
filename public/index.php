@@ -64,6 +64,25 @@ if (preg_match('#^admin/activity/(\d+)$#', $route, $m)) {
     exit;
 }
 
+if ($route === 'admin/students/new') {
+    requirePagePermission('student_view', 'create');
+    require APP_ROOT . '/templates/admin/student_create.php';
+    exit;
+}
+
+if ($route === 'admin/config/fx-rates') {
+    requirePagePermission('config_fx_rates', 'read');
+    require APP_ROOT . '/templates/admin/config_fx_rates.php';
+    exit;
+}
+
+if (preg_match('#^admin/students/(\d+)/print$#', $route, $m)) {
+    $_GET['student_id'] = (int)$m[1];
+    requirePagePermission('student_view', 'read');
+    require APP_ROOT . '/templates/admin/student_print.php';
+    exit;
+}
+
 if (preg_match('#^admin/students/(\d+)$#', $route, $m)) {
     $_GET['student_id'] = (int)$m[1];
     requirePagePermission('student_view', 'read');

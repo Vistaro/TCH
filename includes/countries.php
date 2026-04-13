@@ -130,6 +130,43 @@ function renderCountrySelect(string $name, ?string $selected = null, string $id 
 }
 
 /**
+ * Format an E.164 phone for display with readable spacing.
+ * SA numbers (+27): "+27 63 239 9863" (2-3-4 grouping for the national
+ * number). Other countries: "+DC 123 456 7890" (3-3-4 grouping) as a
+ * sensible default. Falls back to raw value when the input isn't E.164.
+ */
+function formatPhoneForDisplay(?string $phone): string {
+    if ($phone === null || $phone === '') {
+        return '';
+    }
+    $p = trim($phone);
+    if ($p === '' || $p[0] !== '+') {
+        return $p;
+    }
+    [$dial, $nat] = splitE164($p);
+    $nat = preg_replace('/\D/', '', $nat);
+    if ($nat === '') {
+        return $dial;
+    }
+    if ($dial === '+27') {
+        // SA mobile: 9 digits, show 2-3-4 (mobile prefix + sub + line)
+        if (strlen($nat) === 9) {
+            return sprintf('%s %s %s %s', $dial,
+                substr($nat, 0, 2), substr($nat, 2, 3), substr($nat, 5));
+        }
+    }
+    // Generic: chunks of 3-3-rest
+    $groups = [];
+    $remaining = $nat;
+    while (strlen($remaining) > 4) {
+        $groups[] = substr($remaining, 0, 3);
+        $remaining = substr($remaining, 3);
+    }
+    $groups[] = $remaining;
+    return $dial . ' ' . implode(' ', $groups);
+}
+
+/**
  * Split an E.164 phone (e.g. '+27632399863') into [dial, national_number].
  * Falls back to ['+27', as-is] if no '+' present.
  */

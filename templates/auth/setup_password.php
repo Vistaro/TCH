@@ -10,6 +10,7 @@ $pageTitle = 'Set Password';
 initSession();
 
 require_once APP_ROOT . '/includes/mailer.php';
+require_once APP_ROOT . '/includes/password_policy.php';
 
 $rawToken = $_GET['token'] ?? $_POST['token'] ?? '';
 $rawToken = trim($rawToken);
@@ -45,8 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
         $password = $_POST['password'] ?? '';
         $confirm  = $_POST['password_confirm'] ?? '';
 
-        if (strlen($password) < 10) {
-            $error = 'Password must be at least 10 characters.';
+        $policyErr = validatePasswordPolicy($password, [
+            'email'     => $invite['email'],
+            'full_name' => $invite['full_name'],
+        ]);
+        if ($policyErr !== null) {
+            $error = $policyErr;
         } elseif ($password !== $confirm) {
             $error = 'Passwords do not match.';
         } else {
@@ -110,6 +115,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
                 );
                 $mark->execute([$newUserId, (int)$invite['id']]);
 
+                recordPasswordInHistory($newUserId, $hash, $db);
+
                 $db->commit();
             } catch (Throwable $e) {
                 $db->rollBack();
@@ -159,7 +166,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
             <p style="font-size:0.95rem;color:#555;">
                 Welcome, <strong><?= htmlspecialchars($invite['full_name']) ?></strong>.
                 Setting up the account for <strong><?= htmlspecialchars($invite['email']) ?></strong>.
-                Choose a password (minimum 10 characters).
+            </p>
+            <p style="font-size:0.85rem;color:#6c757d;background:#f8f9fa;padding:0.5rem 0.75rem;border-radius:4px;">
+                <strong>Password rules:</strong> <?= htmlspecialchars(passwordPolicyRulesText()) ?>
             </p>
 
             <form method="POST" action="<?= APP_URL ?>/setup-password">

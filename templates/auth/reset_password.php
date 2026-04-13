@@ -10,6 +10,7 @@ $pageTitle = 'Reset Password';
 initSession();
 
 require_once APP_ROOT . '/includes/mailer.php';
+require_once APP_ROOT . '/includes/password_policy.php';
 
 $rawToken = $_GET['token'] ?? $_POST['token'] ?? '';
 $rawToken = trim($rawToken);
@@ -50,13 +51,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
         $password = $_POST['password'] ?? '';
         $confirm  = $_POST['password_confirm'] ?? '';
 
-        if (strlen($password) < 10) {
-            $error = 'Password must be at least 10 characters.';
+        $db = getDB();
+        $policyErr = validatePasswordPolicy($password, [
+            'email'     => $user['email'],
+            'full_name' => $user['full_name'],
+        ], $db, (int)$user['id']);
+        if ($policyErr !== null) {
+            $error = $policyErr;
         } elseif ($password !== $confirm) {
             $error = 'Passwords do not match.';
         } else {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $db = getDB();
             $db->beginTransaction();
             try {
                 $upd = $db->prepare(
@@ -73,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
                 // Invalidate all other outstanding reset tokens for this user
                 $cleanup = $db->prepare('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL');
                 $cleanup->execute([$user['id']]);
+
+                recordPasswordInHistory((int)$user['id'], $hash, $db);
 
                 $db->commit();
             } catch (Throwable $e) {
@@ -123,9 +130,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
                 <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
 
+            <?php if (!empty($_GET['forced'])): ?>
+                <div class="alert alert-info" style="background:#fff3cd;color:#856404;padding:0.5rem 0.75rem;border-radius:4px;margin-bottom:0.75rem;">
+                    Your administrator has required you to set a new password before signing in.
+                </div>
+            <?php endif; ?>
             <p style="font-size:0.95rem;color:#555;">
                 Setting a new password for <strong><?= htmlspecialchars($user['email']) ?></strong>.
-                Minimum 10 characters.
+            </p>
+            <p style="font-size:0.85rem;color:#6c757d;background:#f8f9fa;padding:0.5rem 0.75rem;border-radius:4px;">
+                <strong>Password rules:</strong> <?= htmlspecialchars(passwordPolicyRulesText()) ?>
             </p>
 
             <form method="POST" action="<?= APP_URL ?>/reset-password">
