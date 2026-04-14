@@ -123,6 +123,9 @@ if ($user && empty($user['avatar_path'])) {
                 <?php if (userCan('config_fx_rates', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/config/fx-rates" class="<?= ($activeNav ?? '') === 'config-fx-rates' ? 'active' : '' ?>">&#9632; FX Rates</a></li>
                 <?php endif; ?>
+                <?php if (userCan('config_aliases', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/config/aliases" class="<?= ($activeNav ?? '') === 'config-aliases' ? 'active' : '' ?>">&#9632; Timesheet Aliases</a></li>
+                <?php endif; ?>
             <?php endif; ?>
 
             <li class="nav-separator">

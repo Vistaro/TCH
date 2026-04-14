@@ -102,6 +102,12 @@ if ($route === 'admin/config/fx-rates') {
     exit;
 }
 
+if ($route === 'admin/config/aliases') {
+    requirePagePermission('config_aliases', 'read');
+    require APP_ROOT . '/templates/admin/config_aliases.php';
+    exit;
+}
+
 if ($route === 'admin/whats-new') {
     requirePagePermission('whats_new', 'read');
     require APP_ROOT . '/templates/admin/whats_new.php';

@@ -243,6 +243,32 @@ data-quality issues that need Tuniti (or the candidates) to confirm/correct befo
 the records are approved. Each item below has a matching note in the relevant
 caregiver's `import_notes` column on dev.
 
+### Alias provenance report (added 2026-04-14 — build after D3 Phase 2)
+
+After the Timesheet ingest runs (D3 Phase 2), build a report showing:
+"This canonical person (X) is linked to these raw names (aliases), from
+these data sources (workbook + tab + cell)".
+
+- Entry point: a panel on each person profile showing all
+  `timesheet_name_aliases` rows that point at them, with the
+  `first_seen_source` for each.
+- A standalone `/admin/config/aliases/by-person` view that inverts the
+  admin page — canonical person in col 1, list of aliases in col 2.
+- Clicking an alias row should link back to the source cell context
+  (tab name + cell reference).
+
+### Alias data replication dev ↔ prod (added 2026-04-14)
+
+The `timesheet_name_aliases` table is data Tuniti will want to edit on
+prod (with permission). Rules:
+
+- On every prod deploy: export dev's alias rows, re-import on prod as a
+  one-off merge (on alias_text+person_role unique key).
+- Post-go-live: alias edits on prod become source of truth. Any fresh
+  dev-restore-from-prod will pick up the latest aliases automatically.
+- Dev can still be used for bulk ingest of new Timesheets (adds new
+  unresolved aliases); those get pushed to prod on next deploy.
+
 ### Timesheet data anomalies — self-check required (added 2026-04-14)
 
 Discovered during Phase 1 name-alignment of the Caregiver Timesheets
