@@ -22,6 +22,26 @@ $route = trim($_GET['route'] ?? '', '/');
 // ─── Parametric admin routes ────────────────────────────────────────────
 // Matched before the static switch so /admin/users/123 doesn't fall through.
 
+if (preg_match('#^admin/contracts/(\d+)(?:/edit)?$#', $route, $m)) {
+    $_GET['contract_id'] = (int)$m[1];
+    $isEdit = str_ends_with($route, '/edit');
+    requirePagePermission('contracts', $isEdit ? 'edit' : 'read');
+    require APP_ROOT . '/templates/admin/' . ($isEdit ? 'contracts_create.php' : 'contracts_detail.php');
+    exit;
+}
+
+if ($route === 'admin/contracts/new') {
+    requirePagePermission('contracts', 'create');
+    require APP_ROOT . '/templates/admin/contracts_create.php';
+    exit;
+}
+
+if ($route === 'admin/contracts') {
+    requirePagePermission('contracts', 'read');
+    require APP_ROOT . '/templates/admin/contracts_list.php';
+    exit;
+}
+
 if (preg_match('#^admin/users/(\d+)$#', $route, $m)) {
     $_GET['user_id'] = (int)$m[1];
     requirePagePermission('users', 'read');
