@@ -128,6 +128,36 @@ foreach ($shifts as $r) {
     if (!empty($r['caregiver_id'])) $caregiverIds[(int)$r['caregiver_id']] = $r['caregiver_name'];
 }
 
+// Flag patients whose shifts route to the Unbilled Care umbrella this month
+$umbrellaId = (int)$db->query(
+    "SELECT id FROM persons WHERE tch_id = 'TCH-UNBILLED' LIMIT 1"
+)->fetchColumn();
+foreach ($patients as &$p) {
+    $p['is_unbilled'] = false;
+    if (!$umbrellaId) continue;
+    foreach ($p['shifts'] as $dayList) {
+        foreach ($dayList as $entry) {
+            // Any shift routed to umbrella flags the patient
+            // (we can check via client_id on the roster rows we already loaded)
+        }
+    }
+}
+unset($p);
+
+// Re-query: which patients have shifts under the umbrella this month
+if ($umbrellaId) {
+    $stmt = $db->prepare(
+        "SELECT DISTINCT patient_person_id FROM daily_roster
+         WHERE client_id = ? AND roster_date >= ? AND roster_date <= ?"
+    );
+    $stmt->execute([$umbrellaId, $monthStart, $monthEnd]);
+    $unbilledPatientIds = array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));
+    foreach ($patients as &$p) {
+        $p['is_unbilled'] = isset($unbilledPatientIds[$p['id']]);
+    }
+    unset($p);
+}
+
 // Sort patients by name (or, if grouped, by client_name then patient_name)
 if ($groupByClient) {
     uasort($patients, function ($a, $b) {
@@ -247,7 +277,25 @@ require APP_ROOT . '/templates/layouts/admin.php';
     }
     .roster-grid td.row-total { background: #f4f6f8; font-weight: 600; }
     .roster-grid td.archived { opacity: 0.5; font-style: italic; }
+    .roster-grid td.col-patient.unbilled {
+        border-left: 4px solid #dc3545;
+        background: #fff5f5;
+    }
+    .roster-grid tr:hover td.col-patient.unbilled { background: #ffecec; }
+    .roster-grid td.col-patient.unbilled .unbilled-tag {
+        display: inline-block;
+        background: #dc3545; color: #fff;
+        font-size: 0.65rem; padding: 0 5px; border-radius: 3px;
+        margin-left: 4px; font-weight: 600; letter-spacing: 0.03em;
+    }
 
+    /* Shell wraps the scrollable table + legend so both share the table's
+       natural width (or viewport width, whichever is smaller). */
+    .roster-shell {
+        display: inline-block;
+        max-width: 100%;
+        vertical-align: top;
+    }
     .roster-wrapper { overflow-x: auto; max-height: 75vh; overflow-y: auto; }
 
     .roster-filters {
@@ -268,7 +316,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
     .caregiver-legend-wrap {
         margin-top: 0.75rem;
-        max-width: 100%;
+        width: 100%;
         overflow: hidden;
     }
     .caregiver-legend-wrap .legend-heading {
@@ -397,6 +445,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     <span><strong><?= $uniqueCgs ?></strong> unique caregivers</span>
 </div>
 
+<div class="roster-shell">
 <div class="roster-wrapper">
 <table class="roster-grid">
     <thead>
@@ -425,11 +474,12 @@ require APP_ROOT . '/templates/layouts/admin.php';
             </tr>
     <?php endif; ?>
         <tr>
-            <td class="col-patient <?= $p['archived'] ? 'archived' : '' ?>">
+            <td class="col-patient <?= $p['archived'] ? 'archived' : '' ?> <?= !empty($p['is_unbilled']) ? 'unbilled' : '' ?>">
                 <a href="<?= APP_URL ?>/admin/patients/<?= (int)$p['id'] ?>" style="color:inherit;">
                     <?= htmlspecialchars($p['name']) ?>
                 </a>
                 <?php if ($p['tch_id']): ?><code style="color:#6c757d;font-size:0.7rem;"><?= htmlspecialchars($p['tch_id']) ?></code><?php endif; ?>
+                <?php if (!empty($p['is_unbilled'])): ?><span class="unbilled-tag" title="One or more shifts this month have no Panel invoice — listed under Unbilled Care">UNBILLED</span><?php endif; ?>
             </td>
             <?php foreach ($dayMeta as $dm): ?>
                 <?php
@@ -512,5 +562,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </div>
 </div>
 <?php endif; ?>
+
+</div><!-- /.roster-shell -->
 
 <?php require APP_ROOT . '/templates/layouts/admin_footer.php'; ?>
