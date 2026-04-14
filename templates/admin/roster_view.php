@@ -217,7 +217,27 @@ require APP_ROOT . '/templates/layouts/admin.php';
     .roster-grid th.today, .roster-grid td.today {
         border-left: 2px solid #0d6efd; border-right: 2px solid #0d6efd;
     }
-    .roster-grid td.cell-shift { font-weight: 600; cursor: help; }
+    .roster-grid td.cell-shift { font-weight: 600; cursor: default; position: relative; }
+
+    /* CSS-only tooltip — shown instantly on hover, no browser delay */
+    .roster-grid td.cell-shift:hover::after {
+        content: attr(data-tip);
+        position: absolute; bottom: 100%; left: 50%;
+        transform: translateX(-50%);
+        white-space: pre;
+        background: #1f2d3d; color: #fff;
+        padding: 6px 10px; border-radius: 6px;
+        font-size: 0.72rem; font-weight: 500;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+        z-index: 10; pointer-events: none;
+        line-height: 1.35;
+    }
+    .roster-grid td.cell-shift:hover::before {
+        content: ''; position: absolute;
+        bottom: 100%; left: 50%; transform: translateX(-50%);
+        border: 5px solid transparent; border-top-color: #1f2d3d;
+        margin-bottom: -5px; z-index: 11;
+    }
     .roster-grid tr.client-header td {
         background: #eef2f7; font-weight: 700; text-align: left;
         letter-spacing: 0.03em; color: #31497a;
@@ -383,7 +403,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                     $title = implode("\n", $titleParts);
                 }
                 ?>
-                <td class="<?= implode(' ', $classes) ?>" style="<?= $style ?>" title="<?= htmlspecialchars($title) ?>">
+                <td class="<?= implode(' ', $classes) ?>" style="<?= $style ?>" data-tip="<?= $title ? htmlspecialchars($title, ENT_QUOTES) : '' ?>">
                     <?= htmlspecialchars($text) ?>
                 </td>
             <?php endforeach; ?>
