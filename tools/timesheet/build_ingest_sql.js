@@ -437,22 +437,45 @@ INSERT IGNORE INTO clients (id, person_id, billing_entity, default_billing_freq)
   VALUES (@unbilled_person_id, @unbilled_person_id, 'NA', 'NA');`);
 
 sqlLines.push('');
-sqlLines.push('-- ── 9. Reconciliation output ──────────────────────────────────────');
-sqlLines.push(`SELECT 'roster_rows' metric, COUNT(*) value FROM daily_roster WHERE source_upload_id = @ts_upload_id
+sqlLines.push('-- ── 9. Reconciliation output + validation gates ────────────────');
+// Inject the JS-computed expected totals as SQL constants so the
+// emitted script is self-contained and the DB-side check can compare
+// "what the workbook said" vs "what we actually loaded".
+const expectedInvoiceTotal = invoiceEvents.reduce((s, e) => s + e.amount, 0).toFixed(2);
+const expectedShiftCount   = 0; // shift count varies by parser tolerance — not gated; cost_total is gated by caregiver rates, which may be partially derived, so don't gate cost_total either
+sqlLines.push(`SET @expected_invoice_total = ${expectedInvoiceTotal};`);
+sqlLines.push(`SELECT 'roster_rows' metric, CAST(COUNT(*) AS CHAR) value FROM daily_roster WHERE source_upload_id = @ts_upload_id
 UNION ALL
-SELECT 'cost_total', ROUND(SUM(units * cost_rate),2) FROM daily_roster WHERE source_upload_id = @ts_upload_id
+SELECT 'cost_total', CAST(ROUND(SUM(units * cost_rate),2) AS CHAR) FROM daily_roster WHERE source_upload_id = @ts_upload_id
 UNION ALL
-SELECT 'bill_total', ROUND(SUM(units * COALESCE(bill_rate,0)),2) FROM daily_roster WHERE source_upload_id = @ts_upload_id
+SELECT 'bill_total', CAST(ROUND(SUM(units * COALESCE(bill_rate,0)),2) AS CHAR) FROM daily_roster WHERE source_upload_id = @ts_upload_id
 UNION ALL
-SELECT 'panel_invoice_total', ROUND(SUM(amount),2) FROM _panel_invoices_tmp
+SELECT 'panel_invoice_total', CAST(ROUND(SUM(amount),2) AS CHAR) FROM _panel_invoices_tmp
 UNION ALL
-SELECT 'orphan_no_caregiver', COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND caregiver_id IS NULL
+SELECT 'expected_invoice_total (from workbook)', CAST(@expected_invoice_total AS CHAR)
 UNION ALL
-SELECT 'orphan_no_patient',   COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND patient_person_id IS NULL
+SELECT 'orphan_no_caregiver', CAST(COUNT(*) AS CHAR) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND caregiver_id IS NULL
 UNION ALL
-SELECT 'orphan_no_client',    COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND client_id IS NULL
+SELECT 'orphan_no_patient',   CAST(COUNT(*) AS CHAR) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND patient_person_id IS NULL
 UNION ALL
-SELECT 'shifts_missing_bill_rate', COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND bill_rate IS NULL;`);
+SELECT 'orphan_no_client',    CAST(COUNT(*) AS CHAR) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND client_id IS NULL
+UNION ALL
+SELECT 'shifts_missing_bill_rate', CAST(COUNT(*) AS CHAR) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND bill_rate IS NULL
+UNION ALL
+SELECT 'shifts_missing_cost_rate', CAST(COUNT(*) AS CHAR) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND cost_rate IS NULL;
+
+-- Gate: panel_invoice_total must match the workbook's computed total within R1.00
+SET @loaded_invoice_total = (SELECT ROUND(SUM(amount),2) FROM _panel_invoices_tmp);
+SET @bill_total           = (SELECT ROUND(SUM(units * COALESCE(bill_rate,0)),2) FROM daily_roster WHERE source_upload_id = @ts_upload_id);
+SELECT IF(ABS(@loaded_invoice_total - @expected_invoice_total) < 1.0,
+          'panel_invoice_total check: OK',
+          CONCAT('ABORT: workbook expected R', @expected_invoice_total,
+                 ' but only R', @loaded_invoice_total, ' loaded — ingest dropped invoice rows')) AS panel_invoice_check;
+SELECT IF(ABS(@bill_total - @loaded_invoice_total) < 10.0,  -- allow penny/rounding drift across apportionment
+          'bill_apportionment check: OK',
+          CONCAT('ABORT: panel total R', @loaded_invoice_total,
+                 ' but daily_roster bill_total only R', @bill_total,
+                 ' — apportionment step 7 missed some client-months')) AS bill_apportionment_check;`);
 
 sqlLines.push('');
 sqlLines.push('DROP TABLE IF EXISTS _panel_invoices_tmp;');
