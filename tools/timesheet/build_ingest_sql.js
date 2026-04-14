@@ -395,20 +395,23 @@ UPDATE daily_roster r
 WHERE r.source_upload_id = @ts_upload_id;`);
 
 sqlLines.push('');
-sqlLines.push('-- ── 8. Unbilled Care umbrella — catch shifts with no Panel match ──');
-sqlLines.push(`-- Create sentinel persons+clients row if it doesn't exist
+sqlLines.push('-- ── 8. (removed 2026-04-14) Sentinel-overwrite step deleted ──────');
+sqlLines.push(`-- Previously: any shift whose bill_rate couldn't be resolved had its
+-- client_id destructively overwritten to the Unbilled Care sentinel.
+-- That threw away correctly-derived client_id from step 5 and made
+-- "Care without matching invoice" look like a mapping issue when it
+-- was really a missing invoice. Now: roster keeps its true client_id
+-- always. The 'Care without matching invoice' admin tile computes
+-- the gap live via LEFT JOIN client_revenue at report time.
+
+-- Ensure the sentinel persons+clients rows still exist for any
+-- historical daily_roster rows that already point at them (kept for
+-- continuity; not written to by this ingest).
 INSERT IGNORE INTO persons (full_name, first_name, last_name, person_type, tch_id, created_at)
   VALUES ('Unbilled Care - pending allocation','Unbilled Care','(pending)','client','TCH-UNBILLED', NOW());
 SET @unbilled_person_id = (SELECT id FROM persons WHERE tch_id = 'TCH-UNBILLED');
 INSERT IGNORE INTO clients (id, person_id, billing_entity, default_billing_freq)
-  VALUES (@unbilled_person_id, @unbilled_person_id, 'NA', 'NA');
-
--- Every shift still missing bill_rate gets reassigned to Unbilled Care
-UPDATE daily_roster r
-  SET r.client_id = @unbilled_person_id,
-      r.bill_rate = 0.00
-WHERE r.source_upload_id = @ts_upload_id
-  AND r.bill_rate IS NULL;`);
+  VALUES (@unbilled_person_id, @unbilled_person_id, 'NA', 'NA');`);
 
 sqlLines.push('');
 sqlLines.push('-- ── 9. Reconciliation output ──────────────────────────────────────');
@@ -426,11 +429,7 @@ SELECT 'orphan_no_patient',   COUNT(*) FROM daily_roster WHERE source_upload_id 
 UNION ALL
 SELECT 'orphan_no_client',    COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND client_id IS NULL
 UNION ALL
-SELECT 'shifts_missing_bill', COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND bill_rate IS NULL
-UNION ALL
-SELECT 'unbilled_care_shifts', COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND client_id = @unbilled_person_id
-UNION ALL
-SELECT 'unbilled_care_cost',  ROUND(SUM(units*cost_rate),2) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND client_id = @unbilled_person_id;`);
+SELECT 'shifts_missing_bill_rate', COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND bill_rate IS NULL;`);
 
 sqlLines.push('');
 sqlLines.push('DROP TABLE IF EXISTS _panel_invoices_tmp;');
