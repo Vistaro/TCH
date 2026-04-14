@@ -383,7 +383,7 @@ sqlLines.push('');
 sqlLines.push('-- ── 8. Unbilled Care umbrella — catch shifts with no Panel match ──');
 sqlLines.push(`-- Create sentinel persons+clients row if it doesn't exist
 INSERT IGNORE INTO persons (full_name, first_name, last_name, person_type, tch_id, created_at)
-  VALUES ('Unbilled Care — pending allocation','Unbilled Care','(pending)','client','TCH-UNBILLED', NOW());
+  VALUES ('Unbilled Care - pending allocation','Unbilled Care','(pending)','client','TCH-UNBILLED', NOW());
 SET @unbilled_person_id = (SELECT id FROM persons WHERE tch_id = 'TCH-UNBILLED');
 INSERT IGNORE INTO clients (id, person_id, billing_entity, default_billing_freq)
   VALUES (@unbilled_person_id, @unbilled_person_id, 'NA', 'NA');

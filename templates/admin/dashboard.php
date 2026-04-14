@@ -153,12 +153,12 @@ function monthToggleUrl(string $ym, array $selected): string {
         <div class="dash-card-sub">Total registered</div>
     </div>
     <div class="dash-card accent" style="border-left:3px solid #198754;">
-        <div class="dash-card-label">Active</div>
+        <div class="dash-card-label">Active Caregivers</div>
         <div class="dash-card-value"><?= $cgActive ?></div>
         <div class="dash-card-sub"><?= $cgActivePct ?>% of total</div>
     </div>
     <div class="dash-card accent" style="border-left:3px solid #dc3545;">
-        <div class="dash-card-label">Inactive</div>
+        <div class="dash-card-label">Inactive Caregivers</div>
         <div class="dash-card-value"><?= $cgInactive ?></div>
         <div class="dash-card-sub"><?= $cgInactivePct ?>% of total</div>
     </div>
