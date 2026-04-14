@@ -69,6 +69,9 @@ if ($user && empty($user['avatar_path'])) {
                 <?php if (userCan('engagements', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/engagements" class="<?= ($activeNav ?? '') === 'engagements' ? 'active' : '' ?>">&#9632; Care Scheduling</a></li>
                 <?php endif; ?>
+                <?php if (userCan('roster', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/roster" class="<?= ($activeNav ?? '') === 'roster' ? 'active' : '' ?>">&#9632; Roster View</a></li>
+                <?php endif; ?>
                 <?php if (userCan('roster_input', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/roster/input" class="<?= ($activeNav ?? '') === 'roster-input' ? 'active' : '' ?>">&#9632; Care Approval</a></li>
                 <?php endif; ?>

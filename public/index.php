@@ -218,9 +218,19 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/engagements.php';
         break;
 
+    case 'admin/roster':
+        requirePagePermission('roster', 'read');
+        require APP_ROOT . '/templates/admin/roster_view.php';
+        break;
+
     case 'admin/roster/input':
         requirePagePermission('roster_input', 'read');
         require APP_ROOT . '/templates/admin/roster_input.php';
+        break;
+
+    case 'admin/roster/export.csv':
+        requirePagePermission('roster', 'read');
+        require APP_ROOT . '/templates/admin/roster_export_csv.php';
         break;
 
     // ─── Student tracking ──────────────────────────────────────────────
