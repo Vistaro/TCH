@@ -56,22 +56,24 @@ if ($filterCohort !== '') {
 }
 
 // ── Fetch flat rows, pivot in PHP ───────────────────────────────────────
-// One row in caregiver_costs per caregiver × month. We fetch the 12-month
-// window, then group client-side into caregiver → month → amount.
-// Pivot on the canonical `persons.full_name`, NOT the denormalised
-// `caregiver_costs.caregiver_name` frozen at ingest time, so renames on
-// a caregiver's full_name reflect immediately without a re-ingest.
-// Orphan rows (caregiver_id IS NULL) fall back to the raw source name.
-$sql = "SELECT cc.caregiver_id,
-               COALESCE(p.full_name, cc.caregiver_name) AS display_name,
-               cc.month_date, cc.amount, cc.days_worked,
+// Single source of truth: aggregate daily_roster (cost_rate × units) per
+// caregiver × month. caregiver_costs retained as historical read-only
+// snapshot; D3 ingest is authoritative.
+$sql = "SELECT dr.caregiver_id,
+               COALESCE(p.full_name, dr.caregiver_name) AS display_name,
+               DATE_FORMAT(dr.roster_date, '%Y-%m-01') AS month_date,
+               SUM(dr.units * COALESCE(dr.cost_rate, 0)) AS amount,
+               SUM(dr.units) AS days_worked,
                s.cohort
-        FROM caregiver_costs cc
-        LEFT JOIN persons p ON cc.caregiver_id = p.id
+        FROM daily_roster dr
+        LEFT JOIN persons p ON dr.caregiver_id = p.id
         LEFT JOIN students s ON s.person_id = p.id
-        WHERE cc.month_date >= ? AND cc.month_date <= ?
+        WHERE dr.roster_date >= ? AND dr.roster_date <= ?
+              AND dr.status = 'delivered'
               $extraWhere
-        ORDER BY display_name, cc.month_date";
+        GROUP BY dr.caregiver_id, display_name,
+                 DATE_FORMAT(dr.roster_date, '%Y-%m-01'), s.cohort
+        ORDER BY display_name, month_date";
 $params = array_merge([$firstMonth, $lastMonth], $extraParams);
 $stmt = $db->prepare($sql);
 $stmt->execute($params);

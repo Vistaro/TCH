@@ -7,15 +7,11 @@ refreshFxRatesIfStale(24);  // auto-refresh once a day on first dashboard hit
 
 $db = getDB();
 
-// ── Month filter ─────────────────────────────────────────────
+// ── Month filter — single source of truth: daily_roster
 $availableMonths = $db->query(
-    "SELECT DISTINCT DATE_FORMAT(month_date, '%Y-%m') AS ym,
-            DATE_FORMAT(month_date, '%b %Y') AS label
-     FROM client_revenue WHERE month_date IS NOT NULL
-     UNION
-     SELECT DISTINCT DATE_FORMAT(roster_date, '%Y-%m'),
-            DATE_FORMAT(roster_date, '%b %Y')
-     FROM daily_roster
+    "SELECT DISTINCT DATE_FORMAT(roster_date, '%Y-%m') AS ym,
+            DATE_FORMAT(roster_date, '%b %Y') AS label
+     FROM daily_roster WHERE roster_date IS NOT NULL
      ORDER BY ym"
 )->fetchAll();
 
@@ -31,9 +27,7 @@ $rosterParams = [];
 
 if ($hasFilter) {
     $ph = implode(',', array_fill(0, count($selectedMonths), '?'));
-    $revWhere = " AND DATE_FORMAT(cr.month_date, '%Y-%m') IN ($ph)";
     $rosterWhere = " AND DATE_FORMAT(dr.roster_date, '%Y-%m') IN ($ph)";
-    $revParams = $selectedMonths;
     $rosterParams = $selectedMonths;
 }
 
@@ -56,11 +50,11 @@ try {
     $cgActive = (int)$stmt->fetchColumn();
     $cgInactive = $cgTotal - $cgActive;
 
-    // Clients
+    // Clients — distinct clients with any shift in window (from daily_roster)
     if ($hasFilter) {
         $stmt = $db->prepare(
-            "SELECT COUNT(DISTINCT cr.client_id) FROM client_revenue cr
-             WHERE DATE_FORMAT(cr.month_date, '%Y-%m') IN ($ph)"
+            "SELECT COUNT(DISTINCT dr.client_id) FROM daily_roster dr
+             WHERE dr.status = 'delivered' AND DATE_FORMAT(dr.roster_date, '%Y-%m') IN ($ph)"
         );
         $stmt->execute($selectedMonths);
         $clientCount = (int)$stmt->fetchColumn();
@@ -68,31 +62,50 @@ try {
     } else {
         $clientCount = (int)$db->query("SELECT COUNT(*) FROM clients")->fetchColumn();
         $activeClients = (int)$db->query(
-            "SELECT COUNT(DISTINCT cr.client_id) FROM client_revenue cr
-             INNER JOIN clients c ON c.id = cr.client_id
-             WHERE cr.month_date >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 2 MONTH)"
+            "SELECT COUNT(DISTINCT dr.client_id) FROM daily_roster dr
+             WHERE dr.status = 'delivered'
+               AND dr.roster_date >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 2 MONTH)"
         )->fetchColumn();
     }
 
-    // Revenue
-    $stmt = $db->prepare("SELECT COALESCE(SUM(cr.income), 0) FROM client_revenue cr WHERE 1=1 $revWhere");
-    $stmt->execute($revParams);
+    // Revenue — SUM(units × bill_rate) from daily_roster (single source)
+    $stmt = $db->prepare(
+        "SELECT COALESCE(SUM(dr.units * COALESCE(dr.bill_rate, 0)), 0)
+         FROM daily_roster dr WHERE dr.status = 'delivered' $rosterWhere"
+    );
+    $stmt->execute($rosterParams);
     $totalRevenue = (float)$stmt->fetchColumn();
 
-    // Wages
-    $stmt = $db->prepare("SELECT COALESCE(SUM(dr.cost_rate), 0) FROM daily_roster dr WHERE dr.status = 'delivered' $rosterWhere");
+    // Wages — SUM(units × cost_rate)
+    $stmt = $db->prepare(
+        "SELECT COALESCE(SUM(dr.units * COALESCE(dr.cost_rate, 0)), 0)
+         FROM daily_roster dr WHERE dr.status = 'delivered' $rosterWhere"
+    );
     $stmt->execute($rosterParams);
     $totalWages = (float)$stmt->fetchColumn();
 
     // Shifts
-    $stmt = $db->prepare("SELECT COUNT(*) FROM daily_roster dr WHERE 1=1 $rosterWhere");
+    $stmt = $db->prepare("SELECT COUNT(*) FROM daily_roster dr WHERE dr.status = 'delivered' $rosterWhere");
     $stmt->execute($rosterParams);
     $rosterShifts = (int)$stmt->fetchColumn();
+
+    // Unbilled Care — cost delivered against the umbrella client in window
+    $stmt = $db->prepare(
+        "SELECT COALESCE(SUM(dr.units * COALESCE(dr.cost_rate, 0)), 0), COUNT(*)
+           FROM daily_roster dr
+           JOIN persons p ON p.id = dr.client_id
+          WHERE p.tch_id = 'TCH-UNBILLED' AND dr.status = 'delivered' $rosterWhere"
+    );
+    $stmt->execute($rosterParams);
+    $ubRow = $stmt->fetch(PDO::FETCH_NUM);
+    $unbilledCareCost   = (float)($ubRow[0] ?? 0);
+    $unbilledCareShifts = (int)($ubRow[1] ?? 0);
 
 } catch (\PDOException $e) {
     $cgTotal = $cgActive = $cgInactive = $clientCount = $activeClients = 0;
     $totalRevenue = $totalWages = 0;
     $rosterShifts = 0;
+    $unbilledCareCost = 0; $unbilledCareShifts = 0;
 }
 
 $grossMargin = $totalRevenue - $totalWages;
@@ -170,6 +183,13 @@ function monthToggleUrl(string $ym, array $selected): string {
         <div class="dash-card-value"><?= formatMoney((float)$grossMargin) ?></div>
         <div class="dash-card-sub"><?= $totalRevenue > 0 ? round($grossMargin / $totalRevenue * 100) . '%' : '—' ?></div>
     </div>
+    <?php if ($unbilledCareCost > 0): ?>
+    <a href="<?= APP_URL ?>/admin/unbilled-care" class="dash-card" style="background:#f8d7da;border-left:4px solid #dc3545;color:#721c24;text-decoration:none;">
+        <div class="dash-card-label" style="color:#721c24;font-weight:600;">⚠ Unbilled Care</div>
+        <div class="dash-card-value" style="color:#721c24;"><?= formatMoney($unbilledCareCost) ?></div>
+        <div class="dash-card-sub" style="color:#721c24;"><?= number_format($unbilledCareShifts) ?> shift<?= $unbilledCareShifts === 1 ? '' : 's' ?> — cost with no invoice</div>
+    </a>
+    <?php endif; ?>
     <div class="dash-card accent">
         <div class="dash-card-label" title="One row per shift delivered: caregiver × patient × day">
             Roster Shifts

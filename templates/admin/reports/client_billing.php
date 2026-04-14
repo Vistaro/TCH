@@ -46,15 +46,23 @@ $lastMonth  = $anchor->format('Y-m-01');
 // we're already fetching (see the PHP pivot loop below) rather than
 // stored on the person row — per the single-source-of-truth standing
 // rule in C:\ClaudeCode\CLAUDE.md.
-$sql = "SELECT cr.client_id,
-               COALESCE(p.full_name, cr.client_name) AS display_name,
-               cr.month_date, cr.income,
-               c.account_number
-        FROM client_revenue cr
-        LEFT JOIN clients c ON cr.client_id = c.id
+// Single source of truth: aggregate daily_roster (bill_rate × units) per
+// client × month. client_revenue retained as historical read-only
+// snapshot; D3 ingest is authoritative.
+$sql = "SELECT dr.client_id,
+               COALESCE(p.full_name, dr.client_assigned) AS display_name,
+               DATE_FORMAT(dr.roster_date, '%Y-%m-01') AS month_date,
+               SUM(dr.units * COALESCE(dr.bill_rate, 0)) AS income,
+               c.account_number,
+               (p.tch_id = 'TCH-UNBILLED') AS is_unbilled_umbrella
+        FROM daily_roster dr
+        LEFT JOIN clients c ON dr.client_id = c.id
         LEFT JOIN persons p ON p.id = c.person_id
-        WHERE cr.month_date >= ? AND cr.month_date <= ?
-        ORDER BY display_name, cr.month_date";
+        WHERE dr.roster_date >= ? AND dr.roster_date <= ?
+          AND dr.status = 'delivered'
+        GROUP BY dr.client_id, display_name, account_number, is_unbilled_umbrella,
+                 DATE_FORMAT(dr.roster_date, '%Y-%m-01')
+        ORDER BY is_unbilled_umbrella DESC, display_name, month_date";
 $stmt = $db->prepare($sql);
 $stmt->execute([$firstMonth, $lastMonth]);
 $flatRows = $stmt->fetchAll();

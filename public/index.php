@@ -108,6 +108,12 @@ if ($route === 'admin/config/aliases') {
     exit;
 }
 
+if ($route === 'admin/unbilled-care') {
+    requireAuth();
+    require APP_ROOT . '/templates/admin/unbilled_care.php';
+    exit;
+}
+
 if ($route === 'admin/whats-new') {
     requirePagePermission('whats_new', 'read');
     require APP_ROOT . '/templates/admin/whats_new.php';

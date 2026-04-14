@@ -49,7 +49,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     ?>
     <tr style="cursor:pointer;<?= $rowStyle ?>"
         onclick="window.location='<?= APP_URL ?>/admin/patients/<?= (int)$r['person_id'] ?>';">
-        <td><code><?= htmlspecialchars($r['tch_id']) ?></code></td>
+        <td><code><?= htmlspecialchars((string)($r['tch_id'] ?? '')) ?></code></td>
         <td>
             <a href="<?= APP_URL ?>/admin/patients/<?= (int)$r['person_id'] ?>" onclick="event.stopPropagation();">
                 <?= htmlspecialchars($r['patient_name'] ?: $r['full_name']) ?>
