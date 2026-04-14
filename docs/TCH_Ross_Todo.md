@@ -269,6 +269,38 @@ prod (with permission). Rules:
 - Dev can still be used for bulk ingest of new Timesheets (adds new
   unresolved aliases); those get pushed to prod on next deploy.
 
+### Timesheet reconciliation — 56 caregiver-month discrepancies (added 2026-04-14)
+
+Per-caregiver column arithmetic (cells × rate) does not tie to the
+"Total Amount" row across 5 populated months. Five-month net gap:
+**R16,231** (computed R693,389 vs sheet R709,620).
+
+**Four patterns, 56 items total:**
+
+| Pattern | Count | What it is |
+|---|---|---|
+| MISSING_RATE | 4 | Blank row 2 rate, non-zero Total Amount — ingest-blocker |
+| LOAN_DEDUCTED_FROM_TOTAL | 32 | Total Amount = gross − Money Borrowed (mostly Nov 2025) |
+| BONUS_ADDED_TO_TOTAL | 3 | Total Amount = gross + Money Added |
+| UNEXPLAINED | 17 | Diff isn't explained by added/borrowed rows |
+
+**Materials prepared for the Tuniti email:**
+
+- **Excel:** `C:/ClaudeCode/_global/output/TCH/Tuniti Timesheet Reconciliation Apr-26.xlsx` — one row per discrepancy with pattern, computed, sheet, diff, money added/borrowed, and a pre-written clarification query.
+- **Email body:** `C:/ClaudeCode/_global/output/TCH/Tuniti Timesheet Reconciliation Apr-26 - email body.txt` — grouped by pattern with per-item queries ("There is no Caregiver Price on tab X row 2 col Y for caregiver Z…" style).
+
+**Pending decisions (our side, before ingest can proceed):**
+
+1. When per-shift arithmetic disagrees with Total Amount: trust the
+   cells (shift-level fidelity for D2) or trust the Total (historical
+   pay figures)? Provisional middle-path is cells + discrepancy note
+   per roster row.
+2. Is the Nov 2025 "net-of-loans" convention wrong, or are the other
+   months failing to deduct? This affects how `caregiver_loans` is
+   seeded from the Money Borrowed rows.
+3. Missing rates (4 caregiver-months) hard-block ingest until Tuniti
+   supplies the rate that applied.
+
 ### Timesheet data anomalies — self-check required (added 2026-04-14)
 
 Discovered during Phase 1 name-alignment of the Caregiver Timesheets

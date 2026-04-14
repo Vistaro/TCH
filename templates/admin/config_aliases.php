@@ -199,7 +199,12 @@ if ($roleFilter !== 'all') {
     $sql .= " WHERE a.person_role IN ($placeholders)";
     $params = array_merge($params, $roles);
 }
-$sql .= " ORDER BY (a.confidence = 'unresolved') DESC, a.person_role, a.alias_text";
+
+// Default server-side sort: unresolved first, then alias alphabetically.
+// Runtime sort + filter handled client-side by tch-table.js — no custom
+// anchor wrappers needed on the headers (they break the library's click
+// handler).
+$sql .= " ORDER BY (a.confidence = 'unresolved') DESC, a.alias_text ASC";
 $stmt = $db->prepare($sql); $stmt->execute($params);
 $aliases = $stmt->fetchAll();
 
@@ -327,8 +332,8 @@ foreach ($groupLabels as $groupKey => $label):
             <th style="width:22%;">Alias (as written in Timesheet)</th>
             <th style="width:10%;">Role</th>
             <th style="width:14%;">Status</th>
-            <th style="width:30%;">Mapping / Suggestions</th>
-            <th style="width:24%;">Action</th>
+            <th style="width:30%;" data-filterable="false">Mapping / Suggestions</th>
+            <th style="width:24%;" data-sortable="false" data-filterable="false">Action</th>
         </tr>
     </thead>
     <tbody>
