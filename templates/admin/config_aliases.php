@@ -353,18 +353,10 @@ foreach ($groupLabels as $groupKey => $label):
     </a>
 </div>
 
-<?php
-$aliasColHeader = match ($roleFilter) {
-    'cg_stu'  => 'Alias (as written in the Caregiver Timesheet)',
-    'patient' => 'Alias (as written in the Patient sheet)',
-    'client'  => 'Alias (as written in the Client Billing panel)',
-    default   => 'Alias',
-};
-?>
 <table class="report-table tch-data-table" style="table-layout:fixed;">
     <thead>
         <tr>
-            <th style="width:22%;"><?= htmlspecialchars($aliasColHeader) ?></th>
+            <th style="width:22%;">Alias</th>
             <th style="width:10%;">Role</th>
             <th style="width:14%;">Status</th>
             <th style="width:30%;" data-filterable="false">Mapping / Suggestions</th>
