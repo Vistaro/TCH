@@ -4,6 +4,37 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### Fixed — revenue reports now read from `client_revenue`, not `daily_roster`
+
+Three revenue-facing surfaces were reading apportioned bill amounts from
+`daily_roster` (`bill_rate × units`) instead of the actual invoice rows
+in `client_revenue`. This conflated cost/obligation (roster grain:
+shift) with revenue (invoice grain: monthly lump sum), producing a
+~R652k understatement on the dashboard and client reports.
+
+Principle: **roster = what we did and what it cost**; **client_revenue =
+what we billed**. Revenue lives at the invoice grain; apportioning it
+across shifts creates synthetic numbers that drift whenever a shift is
+added, cancelled, or mis-matched. Reports must pivot the invoice table
+directly.
+
+- `templates/admin/dashboard.php` — Total Revenue tile now sums
+  `client_revenue.income` with month filter on `cr.month_date`.
+  Wages + Roster Shifts + Unbilled Care tiles unchanged (cost-side,
+  correct to stay on `daily_roster`).
+- `templates/admin/reports/client_billing.php` — 12-month matrix now
+  pivots `client_revenue` directly (`cr.client_id × cr.month_date`).
+  Display name falls back to `cr.client_name` when the canonical
+  person join doesn't resolve (orphan rows).
+- `templates/admin/reports/client_profitability.php` — `billed` column
+  subquery switched from `daily_roster.bill_rate × units` to
+  `client_revenue.income`. Added separate `$billFilter` (cr.month_date)
+  alongside the existing `$rosterFilter` (dr.roster_date) so revenue
+  and cost month filters are tracked independently.
+- `templates/admin/reports/client_profitability_detail.php` — already
+  correct; billed reads `client_revenue.income`, only touches
+  `daily_roster` for cost-side queries. No change required.
+
 ### Fixed — alias admin: manual-pick fallback when suggester returns nothing
 
 - `templates/admin/config_aliases.php` — when `getSuggestions()` returns no candidates (happens when the alias token order is inverted vs canonical, e.g. panel headers like `Roux- Esme` where first=Roux, last=Esme), the row previously rendered a dead-end "create a new canonical record →" note with no way to map to an existing person. Added `getAllCandidates()` helper returning all non-archived persons of the matching role, rendered as a full dropdown (`<select>`) with a Map button. Surfaces when the suggester is empty, alongside the existing "+ Create canonical" path. No schema change.

@@ -20,12 +20,14 @@ if (!is_array($selectedMonths)) $selectedMonths = [$selectedMonths];
 $selectedMonths = array_filter($selectedMonths);
 $hasFilter = !empty($selectedMonths);
 
-$rosterFilter = '';
-$expFilter = '';
+$rosterFilter = '';   // cost side — daily_roster
+$billFilter   = '';   // revenue side — client_revenue
+$expFilter    = '';
 $params = [];
 if ($hasFilter) {
     $ph = implode(',', array_fill(0, count($selectedMonths), '?'));
     $rosterFilter = " AND DATE_FORMAT(dr.roster_date, '%Y-%m') IN ($ph)";
+    $billFilter   = " AND DATE_FORMAT(cr.month_date, '%Y-%m') IN ($ph)";
     $expFilter    = " AND DATE_FORMAT(pe.expense_date, '%Y-%m') IN ($ph)";
 }
 
@@ -39,16 +41,16 @@ function monthToggleUrl(string $ym, array $selected): string {
     return APP_URL . '/admin/reports/client-profitability?' . implode('&', $p);
 }
 
-// Per-client: billed (SUM units*bill_rate), wages (SUM units*cost_rate),
-// expenses (patient_expenses). All billed + wages come from daily_roster
-// — single source of truth.
+// Per-client: billed from client_revenue (invoice grain), wages from
+// daily_roster (cost grain), expenses from patient_expenses. Revenue and
+// cost live at different grains — roster shouldn't carry bill amounts.
 $stmt = $db->prepare(
     "SELECT c.id AS client_id,
             COALESCE(p.full_name, CONCAT('Client #', c.id)) AS client_name,
             pt.patient_name,
             c.account_number,
-            COALESCE((SELECT SUM(dr.units * COALESCE(dr.bill_rate,0)) FROM daily_roster dr
-                      WHERE dr.client_id = c.id AND dr.status = 'delivered' $rosterFilter), 0) AS billed,
+            COALESCE((SELECT SUM(cr.income) FROM client_revenue cr
+                      WHERE cr.client_id = c.id $billFilter), 0) AS billed,
             COALESCE((SELECT SUM(dr.units * COALESCE(dr.cost_rate,0)) FROM daily_roster dr
                       WHERE dr.client_id = c.id AND dr.status = 'delivered' $rosterFilter), 0) AS wages,
             COALESCE((SELECT SUM(pe.amount) FROM patient_expenses pe
@@ -59,7 +61,8 @@ $stmt = $db->prepare(
      LEFT JOIN patients pt ON pt.person_id = c.person_id
      ORDER BY is_unbilled_umbrella DESC, client_name"
 );
-// Params fire three times (once per subquery) when filter is active
+// Params fire three times (once per subquery) when filter is active:
+// billed (client_revenue), wages (daily_roster), expenses (patient_expenses)
 $allParams = array_merge($selectedMonths, $selectedMonths, $selectedMonths);
 $stmt->execute($allParams);
 $rows = $stmt->fetchAll();

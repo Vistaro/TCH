@@ -29,6 +29,8 @@ if ($hasFilter) {
     $ph = implode(',', array_fill(0, count($selectedMonths), '?'));
     $rosterWhere = " AND DATE_FORMAT(dr.roster_date, '%Y-%m') IN ($ph)";
     $rosterParams = $selectedMonths;
+    $revWhere = " AND DATE_FORMAT(cr.month_date, '%Y-%m') IN ($ph)";
+    $revParams = $selectedMonths;
 }
 
 // ── Stats ────────────────────────────────────────────────────
@@ -68,12 +70,14 @@ try {
         )->fetchColumn();
     }
 
-    // Revenue — SUM(units × bill_rate) from daily_roster (single source)
+    // Revenue — SUM(income) from client_revenue (invoice table).
+    // Roster is cost/obligation; revenue lives at the invoice grain
+    // (monthly lump sums), so report from client_revenue directly.
     $stmt = $db->prepare(
-        "SELECT COALESCE(SUM(dr.units * COALESCE(dr.bill_rate, 0)), 0)
-         FROM daily_roster dr WHERE dr.status = 'delivered' $rosterWhere"
+        "SELECT COALESCE(SUM(cr.income), 0)
+         FROM client_revenue cr WHERE 1=1 $revWhere"
     );
-    $stmt->execute($rosterParams);
+    $stmt->execute($revParams);
     $totalRevenue = (float)$stmt->fetchColumn();
 
     // Wages — SUM(units × cost_rate)
