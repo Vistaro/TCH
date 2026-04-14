@@ -93,12 +93,20 @@ try {
     $stmt->execute($rosterParams);
     $rosterShifts = (int)$stmt->fetchColumn();
 
-    // Unbilled Care — cost delivered against the umbrella client in window
+    // Care without matching invoice — live LEFT JOIN against client_revenue
+    // on (effective_client_id, shift month). effective_client_id falls back
+    // to the patient's clients.id for legacy sentinel-overwritten shifts.
+    // No stored sentinel-based filter; computed live from source tables.
     $stmt = $db->prepare(
         "SELECT COALESCE(SUM(dr.units * COALESCE(dr.cost_rate, 0)), 0), COUNT(*)
            FROM daily_roster dr
-           JOIN persons p ON p.id = dr.client_id
-          WHERE p.tch_id = 'TCH-UNBILLED' AND dr.status = 'delivered' $rosterWhere"
+      LEFT JOIN persons   sc   ON sc.id   = dr.client_id
+      LEFT JOIN patients  ppat ON ppat.person_id = dr.patient_person_id
+      LEFT JOIN client_revenue cr
+             ON cr.client_id =
+                CASE WHEN sc.tch_id = 'TCH-UNBILLED' THEN ppat.client_id ELSE dr.client_id END
+            AND cr.month_date = DATE_FORMAT(dr.roster_date, '%Y-%m-01')
+          WHERE dr.status = 'delivered' AND cr.id IS NULL $rosterWhere"
     );
     $stmt->execute($rosterParams);
     $ubRow = $stmt->fetch(PDO::FETCH_NUM);
@@ -189,9 +197,9 @@ function monthToggleUrl(string $ym, array $selected): string {
     </div>
     <?php if ($unbilledCareCost > 0): ?>
     <a href="<?= APP_URL ?>/admin/unbilled-care" class="dash-card" style="background:#f8d7da;border-left:4px solid #dc3545;color:#721c24;text-decoration:none;">
-        <div class="dash-card-label" style="color:#721c24;font-weight:600;">⚠ Unbilled Care</div>
+        <div class="dash-card-label" style="color:#721c24;font-weight:600;">⚠ Care without matching invoice</div>
         <div class="dash-card-value" style="color:#721c24;"><?= formatMoney($unbilledCareCost) ?></div>
-        <div class="dash-card-sub" style="color:#721c24;"><?= number_format($unbilledCareShifts) ?> shift<?= $unbilledCareShifts === 1 ? '' : 's' ?> — cost with no invoice</div>
+        <div class="dash-card-sub" style="color:#721c24;"><?= number_format($unbilledCareShifts) ?> shift<?= $unbilledCareShifts === 1 ? '' : 's' ?> — no client_revenue row covers the month</div>
     </a>
     <?php endif; ?>
     <div class="dash-card accent">

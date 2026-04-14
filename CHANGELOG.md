@@ -4,6 +4,38 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### Changed — "Unbilled Care" → "Care without matching invoice" (live query)
+
+- Renamed `Unbilled Care` tile + page to `Care without matching invoice`.
+  The previous name implied we'd checked the invoice side, but the
+  query was really just "shifts dumped to the Unbilled sentinel by
+  ingest step 8." Dishonest signal.
+- New query: live `daily_roster` LEFT JOIN `client_revenue` on
+  `(effective_client_id, shift month)` WHERE `cr.id IS NULL`.
+  effective_client_id = `patients.client_id` for legacy
+  sentinel-overwritten rows; `daily_roster.client_id` otherwise.
+  No stored state; no dependence on ingest-time decisions.
+- Drill page split into two sub-views:
+  1. **Mapping gap** — cost-side ingest couldn't resolve client_id and
+     overwrote it to the sentinel. Fix via alias admin or patient
+     profile, then re-run Panel ingest.
+  2. **Un-invoiced** — client is known and correct; no invoice exists
+     for that client in the shift's month. Business decision: raise,
+     write off, or record why.
+- Dashboard tile counts both sub-views combined. Legacy sentinel
+  rows continue to surface under "Mapping gap" until the alias
+  table + patient bill-payer links are cleaned up.
+
+### Data — relinked 18 Roux/Webb roster rows from sentinel to real clients
+
+- `UPDATE daily_roster SET client_id = patient_person_id, bill_rate = NULL
+   WHERE patient_person_id IN (183,190) AND client_id = 237` (self-pay).
+- Unbilled Care total dropped from R220,295 → R212,195 (−R8,100).
+- Part of the broader Unbilled Care decomposition — revenue for these
+  two patients was already in `client_revenue` via a different
+  name-resolution path; cost side had been dumped to sentinel because
+  the client-role alias table didn't have the panel-header strings.
+
 ### Fixed — revenue reports now read from `client_revenue`, not `daily_roster`
 
 Three revenue-facing surfaces were reading apportioned bill amounts from
