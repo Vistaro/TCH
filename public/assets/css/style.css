@@ -812,6 +812,14 @@ h3 { font-size: 1.35rem; }
 .report-table .number {
     text-align: right;
     font-variant-numeric: tabular-nums;
+    padding-right: 1.25rem;
+}
+
+/* Centre-align for fixed-width / short-string columns — TCH IDs, dates,
+   yes/no flags, phone numbers, short codes. Apply class="center" to the
+   <th> and matching <td>s. */
+.report-table .center {
+    text-align: center;
 }
 
 .report-table .total-row td {

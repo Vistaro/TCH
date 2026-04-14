@@ -63,26 +63,26 @@ require APP_ROOT . '/templates/layouts/admin.php';
     <thead>
         <tr>
             <th style="width:22%;">Patient</th>
-            <th style="width:10%;">TCH ID</th>
+            <th class="center" style="width:10%;">TCH ID</th>
             <th class="number" style="width:7%;" data-filterable="false">Shifts</th>
             <th class="number" style="width:7%;" data-filterable="false">Units</th>
             <th class="number" style="width:11%;" data-filterable="false">Cost (R)</th>
-            <th style="width:11%;" data-filterable="false">First shift</th>
-            <th style="width:11%;" data-filterable="false">Last shift</th>
-            <th style="width:21%;" data-sortable="false" data-filterable="false">Action</th>
+            <th class="center" style="width:11%;" data-filterable="false">First shift</th>
+            <th class="center" style="width:11%;" data-filterable="false">Last shift</th>
+            <th class="center" style="width:21%;" data-sortable="false" data-filterable="false">Action</th>
         </tr>
     </thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
         <tr>
             <td><strong><?= htmlspecialchars((string)($r['patient_name'] ?? '—')) ?></strong></td>
-            <td><code><?= htmlspecialchars((string)($r['patient_tch_id'] ?? '')) ?></code></td>
+            <td class="center"><code><?= htmlspecialchars((string)($r['patient_tch_id'] ?? '')) ?></code></td>
             <td class="number"><?= number_format((int)$r['shifts']) ?></td>
             <td class="number"><?= rtrim(rtrim(number_format((float)$r['units'], 1), '0'), '.') ?></td>
             <td class="number">R<?= number_format((float)$r['cost'], 0) ?></td>
-            <td><?= htmlspecialchars((string)($r['first_date'] ?? '')) ?></td>
-            <td><?= htmlspecialchars((string)($r['last_date'] ?? '')) ?></td>
-            <td>
+            <td class="center"><?= htmlspecialchars((string)($r['first_date'] ?? '')) ?></td>
+            <td class="center"><?= htmlspecialchars((string)($r['last_date'] ?? '')) ?></td>
+            <td class="center">
             <?php if ($r['patient_person_id']): ?>
                 <a href="<?= APP_URL ?>/admin/patients/<?= (int)$r['patient_person_id'] ?>" class="btn btn-sm btn-outline">Open patient →</a>
             <?php endif; ?>
@@ -96,7 +96,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <td class="number"><?= number_format($totalShifts) ?></td>
             <td></td>
             <td class="number">R<?= number_format($totalCost, 0) ?></td>
-            <td colspan="3"></td>
+            <td colspan="3" class="center"></td>
         </tr>
     </tfoot>
 </table>

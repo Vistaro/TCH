@@ -274,6 +274,29 @@ stable. Options when we come back to it:
 - Report them as an additional cost line under each client's GP
 - Tuniti-facing edit UI if they start entering via the admin site
 
+### Site-wide table column-alignment pass (added 2026-04-14)
+
+Standard applied on `/admin/unbilled-care` — roll out to every other table:
+
+- **Left-align:** variable-length text (names, descriptions)
+- **Centre-align** (add `class="center"` to <th> + <td>): TCH IDs,
+  dates, yes/no flags, phone numbers, short fixed-width codes
+- **Right-align with padding-right 1.25rem** (existing `class="number"`,
+  now updated in style.css): money, shift counts, percentages, any number
+
+Rollout targets:
+- `templates/admin/caregivers_list.php`, `clients_list.php`,
+  `patients_list.php`, `students_list.php`
+- `templates/admin/reports/caregiver_earnings.php`, `client_billing.php`,
+  `client_profitability.php`, `client_profitability_detail.php`,
+  `days_worked.php`
+- `templates/admin/config_*.php` — aliases, activity_types, fx_rates
+- `templates/admin/activity_log.php`
+- `templates/admin/users.php`, `roles.php`
+
+Lightweight change per file — add `class="center"` / `class="number"` to
+`<th>` + matching `<td>` cells. No JS or schema change.
+
 ### Alias provenance report (added 2026-04-14 — build after D3 Phase 2)
 
 After the Timesheet ingest runs (D3 Phase 2), build a report showing:
