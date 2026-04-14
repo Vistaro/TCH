@@ -275,10 +275,47 @@ require APP_ROOT . '/templates/layouts/admin.php';
     }
 
     @media print {
-        .admin-sidebar, .admin-topbar, .roster-filters, .caregiver-legend a { display: none !important; }
+        @page { size: A4 landscape; margin: 8mm; }
+        body { margin: 0; }
+        .admin-sidebar, .admin-topbar, .roster-filters, aside, header, nav, .sidebar-overlay { display: none !important; }
+        .admin-main, .admin-content, main { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; }
+
         .roster-wrapper { max-height: none; overflow: visible; }
-        .roster-grid { font-size: 0.6rem; }
-        .roster-grid th.col-patient, .roster-grid td.col-patient { min-width: 140px; max-width: 180px; }
+        .roster-grid { font-size: 0.55rem; width: 100%; }
+        .roster-grid th.col-patient, .roster-grid td.col-patient {
+            min-width: 90px; max-width: 140px;
+            position: static; /* disable sticky; print doesn't need it */
+        }
+        .roster-grid thead th { position: static; }
+
+        /* Repeat header + footer on each printed page */
+        .roster-grid thead { display: table-header-group; }
+        .roster-grid tfoot { display: table-footer-group; }
+        .roster-grid tr    { page-break-inside: avoid; break-inside: avoid; }
+
+        /* Preserve colour backgrounds (caregiver colours, weekend tint, etc.) */
+        .roster-grid,
+        .roster-grid th, .roster-grid td,
+        .roster-grid td.cell-shift,
+        .roster-grid tr.client-header td,
+        .roster-grid tr.coverage-row td,
+        .roster-grid .weekend,
+        .caregiver-legend .chip {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
+
+        .caregiver-legend {
+            margin-top: 0.25rem;
+            font-size: 0.6rem;
+            page-break-before: avoid;
+        }
+        .caregiver-legend .chip { padding: 1px 5px; }
+
+        /* Hide tooltip ::after on print */
+        .roster-grid td.cell-shift:hover::after,
+        .roster-grid td.cell-shift:hover::before { display: none; }
     }
 </style>
 
