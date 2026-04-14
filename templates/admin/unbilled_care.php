@@ -62,14 +62,14 @@ require APP_ROOT . '/templates/layouts/admin.php';
 <table class="report-table tch-data-table">
     <thead>
         <tr>
-            <th>Patient</th>
-            <th>TCH ID</th>
-            <th class="number">Shifts</th>
-            <th class="number">Units</th>
-            <th class="number">Cost (R)</th>
-            <th>First shift</th>
-            <th>Last shift</th>
-            <th data-sortable="false" data-filterable="false">Action</th>
+            <th style="width:22%;">Patient</th>
+            <th style="width:10%;">TCH ID</th>
+            <th class="number" style="width:7%;" data-filterable="false">Shifts</th>
+            <th class="number" style="width:7%;" data-filterable="false">Units</th>
+            <th class="number" style="width:11%;" data-filterable="false">Cost (R)</th>
+            <th style="width:11%;" data-filterable="false">First shift</th>
+            <th style="width:11%;" data-filterable="false">Last shift</th>
+            <th style="width:21%;" data-sortable="false" data-filterable="false">Action</th>
         </tr>
     </thead>
     <tbody>
