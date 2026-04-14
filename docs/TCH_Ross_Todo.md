@@ -243,6 +243,71 @@ data-quality issues that need Tuniti (or the candidates) to confirm/correct befo
 the records are approved. Each item below has a matching note in the relevant
 caregiver's `import_notes` column on dev.
 
+### Timesheet data anomalies — self-check required (added 2026-04-14)
+
+Discovered during Phase 1 name-alignment of the Caregiver Timesheets
+Apr-26 workbook (6 monthly tabs, Nov 2025–Mar 2026 populated).
+Tuniti does **not** need to justify these — they just need to
+confirm the data is correct so we know we've captured it right.
+
+**Rate overrides written into shift cells** (override the caregiver's
+default rate in row 2 for that specific shift):
+
+| Tab | Cell | Content | Caregiver | Date |
+|---|---|---|---|---|
+| Dec 2025 | V29 | `Trish-600` | Marion Goeda | 19-Dec-2025 |
+| Feb 2026 | Q10 | `Botes- Invoice March` | Siphilisiwe Nkala (Patricia) | 1-Feb-2026 |
+| Mar 2026 | H14 | `Carli - R1000` | Ruth Nnadi | 4-Mar-2026 |
+| Various | — | `Carli - R500` (×14), `O Niel -R500` (×6), `Scroope- R400` (×2), `Scroope-R450` (×1) | | |
+
+Ask Tuniti to confirm:
+- Are these per-shift rate overrides (one-off rate for that day) correct?
+- What does `Botes- Invoice March` mean — billing deferred from Feb to
+  March's invoice? Does Botes pay a different rate?
+
+**Split-day / compound cells** (two patients in one cell — treated as
+two shifts at 0.5 units each):
+
+| Cell content | Count |
+|---|---|
+| `Apie/ Anne- Marie` | 2 |
+| `Scholtz/ Carli` | 1 |
+
+Ask Tuniti to confirm: these are half-day splits where the caregiver
+covered two patients on one day?
+
+**Ambiguous single-first-name patient cells** (collide with caregiver
+first names):
+
+| Patient cell value | Cell count | Possible meaning |
+|---|---|---|
+| `Linda` | 6 | A patient called Linda, OR caregiver Linda Rapuluchukwa covering for someone |
+| `Christina` | 1 | A patient called Christina, OR caregiver Christina Maluleka covering |
+
+After Phase 1 admin page is built, we'll present Tuniti with the
+proposed canonical-name match and ask them to confirm.
+
+**Half-day marker:** only one instance across 6 months — `Kotie- half`
+at Jan 2026 J6 (Susan Murire, 2-Jan-2026). Rare but our parser
+handles `-half` suffix as `units = 0.5`.
+
+### Employment classification of caregivers (added 2026-04-14)
+
+**Q:** Are TCH caregivers **self-employed contractors** invoicing TCH for their
+time, or **TCH employees** (with PAYE/UIF deducted at source)?
+
+**Why it matters:** determines how Money Added, Money Borrowed, and loan
+repayments interact with "net pay" on the Caregiver Earnings report. If
+self-employed, loans and pay are separate cash events that don't net. If
+employed, loan repayments may be deducted from gross or net depending on
+contract terms.
+
+**Working assumption for now:** self-employed. Loans and wages tracked as
+independent cash streams at the data layer; reports display them side-by-side
+but don't pre-compute a net-of-loans figure. Revisit when Tuniti confirms.
+
+
+
 ### Invalid / impossible data
 
 | # | Person (TCH ID) | Issue | What Tuniti needs to do |
