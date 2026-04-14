@@ -355,6 +355,69 @@ Per-caregiver column arithmetic (cells × rate) does not tie to the
 3. Missing rates (4 caregiver-months) hard-block ingest until Tuniti
    supplies the rate that applied.
 
+### Tuniti: provide current contracts for ingest (added 2026-04-14)
+
+The contracts table + admin UI (`/admin/contracts`) is now live on prod.
+Empty until Tuniti sends us their live contracts.
+
+**Ask Tuniti to provide:**
+- One row per patient currently receiving care:
+  - Client (bill-payer)
+  - Product (Day Rate / Live-In / Night Shift / Post-Op / Respite / …)
+  - Bill rate per day (or whatever unit matches the product)
+  - Billing frequency (usually monthly)
+  - Minimum term in months (if any — most are 0)
+  - Start date (when care began or contract commenced)
+  - End date (blank = ongoing)
+  - Latest invoice number + amount + date
+
+**Format:** CSV or Excel. Same pattern as Timesheet / Panel — we'll
+build an ingest path once we see the shape.
+
+### Tuniti: fill in product billing defaults (added 2026-04-14)
+
+Migration 031 added `products.default_billing_freq` (defaults 'monthly')
+and `products.default_min_term_months` (defaults 0). Tuniti to review
+`/admin/products` and set the correct defaults per product so new
+contracts prefill correctly. Expected values:
+- Day Rate, Live-In, Post-Op, Palliative — monthly, 0-month min?
+- Respite — per_visit, 0-month min
+- Errand Care — per_visit, 0-month min
+
+### Tuniti: set caregiver working patterns (added 2026-04-14)
+
+Migration 031 added `caregivers.working_pattern` — currently all seeded
+to 'MON-SUN' (7 days). Tuniti to review and set real patterns where
+different (e.g. Mon-Fri only, weekend-only, 4-on-3-off). Feeds the
+scheduling-suggestion algorithm once that's built.
+
+### Internal todo: build a Tuniti self-serve onboarding wizard (added 2026-04-14)
+
+Rather than email ping-pong for each of the above Tuniti todos, build a
+`/admin/onboarding` wizard page that walks them through the whole setup:
+
+1. **Product setup** — table of products, set billing_freq + min_term
+   per product, save
+2. **Caregiver working patterns** — table of caregivers, set pattern
+   column, save
+3. **Review auto-suggested patient→client links** (the 24 Unbilled Care
+   orphans) — for each, approve or pick a different client
+4. **Timesheet discrepancies** — show the 56 reconciliation items,
+   collect her answer inline (rate correct / rate should be X /
+   shift cancelled / was half day / etc.)
+5. **Ambiguous aliases** — the Linda / Christina single-first-name
+   cases logged earlier
+6. **Contract entry** — create first batch of contracts inline (or
+   upload a CSV)
+
+Each step saves back to our DB + marks the todo closed. When all
+steps done, Tuniti is fully set up for ongoing self-serve.
+
+Reason to do this: half of our "waiting on Tuniti" list today is
+email-driven. A web flow makes her side faster, our side auditable,
+and reduces back-and-forth. Estimated 1-2 sessions to build once the
+individual data paths are in place.
+
 ### Tuniti Timesheet: Jan 2026 tab has wrong date serials (added 2026-04-14)
 
 `Tuniti Caregiver Timesheets Apr-26.xlsx`, tab `Caregiver Jan 2026`:
