@@ -311,7 +311,7 @@ function getAllCandidates(PDO $db, string $role): array {
     $q = "SELECT id, full_name, tch_id
             FROM persons
            WHERE $roleWhere AND archived_at IS NULL
-        ORDER BY last_name, first_name, full_name";
+        ORDER BY full_name";
     return $memo[$role] = $db->query($q)->fetchAll();
 }
 
@@ -353,10 +353,18 @@ foreach ($groupLabels as $groupKey => $label):
     </a>
 </div>
 
+<?php
+$aliasColHeader = match ($roleFilter) {
+    'cg_stu'  => 'Alias (as written in the Caregiver Timesheet)',
+    'patient' => 'Alias (as written in the Patient sheet)',
+    'client'  => 'Alias (as written in the Client Billing panel)',
+    default   => 'Alias',
+};
+?>
 <table class="report-table tch-data-table" style="table-layout:fixed;">
     <thead>
         <tr>
-            <th style="width:22%;">Alias (as written in Timesheet)</th>
+            <th style="width:22%;"><?= htmlspecialchars($aliasColHeader) ?></th>
             <th style="width:10%;">Role</th>
             <th style="width:14%;">Status</th>
             <th style="width:30%;" data-filterable="false">Mapping / Suggestions</th>
@@ -368,6 +376,9 @@ foreach ($groupLabels as $groupKey => $label):
         <?php $isUnres = $a['confidence'] === 'unresolved'; ?>
         <tr style="background:<?= $isUnres ? '#fff8e1' : 'inherit' ?>;">
             <td><strong><?= htmlspecialchars($a['alias_text']) ?></strong>
+                <?php if (!empty($a['matched_name'])): ?>
+                <div style="font-size:0.75rem;color:#198754;">→ <?= htmlspecialchars($a['matched_name']) ?><?= $a['matched_tch_id'] ? ' (' . htmlspecialchars($a['matched_tch_id']) . ')' : '' ?></div>
+                <?php endif; ?>
                 <div style="font-size:0.7rem;color:#6c757d;word-break:break-all;"><?= htmlspecialchars($a['first_seen_source'] ?? '') ?></div>
             </td>
             <td><?= htmlspecialchars(ucfirst($a['person_role'])) ?></td>
