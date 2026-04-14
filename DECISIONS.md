@@ -9,6 +9,21 @@ Append-only. One entry per non-obvious design choice. Format:
 **Because:** …
 ```
 
+## 2026-04-14 — Revenue reports read from `client_revenue`, not apportioned `daily_roster.bill_rate`
+**Chose:** One table per grain. `daily_roster` = cost grain (per shift); `client_revenue` = revenue grain (per client × month). Revenue reports pivot `client_revenue` directly.
+**Over:** Apportioning invoice totals down to per-shift `bill_rate` on `daily_roster` and summing those as "revenue." Single-table-drives-everything was seductive but wrong.
+**Because:** Invoices don't split per shift — Tuniti bills monthly lump sums. Apportioning invents a per-shift number that drifts when shifts are added/cancelled or matching fails. Caused the ~R652k understatement that surfaced this session. Revenue lives at the invoice grain; cost lives at the shift grain; don't conflate.
+
+## 2026-04-14 — Roster keeps its true `client_id`; "Care without matching invoice" is a live query
+**Chose:** Roster `client_id` is always the true resolved client (from alias → patients → self-pay fallback). "Care without matching invoice" is computed at report time via `LEFT JOIN client_revenue` on `(client_id, month)`.
+**Over:** The previous ingest-time sentinel overwrite (step 8 in `build_ingest_sql.js`) that destructively repointed any shift without a matching Panel invoice to the Unbilled Care umbrella client.
+**Because:** The overwrite threw away correctly-derived client_id and made the tile misleading — "Unbilled" implied we'd checked the invoice side when really we'd just checked "did the apportionment join succeed." Live query keeps the data pristine and the signal honest. Split into Mapping-gap (alias layer incomplete) vs Un-invoiced (client known, no invoice) for actionable drill-downs.
+
+## 2026-04-14 — `timesheet_name_aliases` is the single client-name resolver for ingest
+**Chose:** Panel ingest resolves client_id from panel-header strings exclusively via `timesheet_name_aliases`. Unresolved aliases halt the ingest with a clear operator-facing error.
+**Over:** Dual resolution paths (Panel pipeline using alias table, `database/seeds/ingest.php` using a pre-matched clients-sheet lookup). Two truths diverge over time.
+**Because:** Two different name-matching strategies produced inconsistent client_ids between `_panel_invoices_tmp` and `client_revenue` (e.g. Roux-Esme / Webb-Sonja resolved on one path but not the other). One source of truth, enforced by a gate, closes the class of bug at ingest rather than at reconciliation time.
+
 New entries go at the top.
 
 ---

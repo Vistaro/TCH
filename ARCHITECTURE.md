@@ -176,11 +176,35 @@ daily_roster       — per-shift delivery. Columns: caregiver_id,
   monthly invoice amounts).
 - Wipes + rebuilds `daily_roster` for the ingested month range.
 - `cost_rate` resolved via the 5-rule priority (see DECISIONS.md).
-- `bill_rate` apportioned: `SUM(Panel invoice) ÷ SUM(units)` per
-  client-month stamped on every shift row.
-- Shifts with no matching Panel invoice get client_id re-pointed to
-  the Unbilled Care umbrella (`persons.tch_id = 'TCH-UNBILLED'`)
-  and `bill_rate = 0.00` — visible suspense account.
+- `bill_rate` on roster rows is **legacy** (apportioned from
+  Panel invoices at ingest time). **Not read by revenue reports** —
+  they pivot `client_revenue` directly at invoice grain. The
+  column remains for contract/engagement-agreed rates and as a
+  display aid on per-shift screens, but the apportionment logic
+  is being phased out. See `DECISIONS.md` 2026-04-14.
+- Shifts where the Panel workbook has no matching invoice for the
+  client-month keep their **true `client_id`** — no sentinel
+  overwrite. The "Care without matching invoice" admin tile
+  computes the gap live via `LEFT JOIN client_revenue` at report
+  time.
+
+### Revenue vs cost — the two grains
+
+```
+daily_roster       — COST side. One row per shift delivered.
+                     caregiver × patient × date × cost.
+                     Roster answers: what did we do, what did it cost.
+
+client_revenue     — REVENUE side. One row per client × invoice-month.
+                     Roster answers: what did we bill.
+```
+
+Revenue reports (Dashboard Total Revenue, Client Billing, Client
+Profitability) read `client_revenue` exclusively. Cost reports
+(Caregiver Earnings, Roster View, Unbilled Care shift list) read
+`daily_roster` exclusively. Profitability computes the two
+separately and subtracts. Apportioning invoices down to per-shift
+`bill_rate` is a legacy hack that conflates the two grains.
 
 **Alias layer** — `timesheet_name_aliases` maps raw names from
 Timesheet cells and Panel panel headers to canonical `persons.id`
