@@ -120,11 +120,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
             } else {
                 $db->beginTransaction();
                 try {
+                    // Auto-assign next sequential TCH ID (same pattern as
+                    // patient_create.php / client_create.php).
+                    $nextNum = (int)$db->query(
+                        "SELECT COALESCE(MAX(CAST(SUBSTRING(tch_id,5) AS UNSIGNED)),0) + 1
+                           FROM persons
+                          WHERE tch_id LIKE 'TCH-%' AND tch_id <> 'TCH-UNBILLED'"
+                    )->fetchColumn();
+                    $tchId = 'TCH-' . str_pad((string)$nextNum, 6, '0', STR_PAD_LEFT);
+
                     $ins = $db->prepare(
-                        "INSERT INTO persons (full_name, first_name, last_name, person_type, created_at)
-                         VALUES (?, ?, ?, ?, NOW())"
+                        "INSERT INTO persons (full_name, first_name, last_name, person_type, tch_id, created_at)
+                         VALUES (?, ?, ?, ?, ?, NOW())"
                     );
-                    $ins->execute([$fullName, $firstName, $lastName, $role]);
+                    $ins->execute([$fullName, $firstName, $lastName, $role, $tchId]);
                     $newId = (int)$db->lastInsertId();
 
                     // Side-table row for the role
