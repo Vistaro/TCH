@@ -5,14 +5,13 @@ $activeNav = 'report-client-profitability';
 $db = getDB();
 
 // ── Month filter ─────────────────────────────────────────────
+// Single source of truth — daily_roster. client_revenue retained as
+// historical read-only snapshot; D3 ingest is authoritative.
 $availableMonths = $db->query(
-    "SELECT DISTINCT DATE_FORMAT(month_date, '%Y-%m') AS ym,
-            DATE_FORMAT(month_date, '%b %Y') AS label
-     FROM client_revenue WHERE month_date IS NOT NULL
-     UNION
-     SELECT DISTINCT DATE_FORMAT(roster_date, '%Y-%m'),
-            DATE_FORMAT(roster_date, '%b %Y')
+    "SELECT DISTINCT DATE_FORMAT(roster_date, '%Y-%m') AS ym,
+            DATE_FORMAT(roster_date, '%b %Y') AS label
      FROM daily_roster
+     WHERE roster_date IS NOT NULL
      ORDER BY ym"
 )->fetchAll();
 
@@ -21,15 +20,13 @@ if (!is_array($selectedMonths)) $selectedMonths = [$selectedMonths];
 $selectedMonths = array_filter($selectedMonths);
 $hasFilter = !empty($selectedMonths);
 
-$revFilter = '';
 $rosterFilter = '';
 $expFilter = '';
 $params = [];
 if ($hasFilter) {
     $ph = implode(',', array_fill(0, count($selectedMonths), '?'));
-    $revFilter = " AND DATE_FORMAT(cr.month_date, '%Y-%m') IN ($ph)";
     $rosterFilter = " AND DATE_FORMAT(dr.roster_date, '%Y-%m') IN ($ph)";
-    $expFilter = " AND DATE_FORMAT(pe.expense_date, '%Y-%m') IN ($ph)";
+    $expFilter    = " AND DATE_FORMAT(pe.expense_date, '%Y-%m') IN ($ph)";
 }
 
 function monthToggleUrl(string $ym, array $selected): string {
@@ -42,21 +39,25 @@ function monthToggleUrl(string $ym, array $selected): string {
     return APP_URL . '/admin/reports/client-profitability?' . implode('&', $p);
 }
 
-// Per-client: billed (revenue), wages (roster cost), expenses (patient_expenses), margin %
+// Per-client: billed (SUM units*bill_rate), wages (SUM units*cost_rate),
+// expenses (patient_expenses). All billed + wages come from daily_roster
+// — single source of truth.
 $stmt = $db->prepare(
     "SELECT c.id AS client_id,
             COALESCE(p.full_name, CONCAT('Client #', c.id)) AS client_name,
             pt.patient_name,
             c.account_number,
-            COALESCE((SELECT SUM(cr.income) FROM client_revenue cr WHERE cr.client_id = c.id $revFilter), 0) AS billed,
-            COALESCE((SELECT SUM(dr.cost_rate) FROM daily_roster dr
+            COALESCE((SELECT SUM(dr.units * COALESCE(dr.bill_rate,0)) FROM daily_roster dr
+                      WHERE dr.client_id = c.id AND dr.status = 'delivered' $rosterFilter), 0) AS billed,
+            COALESCE((SELECT SUM(dr.units * COALESCE(dr.cost_rate,0)) FROM daily_roster dr
                       WHERE dr.client_id = c.id AND dr.status = 'delivered' $rosterFilter), 0) AS wages,
             COALESCE((SELECT SUM(pe.amount) FROM patient_expenses pe
-                      WHERE pe.client_id = c.id $expFilter), 0) AS expenses
+                      WHERE pe.client_id = c.id $expFilter), 0) AS expenses,
+            (p.tch_id = 'TCH-UNBILLED') AS is_unbilled_umbrella
      FROM clients c
      LEFT JOIN persons p ON p.id = c.person_id
      LEFT JOIN patients pt ON pt.person_id = c.person_id
-     ORDER BY client_name"
+     ORDER BY is_unbilled_umbrella DESC, client_name"
 );
 // Params fire three times (once per subquery) when filter is active
 $allParams = array_merge($selectedMonths, $selectedMonths, $selectedMonths);
@@ -126,8 +127,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 $detailUrl .= '?' . implode('&', $q);
             }
         ?>
-        <tr style="cursor:pointer;" onclick="window.location='<?= $detailUrl ?>'">
-            <td><?= $displayName ?></td>
+        <tr style="cursor:pointer;<?= $r['is_unbilled_umbrella'] ? 'background:#f8d7da;color:#721c24;font-weight:600;border-left:4px solid #dc3545;' : '' ?>" onclick="window.location='<?= $detailUrl ?>'">
+            <td><?= $r['is_unbilled_umbrella'] ? '⚠ ' : '' ?><?= $displayName ?></td>
             <td class="number"><?= (float)$r['billed'] > 0 ? 'R' . number_format((float)$r['billed'], 0) : '—' ?></td>
             <td class="number"><?= (float)$r['wages'] > 0 ? 'R' . number_format((float)$r['wages'], 0) : '—' ?></td>
             <td class="number"><?= (float)$r['expenses'] > 0 ? 'R' . number_format((float)$r['expenses'], 0) : '—' ?></td>

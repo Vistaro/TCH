@@ -243,6 +243,37 @@ data-quality issues that need Tuniti (or the candidates) to confirm/correct befo
 the records are approved. Each item below has a matching note in the relevant
 caregiver's `import_notes` column on dev.
 
+### Tuniti observation: unbilled care across multiple patients (added 2026-04-14)
+
+Phase 2 ingest surfaced approximately R190k of care delivered across
+2025-11 → 2026-03 to patients who have no invoice in the Revenue Panel
+at all. Concrete example: **Apie** — 149 shifts across 5 months by
+Emily Mentula and Mmamaswabi Emma Dhlamini, estimated cost ~R67k, no
+Panel invoice anywhere.
+
+**Our position:** not our job to question why. Surface it visibly via
+the Unbilled Care umbrella client — Tuniti's responsibility to either
+raise invoices retroactively (historical correction via next Panel
+workbook update) or confirm the care is genuinely uncharged (flag +
+reason).
+
+**Observation list** — the 24 patients whose shifts landed in Unbilled
+Care this ingest. See the admin Unbilled Care drill-down for live
+totals.
+
+### Revenue Panel — random expense entries (Uber etc.) — deferred (added 2026-04-14)
+
+The Panel sheet's Expense section occasionally carries non-caregiver
+lines (e.g. Uber transport). These are real client-attributable costs
+but aren't in the Timesheet. Current ingest ignores the Panel's
+Expense section entirely per earlier rule.
+
+**Defer for now** — handle after the base Unbilled Care flow is
+stable. Options when we come back to it:
+- Separate `client_expenses` ingest path from the Panel
+- Report them as an additional cost line under each client's GP
+- Tuniti-facing edit UI if they start entering via the admin site
+
 ### Alias provenance report (added 2026-04-14 — build after D3 Phase 2)
 
 After the Timesheet ingest runs (D3 Phase 2), build a report showing:

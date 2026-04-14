@@ -61,7 +61,7 @@ const tswb = XLSX.readFile(TS_FILE);
 const tsSha = sha256(TS_FILE);
 const shifts = []; // { tab, cell, date, caregiverAlias, patientAlias, units, rateOverride }
 const caregiverRates = {}; // name -> [rates seen across months]
-const monthTabs = new Map(); // caregiverAlias -> month -> rate
+const derivedRateByTabCg = {};  // `${tab}||${caregiver}` -> derived monthly rate
 
 for (const tab of tswb.SheetNames) {
   const sh = tswb.Sheets[tab]; if (!sh['!ref']) continue;
@@ -74,7 +74,7 @@ for (const tab of tswb.SheetNames) {
   }
   if (!totalRow) continue;
 
-  // Headers + rates
+  // Headers + rates + sheet-total-amount per caregiver column
   const cgCols = [];
   for (let c = 2; c <= range.e.c; c++) {
     const h = sh[XLSX.utils.encode_cell({ r: 0, c })];
@@ -82,13 +82,38 @@ for (const tab of tswb.SheetNames) {
     const cg = String(h.v).trim();
     const rateCell = sh[XLSX.utils.encode_cell({ r: 1, c })];
     const rate = rateCell && typeof rateCell.v === 'number' ? rateCell.v : null;
-    cgCols.push({ col: c, caregiver: cg, rate });
+    const totalCell = sh[XLSX.utils.encode_cell({ r: totalRow, c })];
+    const sheetTotal = totalCell && typeof totalCell.v === 'number' ? totalCell.v : null;
+    cgCols.push({ col: c, caregiver: cg, rate, sheetTotal });
     if (rate !== null) {
       (caregiverRates[cg] = caregiverRates[cg] || []).push(rate);
     }
   }
 
-  // Shift cells
+  // First sub-pass: count total days per caregiver in this tab (respecting halves/splits)
+  const daysByCol = {};
+  for (const { col } of cgCols) daysByCol[col] = 0;
+  for (let r = 3; r < totalRow; r++) {
+    const dateCell = sh[XLSX.utils.encode_cell({ r, c: 0 })];
+    if (!dateCell || !dateCell.v) continue;
+    const dateSerial = Number(dateCell.v);
+    if (isNaN(dateSerial) || dateSerial < 40000) continue;
+    for (const { col } of cgCols) {
+      const cell = sh[XLSX.utils.encode_cell({ r, c: col })]; if (!cell) continue;
+      const parsed = parseShiftCell(cell.v);
+      for (const p of parsed) daysByCol[col] += p.units;
+    }
+  }
+
+  // Derive monthly rate for blank-row-2 caregivers with populated Total Amount
+  for (const { col, caregiver, rate, sheetTotal } of cgCols) {
+    if (rate === null && sheetTotal && daysByCol[col] > 0) {
+      const derived = Math.round(sheetTotal / daysByCol[col] * 100) / 100;
+      derivedRateByTabCg[`${tab}||${caregiver}`] = derived;
+    }
+  }
+
+  // Second sub-pass: emit shifts
   for (let r = 3; r < totalRow; r++) {
     const dateCell = sh[XLSX.utils.encode_cell({ r, c: 0 })];
     if (!dateCell || !dateCell.v) continue;
@@ -114,20 +139,30 @@ for (const tab of tswb.SheetNames) {
   }
 }
 
-// Resolve caregiver rates for blanks:
-//   1st choice: the caregiver's rate elsewhere in the workbook (any month)
-//   2nd choice: overall median of non-null rates
+// Rate resolution (5-rule priority per Ross):
+//   1. Per-cell override (e.g. "Carli-R500") — applied at shift level
+//   2. This month's row-2 rate — `monthRate` in each shift
+//   3. Derive from monthly Total ÷ days when row-2 blank — NEW primary
+//   4. Other-months' row-2 rate for this caregiver (avg if multiple)
+//   5. Overall average of all known caregiver rates
+//
+// Rules 3-5 handled here via resolveRate(caregiverAlias, tab).
+// Rules 1-2 resolved per-shift inline.
 const allRates = Object.values(caregiverRates).flat();
-const sorted = [...allRates].sort((a,b) => a-b);
-const overallAvg = Math.round(sorted.reduce((s,x)=>s+x,0) / sorted.length);
+const overallAvg = allRates.length ? Math.round(allRates.reduce((s,x)=>s+x,0) / allRates.length) : 450;
 
-function resolveRate(cg) {
-  const list = caregiverRates[cg] || [];
+function resolveRate(caregiverAlias, tab) {
+  // Rule 3: derived from this month's Total÷days
+  const key = `${tab}||${caregiverAlias}`;
+  if (derivedRateByTabCg[key] != null) return { rate: derivedRateByTabCg[key], source: 'derived_monthly' };
+  // Rule 4: avg of other-months' rates for this caregiver
+  const list = caregiverRates[caregiverAlias] || [];
   if (list.length) {
-    // Most-recent-month rate: use the last observed non-null value
-    return { rate: list[list.length - 1], source: 'history' };
+    const avg = list.reduce((s,x)=>s+x,0) / list.length;
+    return { rate: Math.round(avg * 100) / 100, source: 'other_months_avg' };
   }
-  return { rate: overallAvg, source: 'average' };
+  // Rule 5: overall average
+  return { rate: overallAvg, source: 'overall_avg' };
 }
 
 // ─── 2. Parse Panel ──────────────────────────────────────────────
@@ -243,12 +278,14 @@ const BATCH = 200;
 for (let i = 0; i < shifts.length; i += BATCH) {
   const chunk = shifts.slice(i, i + BATCH);
   const values = chunk.map(s => {
-    // Rate priority: (1) per-cell override (2) this month's column rate
-    // (3) caregiver's last-seen rate in any month (4) overall average
+    // 5-rule priority:
+    // (1) per-cell override  (2) this month's row-2 rate
+    // (3) derived from monthly Total/days  (4) other-months avg for this caregiver
+    // (5) overall average
     let resolved;
     if (s.rateOverride !== null) resolved = s.rateOverride;
     else if (s.monthRate !== null) resolved = s.monthRate;
-    else resolved = resolveRate(s.caregiverAlias).rate;
+    else resolved = resolveRate(s.caregiverAlias, s.tab).rate;
     return `('${esc(s.caregiverAlias)}', '${esc(s.patientAlias)}', '${s.date}', DAYNAME('${s.date}'), ${s.units}, ${resolved}, '${esc(s.tab + '!' + s.cell)}', @ts_upload_id)`;
   }).join(',\n  ');
   sqlLines.push(
@@ -343,7 +380,23 @@ UPDATE daily_roster r
 WHERE r.source_upload_id = @ts_upload_id;`);
 
 sqlLines.push('');
-sqlLines.push('-- ── 8. Reconciliation output ──────────────────────────────────────');
+sqlLines.push('-- ── 8. Unbilled Care umbrella — catch shifts with no Panel match ──');
+sqlLines.push(`-- Create sentinel persons+clients row if it doesn't exist
+INSERT IGNORE INTO persons (full_name, first_name, last_name, person_type, tch_id, created_at)
+  VALUES ('Unbilled Care — pending allocation','Unbilled Care','(pending)','client','TCH-UNBILLED', NOW());
+SET @unbilled_person_id = (SELECT id FROM persons WHERE tch_id = 'TCH-UNBILLED');
+INSERT IGNORE INTO clients (id, person_id, billing_entity, default_billing_freq)
+  VALUES (@unbilled_person_id, @unbilled_person_id, 'NA', 'NA');
+
+-- Every shift still missing bill_rate gets reassigned to Unbilled Care
+UPDATE daily_roster r
+  SET r.client_id = @unbilled_person_id,
+      r.bill_rate = 0.00
+WHERE r.source_upload_id = @ts_upload_id
+  AND r.bill_rate IS NULL;`);
+
+sqlLines.push('');
+sqlLines.push('-- ── 9. Reconciliation output ──────────────────────────────────────');
 sqlLines.push(`SELECT 'roster_rows' metric, COUNT(*) value FROM daily_roster WHERE source_upload_id = @ts_upload_id
 UNION ALL
 SELECT 'cost_total', ROUND(SUM(units * cost_rate),2) FROM daily_roster WHERE source_upload_id = @ts_upload_id
@@ -358,7 +411,11 @@ SELECT 'orphan_no_patient',   COUNT(*) FROM daily_roster WHERE source_upload_id 
 UNION ALL
 SELECT 'orphan_no_client',    COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND client_id IS NULL
 UNION ALL
-SELECT 'shifts_missing_bill', COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND bill_rate IS NULL;`);
+SELECT 'shifts_missing_bill', COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND bill_rate IS NULL
+UNION ALL
+SELECT 'unbilled_care_shifts', COUNT(*) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND client_id = @unbilled_person_id
+UNION ALL
+SELECT 'unbilled_care_cost',  ROUND(SUM(units*cost_rate),2) FROM daily_roster WHERE source_upload_id = @ts_upload_id AND client_id = @unbilled_person_id;`);
 
 sqlLines.push('');
 sqlLines.push('DROP TABLE IF EXISTS _panel_invoices_tmp;');
