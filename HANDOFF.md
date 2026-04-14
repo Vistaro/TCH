@@ -1,61 +1,89 @@
-# Handoff — TCH — 2026-04-14
+# Handoff — TCH — 2026-04-14 16:00
 
 ## State
 
-Live on prod at **v0.9.21**. DEV and PROD DBs now separated (FR-0076
-resolved). **D1 done** — billing defaults moved off `persons` onto
-`clients`; engagements now prefill bill rate from client defaults.
-Ready for Tuniti UAT prep once D2/D3 land.
+**Live on prod at v0.9.22** (massive prod cut today). DEV / PROD now on
+separate databases. Single-source-of-truth financial model delivered:
+every report computes from `daily_roster` with full provenance back to
+the source Excel cell. First-class contracts model stood up ready for
+Tuniti to populate.
 
 ## Last session did
 
-- **DEV / PROD database split** — new dev DB
-  `tch_placements_dev-353032377731` on `sdb-61.hosting.stackcp.net`.
-  Server-side dump of prod (1.8M, 47 tables, 207 persons, 1,619 roster
-  rows) restored into it; dev `.env` repointed. Sentinel-table write
-  test confirmed full isolation. Prod untouched.
-  Going-forward rule: once real users are live, any further
-  dump/restore only inside a maintenance window with user-facing
-  routes offline.
-- **D1 — billing defaults moved off `persons`** (Option B):
-  - Migration 028 — renames `clients.billing_freq` → `default_billing_freq`;
-    adds `default_day_rate`, `default_shift_type`, `default_schedule`;
-    backfills from persons; drops the four fields from persons.
-  - `client_view.php` — "Billing" section renamed "Billing Defaults"
-    with a prefill hint. Form field names switched to `default_*`.
-  - `engagements.php` — patient picker carries `data-bill-rate` from
-    `clients.default_day_rate`; Bill Rate prefills on patient select.
-- Ran on dev → smoke-tested (login, `/admin/clients/141`, `/admin/engagements`
-  edit + view all clean) → then prod migration + rsync + prod smoke test.
+- **DEV / PROD DB split** — closes FR-0076. Dev now on `sdb-61`,
+  prod unchanged on `shareddb-y`.
+- **D1 — billing defaults off persons onto clients** (migration 028).
+- **D3 Phase 1 — alias admin** at `/admin/config/aliases`: 151 aliases
+  mapped (42 caregivers + 56 patients + 53 clients) from the Apr-26
+  workbooks. Auto-promote flow for students → caregivers.
+- **D3 Phase 2 — wipe-and-rebuild ingest** of `daily_roster` from
+  Timesheet (cost) + Panel (bill). 1,622 shifts, cost R729k, bill R902k,
+  R220k landing in Unbilled Care. Every row traces to one Excel cell.
+- **Unbilled Care umbrella** — sentinel client + red dashboard tile +
+  `/admin/unbilled-care` drill-down. 24 orphan patients surface for
+  Ross to link to real bill-payers.
+- **All financial reports cut over** — Client Profitability / Caregiver
+  Earnings / Client Billing / Dashboard now read only from
+  `daily_roster`. `client_revenue` + `caregiver_costs` retained as
+  historical snapshots.
+- **Roster View `/admin/roster`** — patient-centric monthly grid,
+  colour-coded caregivers, +N for multi-caregiver days, Unbilled
+  patients flagged red, sticky columns/headers, weekend tint, print
+  landscape + CSV export.
+- **Contracts first-class** — `/admin/contracts` + create + edit +
+  detail. Contract = commercial agreement; engagement = caregiver
+  assignment; roster = delivery. Auto-renew + supersede chain wired.
+- **Column alignment standard** — `.number` / `.center` / default.
+  Applied to Unbilled Care page; rollout across 12 other admin tables
+  queued.
+- **Tuniti reconciliation email materials** prepared at
+  `_global/output/TCH/` — R16,231 of discrepancies across 56 items,
+  ready for Ross to send.
 
 ## In flight (not finished)
 
-- **Tuniti's reply to the 10-record split candidates email** — still
-  waiting. When she replies, run the one-shot split migration (audit
-  log + Notes timeline entries per split).
-- **Andre + Donnay admin accounts** — Ross still to create on prod.
+- **Tuniti contract list** — contracts table is empty, waiting for
+  Tuniti to provide her current contracts.
+- **Tuniti reconciliation reply** — email drafted but not yet sent
+  (Ross to send).
+- **24 orphan patient → real client links** — Unbilled Care will
+  shrink from R220k toward 0 as Ross links each patient to their
+  actual bill-payer via the patient profile UI.
+- **Governance mailbox** — 4 messages from governance, all
+  informational responses; to be archived at wrap.
 
 ## Open items needing attention
 
-- **Bugs (Hub):** 1 open — BUG-0031 (smoke-test leftover, ignore).
+- **Bugs (Hub):** 2 open — BUG-0031 (smoke-test leftover, ignore);
+  BUG-0037 (cosmetic: sort arrows on `/admin/config/aliases`).
 - **FRs (Hub):** FR-0074, FR-0071, FR-0065, FR-0077/78/79. FR-0076 now
-  ready to close (DB split done).
-- **ToDos (repo):**
-  - **#14** historic 10-record split (waiting on Tuniti's reply)
-  - **#15** Phase-2 re-assign time-stamping (flip on once historic data locked)
-  - **#16** onboarding workflow (proposal + email acceptance) — ~10–12 hrs
-  - **#18** schedule UI rework (pick patient first, bill-payer derived) — ~1.5 hrs
-  - **#12** Hub token path for session-start briefing script
-- **Blockers:** none today.
+  closed (DB split done).
+- **ToDos (repo — docs/TCH_Ross_Todo.md):**
+  - Tuniti: send contract list for ingest
+  - Tuniti: fill product billing_freq + min_term defaults
+  - Tuniti: review caregiver working_pattern values
+  - Tuniti: 56-line reconciliation response
+  - Tuniti: Linda/Christina alias disambiguation
+  - Tuniti: Jan 2026 date serials fix
+  - Us: `/admin/onboarding` wizard (replaces email for Tuniti todos)
+  - Us: scheduling UI `/admin/schedule/{contract_id}`
+  - Us: alias re-map trigger
+  - Us: column-alignment rollout to 12 tables
+  - Us: Xero API integration
+- **Blockers:** none — Tuniti inputs are the limiting factor but
+  plenty of independent dev work.
 
 ## Next session should
 
-1. **D2 + D3 scoping** — roster redesign (cost + bill per shift, single
-   source of truth) plus re-ingest from the Client Billing Spreadsheet.
-   Biggest remaining architectural job. Do as a clean focused session.
-2. **Process Tuniti's reply** on the 10-record split when it arrives —
-   one-shot migration with audit log + Notes timeline entries per split.
-3. **Close FR-0076 on Hub** (DB split done).
-4. **Fix mojibake** on `/admin/products` and hunt for other pages
-   showing `â€"`.
-5. **Fix 404** on some patient name clicks from `/admin/patients`.
+1. **Run alias re-map trigger build + BUG-0037 cosmetic fix** — both
+   technical, ~45 min combined, bundle with the column-alignment
+   rollout as a tidy-up pass.
+2. **Design + scope the `/admin/onboarding` Tuniti wizard** — six
+   steps, replaces email ping-pong. First big UX win for Tuniti's
+   daily workflow.
+3. **Start on scheduling UI** if Tuniti sends her contracts — that's
+   the big Phase 3 build (caregiver availability algorithm, calendar
+   assignment, auto-generate roster rows).
+4. **When Ross has time** — manually link the 24 orphan patients to
+   real bill-payers (20-30 min of his knowledge, I re-run
+   apportionment, Unbilled Care shrinks meaningfully).

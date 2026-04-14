@@ -2,19 +2,101 @@
 
 All notable changes to the TCH Placements project.
 
-## [Unreleased]
+## [0.9.22] - 2026-04-14 (prod) — DB split, D1, D3 ingest, Unbilled Care, Roster View, Contracts
 
-### Infrastructure — DEV / PROD database split
+Large day. 20+ commits. Single-source-of-truth model for cost + revenue
+locked in; first-class contract model stood up ready for Tuniti to
+populate; Roster View gives Tuniti the at-a-glance equivalent of their
+Excel Timesheet.
 
-- **New dev DB** on `sdb-61.hosting.stackcp.net` (`tch_placements_dev-353032377731`). Server-side dump of prod (`~/db-backups/tch_prod_20260414T074716Z.sql`, 1.8M) restored into it. Dev `.env` repointed at new DB (backup at `.env.bak-20260414T074828Z`). Prod still on `shareddb-y.hosting.stackcp.net` / `tch_placements-313539d33a` — untouched. Split proven with a sentinel table written to dev only. Closes the shared-DB exception (FR-0076) ahead of Tuniti UAT.
+### Infrastructure — DEV / PROD database split (FR-0076 closed)
+
+- **New dev DB** on `sdb-61.hosting.stackcp.net` (`tch_placements_dev-353032377731`). Server-side dump of prod restored into it; dev `.env` repointed. Prod still on `shareddb-y.hosting.stackcp.net` / `tch_placements-313539d33a`. Split proven with a sentinel table written to dev only.
 - Going-forward rule logged: once users are live, DB dumps/restores happen only in a maintenance window with users locked out.
 
 ### Changed — D1: billing defaults moved off `persons` onto `clients`
 
-- **Migration 028 (`028_client_defaults_off_persons.sql`)** — renames `clients.billing_freq` → `clients.default_billing_freq`; adds `default_day_rate` / `default_shift_type` / `default_schedule`; backfills from `persons`; drops `persons.day_rate` / `billing_freq` / `shift_type` / `schedule`.
-- **Why:** these four fields on `persons` were leftover from the pre-engagements model and already lied when a client had two engagements at different rates. Single source of truth now: the engagement row holds the actual contract rates; client-level `default_*` columns are prefill-only for the new-engagement form.
-- `templates/admin/client_view.php` — "Billing" section renamed to "Billing Defaults" with a "prefilled into new Care Schedules for this client; each engagement can override" hint. Form field names switched to `default_*`.
-- `templates/admin/engagements.php` — patient picker now carries `data-bill-rate` from `clients.default_day_rate`; selecting a patient prefills the Bill Rate input (same pattern as caregiver → Cost Rate).
+- **Migration 028** — renames `clients.billing_freq` → `clients.default_billing_freq`; adds `default_day_rate` / `default_shift_type` / `default_schedule`; backfills from `persons`; drops `persons.day_rate` / `billing_freq` / `shift_type` / `schedule`.
+- `templates/admin/client_view.php` — Billing section renamed "Billing Defaults" with prefill-only semantics.
+- `templates/admin/engagements.php` — patient picker now carries `data-bill-rate`; selecting a patient prefills the Bill Rate input.
+
+### Added — D3 Phase 1: Timesheet alias mapping admin
+
+- **Migration 029** — `timesheet_name_aliases` table (unique on alias_text+role, confidence enum, source provenance).
+- `/admin/config/aliases` — admin page grouped by filter (Caregivers & Students / Patients / Clients / All). Unresolved rows pinned top. Per-row suggestions ranked by first+last+full-name soundex + substring LIKE + levenshtein. Map / Unmap / Create-canonical flows. Mapping a caregiver-alias to a student-only person auto-promotes (person_type += caregiver, inserts caregivers row, students.qualified = "Yes — via Timesheet", timeline note).
+- TCH ID auto-assignment on Create-canonical flow.
+- Site seeded with 151 aliases (42 caregivers + 56 patients + 53 clients) from Apr-26 workbooks, all manually confirmed by Ross.
+
+### Added — D3 Phase 2: Timesheet + Panel ingest pipeline
+
+- **Migration 030** — adds `patient_person_id`, `units`, `source_upload_id`, `source_alias_id`, `source_cell` to `daily_roster`. New `timesheet_uploads` table for provenance.
+- `tools/timesheet/` — Node CLI scripts (parse Timesheet/Panel xlsx, generate SQL, ship via SSH). Full wipe + rebuild pipeline. Used against the Apr-26 workbooks: 1,622 shifts, 197 invoice events, cost R729k, bill R902k.
+- **5-rule rate resolver:** (1) per-cell override, (2) this month's row-2 rate, (3) derive from monthly Total ÷ days, (4) other-months avg for this caregiver, (5) overall average.
+- Parses `-half` markers, `X/ Y` split cells, `-R500` per-cell rate overrides, `[monthly]`/`- monthly` billing-freq suffixes on client panels.
+- **Year-month derived from tab name** — guards against Tuniti copy-paste errors like Jan 2026 tab having Jan 2025 date serials.
+- Tuniti reconciliation artefacts generated: Excel discrepancy list + pre-written email body at `_global/output/TCH/`.
+
+### Added — Unbilled Care umbrella
+
+- Every shift with no matching Panel invoice routes to a single `Unbilled Care - pending allocation` sentinel client (`TCH-UNBILLED`). `bill_rate = 0.00`. Care cost stays correctly attributed to the caregiver.
+- Red KPI tile on `/admin/dashboard` (only shows when > 0) with direct link to drill-down.
+- `/admin/unbilled-care` drill-down page — 24 orphan patients ranked by cost, with "Open patient →" buttons for Ross to re-link each to the real bill-payer.
+- Client Profitability report pins the umbrella to top in red border + warning icon.
+
+### Changed — All financial reports switched to single source of truth
+
+- **`daily_roster` is now THE authoritative ledger** for both cost (SUM units×cost_rate) and bill (SUM units×bill_rate).
+- `client_revenue` and `caregiver_costs` retained as historical read-only snapshots; no report reads from them.
+- Cut over: `templates/admin/reports/client_profitability.php`, `caregiver_earnings.php`, `client_billing.php`, and the main `admin/dashboard.php`. All totals now reconcile by definition.
+
+### Added — Roster View (patient-centric grid) `/admin/roster`
+
+- Web equivalent of Tuniti's Caregiver Timesheet — rows = patients, columns = days of the month, cells = caregiver who attended (first 3 letters of surname, colour-coded per caregiver via crc32 hash of person_id).
+- Multi-caregiver days show `+N` to keep columns narrow; hover reveals the list.
+- Half-days render as `SUR½`.
+- Patients whose shifts route to Unbilled Care get red left-border + `UNBILLED` tag.
+- Sticky patient column + sticky date header row.
+- Weekend tint, today highlight, row totals, coverage row, legend of caregivers (click to filter).
+- Filters: month picker, caregiver dropdown, patient search, cohort, group-by-client toggle.
+- Print: `@page A4 landscape`, `thead display: table-header-group` repeats headers, `print-color-adjust: exact` preserves colours.
+- CSV export: `/admin/roster/export.csv` — flat row-per-shift with UTF-8 BOM for Excel.
+- CSS tooltip (replaces browser-native title attribute) for instant cell detail.
+
+### Added — Contracts first-class
+
+- **Migration 031** — `contracts`, `contract_lines` tables. Products gain `default_billing_freq` + `default_min_term_months`. Caregivers gain `working_pattern` (default 'MON-SUN'). `daily_roster` gains `contract_id` FK (nullable).
+- Model: contract = (client + patient + start + optional end + status + invoice fields), with lines (product × billing_freq × min_term × bill_rate × units_per_period). Supersede chain for mid-contract product switches.
+- `/admin/contracts` — list with status tabs (draft / active / on hold / completed / cancelled / all).
+- `/admin/contracts/new` — create form with inline line editor, patient→default-client prefill, product→rate+freq+min-term prefill.
+- `/admin/contracts/{id}` — detail (parties + invoice + lines + delivery + notes).
+- `/admin/contracts/{id}/edit` — reuses create form.
+- Nav link above Care Scheduling under Records.
+- Invoice handling: manual-only for now (Tuniti logs Xero invoice number + status). Xero API integration queued.
+
+### Added — 3-class column alignment standard
+
+- `.number` → right-align + 1.25rem right padding (money, counts, %)
+- `.center` (new) → TCH IDs, dates, yes/no, phone numbers, short fixed-width
+- Default → left-align for variable-length text (names)
+- Applied to `/admin/unbilled-care`. Site-wide rollout across 12 other admin tables logged as todo.
+
+### Fixed
+
+- `templates/admin/patients_list.php` — `htmlspecialchars(null)` deprecation on rows with `tch_id = NULL`. Wrapped in `(string)($r['tch_id'] ?? '')`.
+- `persons.full_name` for Unbilled Care umbrella — em-dash double-encoded when SQL piped through SSH. Replaced with hyphen; ingest script updated.
+- Backfilled TCH IDs (TCH-000207 through TCH-000217) for 11 alias-admin-created persons that were missing them.
+
+### Deleted
+
+- 19 empty "Not Known" placeholder person records (IDs 207-223 + 235-236) on dev and prod — pre-this-session balancing rows with 0 shifts each.
+
+### Governance
+
+- BUG-0037 raised on the Hub — sort arrows not rendering on `/admin/config/aliases` column headers (cosmetic, deferred).
+- Tuniti todos expanded with reconciliation items (56 line items), anomalies (Linda/Christina ambiguity, Botes- Invoice March, etc.), employment classification question, Jan 2026 tab date-serials issue, contract submission request, product-defaults fill-in request, caregiver working-patterns review.
+- Internal todo logged: build an `/admin/onboarding` wizard so Tuniti can self-serve through these todos inline rather than via email.
+
+## [Unreleased]
 
 ## [0.9.21] - 2026-04-13 (prod) — Client + Patient profiles, dedup, archive, billing history, "What's New" gate, bill-payer guardrail
 

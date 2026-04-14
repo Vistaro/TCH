@@ -47,24 +47,37 @@ the sheet it came from.
 
 ## Current status
 
-**Live in production** at https://tch.intelligentae.co.uk as of
-April 2026.
+**Live in production** at https://tch.intelligentae.co.uk — latest
+prod cut **v0.9.22** (14 April 2026). Dev and prod now on separate
+databases.
 
 What's working now:
 - 139 caregivers, 123 in approved cohorts 1–9, full profile records
-- Live student detail page with per-section edit and Notes timeline
-- Attendance captured per student per week (1,216 rows imported from
-  Tuniti's attendance spreadsheet)
-- Monthly revenue, caregiver pay, and gross margin reports by client
+- Client + Patient profile pages with multi-row phones/emails/addresses,
+  dedup detection, archive
+- Attendance captured per student per week (1,216 rows imported)
+- **Single source of truth for cost + revenue** — every financial
+  report computes from `daily_roster` with full provenance back to
+  the source Excel cell
+- **Roster View** (`/admin/roster`) — patient-centric monthly grid
+  that replaces the at-a-glance function of Tuniti's Caregiver
+  Timesheet workbook, with print/CSV export
+- **Unbilled Care umbrella** — surfaces care delivered without an
+  invoice as a visible dashboard tile (currently ~R220k over 5 months)
+- **Contracts infrastructure** — `/admin/contracts` for the
+  commercial contract model (client × patient × products × dates),
+  ready for Tuniti to populate
 - Bug/FR reporter forwarding into the central Nexus Hub
 
 What's next (rough, not a contract):
-- Investor "Month X Report" export in one click
-- On-the-job-training placement tracking with hours worked
-- Forward-looking engagements (scheduled shifts → auto roster → auto
-  bill/pay) per the D1 + D2 design notes in `docs/TCH_Ross_Todo.md`
-- Drop the read-only "tranche sharing bank account" requirement (done)
-  and replace with per-tranche virtual accounting reports
+- Tuniti to send contract list for ingest
+- Scheduling UI (`/admin/schedule/{contract_id}`) — caregiver
+  assignment against contract, generates roster rows
+- Xero API integration (invoice-on-contract-save + sync back)
+- `/admin/onboarding` wizard so Tuniti can self-serve through setup
+  todos inline (product defaults, working patterns, alias reviews,
+  reconciliation answers) instead of email ping-pong
+- Site-wide column-alignment rollout across remaining 12 admin tables
 
 ## Where to read more
 

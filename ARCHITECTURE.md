@@ -19,12 +19,12 @@ a small change, read this first.
   `intelligentae.co.uk@ssh.gb.stackcp.com`
 - **DEV:** `https://dev.tch.intelligentae.co.uk`
   webroot `~/public_html/dev-TCH/dev/` on the same box
-- Both share **one database** (`tch_placements-313539d33a`) — a
-  documented exception to the global "separate dev and prod DBs" rule,
-  justified by there being no real customer-driven mutation traffic
-  yet. Tracked as FR-0076 on the Nexus Hub. The exception expires
-  the moment the first real client, caregiver, or Tuniti approval
-  moves through the system.
+- **Databases separated 2026-04-14 (v0.9.22)** — closes FR-0076.
+  - PROD: `tch_placements-313539d33a` on `shareddb-y.hosting.stackcp.net`
+  - DEV:  `tch_placements_dev-353032377731` on `sdb-61.hosting.stackcp.net`
+  - Going-forward rule: once real users are live, any further dump /
+    restore happens only inside a declared maintenance window with
+    user-facing routes offline.
 - Deploy = server-side rsync `dev-TCH/dev/ → tch/` after Ross signs
   off. No CI. Pattern in `docs/sessions/*-prod-deploy.md`.
 
@@ -143,17 +143,54 @@ training_attendance  — one row per (student, week) attendance event
 student_scores       — one row per (student, module) score
 ```
 
-### Engagements & roster (Phase 4 — partially live)
+### Contracts / engagements / roster — the single-source-of-truth ledger
+
+Three distinct layers. Clean separation matters because the
+commercial contract, the caregiver assignment, and the per-shift
+delivery each change independently.
 
 ```
-engagements   — the contract: caregiver × patient × product × date
-                range × cost_rate × bill_rate
-daily_roster  — per-shift: planned/delivered/cancelled/disputed,
-                cost_rate + bill_rate so cost AND revenue reconcile at
-                shift level. Current state: carries cost only;
-                bill_rate column added but not yet populated from
-                engagements. See D2 design note in TCH_Ross_Todo.md.
+contracts          — commercial contract: client × patient × start ×
+                     end (nullable = ongoing) × status × invoice
+                     fields. One row per patient. Superseded_by chain
+                     for mid-contract product switches.
+contract_lines     — product × billing_freq × min_term × bill_rate ×
+                     units_per_period. Multiple lines per contract
+                     supported (e.g. weekday Day Rate + weekend Night).
+engagements        — caregiver assignment to a contract (exists today,
+                     being repurposed from the old all-in-one model).
+daily_roster       — per-shift delivery. Columns: caregiver_id,
+                     patient_person_id, client_id, contract_id (new),
+                     engagement_id, product_id, units, cost_rate,
+                     bill_rate, shift_start/end, status
+                     (planned/delivered/cancelled/disputed),
+                     source_upload_id + source_alias_id + source_cell
+                     for full audit trail back to the source Excel.
+                     Every financial report reads from this one table.
 ```
+
+**Ingest pipeline** (`tools/timesheet/` — Node CLI):
+- Parses Tuniti's Caregiver Timesheet workbook (cost side — one tab
+  per month, caregiver columns × date rows, patient name per cell)
+  and the Revenue Panel workbook (bill side — client panels with
+  monthly invoice amounts).
+- Wipes + rebuilds `daily_roster` for the ingested month range.
+- `cost_rate` resolved via the 5-rule priority (see DECISIONS.md).
+- `bill_rate` apportioned: `SUM(Panel invoice) ÷ SUM(units)` per
+  client-month stamped on every shift row.
+- Shifts with no matching Panel invoice get client_id re-pointed to
+  the Unbilled Care umbrella (`persons.tch_id = 'TCH-UNBILLED'`)
+  and `bill_rate = 0.00` — visible suspense account.
+
+**Alias layer** — `timesheet_name_aliases` maps raw names from
+Timesheet cells and Panel panel headers to canonical `persons.id`
+rows. Admin at `/admin/config/aliases`. Rows carry `confidence` enum;
+unresolved rows block the ingest. When an alias is remapped, a
+planned trigger will propagate via `roster.source_alias_id` (not
+built yet).
+
+**Timesheet_uploads** — one row per workbook version ingested,
+sha256-keyed, with dry_run_report JSON.
 
 ### Activities (Notes + Tasks)
 

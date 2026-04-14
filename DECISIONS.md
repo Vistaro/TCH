@@ -13,6 +13,42 @@ New entries go at the top.
 
 ---
 
+## 2026-04-14 — Contracts are first-class, separate from engagements and roster
+
+**Chose:** Introduce a `contracts` table (client + patient + dates + invoice + status) with `contract_lines` (product × billing_freq × min_term × bill_rate × units). Engagements remain the caregiver-assignment record; daily_roster holds per-shift delivery and gains a nullable `contract_id` FK. A mid-contract product switch creates a new contract with `superseded_by` pointing from the old one.
+**Over:** Keeping everything in the existing `engagements` row (current shape has caregiver+patient+client+product+rate on one row).
+**Because:** The commercial contract outlives any one caregiver assignment (Ross's rule: patient buys care from TCH, not from a named caregiver). Substitutions shouldn't create new contracts; caregiver changes shouldn't touch billing. Separating the contract from the assignment from the delivery matches how Tuniti actually operates and how Xero will integrate.
+
+## 2026-04-14 — Contracts auto-renew until actively cancelled (flag, never auto-cancel)
+
+**Chose:** `contracts.auto_renew` bool (default 1). Contract rolls forward month-by-month until explicitly cancelled. System flags for attention N days pre-renewal, but never auto-cancels. Minimum term (`contract_lines.min_term_months`) warns at cancel, does not block.
+**Over:** Auto-closing on min-term end date, or hard-enforcing min-term.
+**Because:** Care is ongoing by default — "no pay, no carer" is a business decision, not a system one. Auto-cancelling would silently stop care. Alerting + leaving the cancel action human keeps safety and trust. Min-term is a commercial commitment, not a database constraint.
+
+## 2026-04-14 — Caregiver swap = substitution in the engagement, not a new contract
+
+**Chose:** When caregiver is off and another covers, the engagement's caregiver_id is updated (or a new engagement row created under the same contract). Contract stays unchanged. Roster rows reflect the actual caregiver.
+**Over:** Creating a new contract per caregiver change.
+**Because:** Patient buys care from TCH, not from a named caregiver (Ross's framing). Contract is the commercial agreement between TCH and the client; which specific carer delivers it is operational. Creating a new contract every time would inflate the contract list and confuse billing.
+
+## 2026-04-14 — Unbilled Care umbrella client
+
+**Chose:** One sentinel client (`persons.tch_id = 'TCH-UNBILLED'`) that absorbs every shift with no matching Panel invoice. Shifts get `client_id = umbrella_id` and `bill_rate = 0.00`. The umbrella is highlighted prominently (red dashboard tile, red row in Client Profitability, dedicated drill-down at `/admin/unbilled-care`).
+**Over:** Leaving `bill_rate = NULL` on orphan shifts, or fabricating an invoice to make them balance.
+**Because:** A suspense-account pattern. Every shift lands somewhere, the negative-GP bucket is painfully visible, resolution is a click away (admin links the real bill-payer → apportionment re-runs → shifts migrate out). Data-honest — no fabricated invoices; no silent nulls that disappear from reports. Creates pressure on Tuniti to either raise the invoices or confirm the care is intentionally uncharged.
+
+## 2026-04-14 — Wipe-and-rebuild daily_roster from Timesheet + Panel, single source of truth
+
+**Chose:** Drop the old `daily_roster` (1,619 rows historical ingest from the Client Billing Spreadsheet) and rebuild from the Tuniti Caregiver Timesheets + Revenue Panel workbooks. Every row gets `source_cell` provenance, a `source_alias_id` FK so alias re-mappings can cascade, a `source_upload_id` linking it to the workbook version. Reports cut over to read only from `daily_roster`. `client_revenue` and `caregiver_costs` become historical read-only snapshots.
+**Over:** Merging new data with existing roster rows, or maintaining parallel ledgers.
+**Because:** The old roster came from a different ingest with known name-matching problems (the R17,472 drift). Merging would carry that mess forward untraceable. Wipe-and-rebuild on dev was zero-risk (no customers); after verification, same pattern to prod. Every roster row now traces to one Excel cell; every total reconciles by definition because there's only one ledger.
+
+## 2026-04-14 — 5-rule cost-rate resolver for Timesheet ingest
+
+**Chose:** Per-shift cost_rate resolved in priority order: (1) per-cell override in the Timesheet cell text (e.g. `Carli-R500`); (2) this month's row-2 column rate; (3) derive from monthly Total Amount ÷ days worked (for blank row-2 rates); (4) other-months' row-2 rate for the same caregiver (avg if multiple); (5) overall average across caregivers.
+**Over:** A single "last-seen-rate" fallback, or always-derive-from-total.
+**Because:** Rule 1 respects Tuniti's explicit per-shift intent. Rule 2 is the common case (row-2 rate populated). Rule 3 handles the edge case Tuniti sometimes leaves blank but records a paid total — our derived rate matches what she actually paid. Rule 4 + 5 are genuine fallbacks only. Each rule is traceable — every cost_rate in the DB can be audited against its source.
+
 ## 2026-04-14 — Billing defaults live on `clients`, not `persons` (D1, Option B)
 
 **Chose:** Keep the four billing fields (`day_rate`, `billing_freq`, `shift_type`, `schedule`) as prefill-only **defaults on `clients`** (renamed `default_*`). The engagement row holds the actual contract rates; `clients.default_*` only prefill the new-engagement form. Migration 028 drops these from `persons` and adds/renames on `clients` with a backfill.
