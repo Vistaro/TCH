@@ -2,6 +2,13 @@
 
 All notable changes to the TCH Placements project.
 
+## [Unreleased]
+
+### Fixed — alias admin: manual-pick fallback when suggester returns nothing
+
+- `templates/admin/config_aliases.php` — when `getSuggestions()` returns no candidates (happens when the alias token order is inverted vs canonical, e.g. panel headers like `Roux- Esme` where first=Roux, last=Esme), the row previously rendered a dead-end "create a new canonical record →" note with no way to map to an existing person. Added `getAllCandidates()` helper returning all non-archived persons of the matching role, rendered as a full dropdown (`<select>`) with a Map button. Surfaces when the suggester is empty, alongside the existing "+ Create canonical" path. No schema change.
+- Concrete trigger: two client-role aliases (`Roux- Esme`, `Webb- Sonja`) imported from the Apr-26 billing panel workbook. Both canonicals exist (Esme Roux #183, Sonja Webb #190, dual patient+client) but the first+last token logic inverted and every match arm missed.
+
 ## [0.9.22] - 2026-04-14 (prod) — DB split, D1, D3 ingest, Unbilled Care, Roster View, Contracts
 
 Large day. 20+ commits. Single-source-of-truth model for cost + revenue

@@ -297,6 +297,24 @@ function getSuggestions(PDO $db, array $a): array {
     return $memo[$key] = array_slice($rows, 0, 8);
 }
 
+// Full list of candidate persons for a role — used when auto-suggestions
+// produce nothing and the user needs to pick manually.
+function getAllCandidates(PDO $db, string $role): array {
+    static $memo = [];
+    if (isset($memo[$role])) return $memo[$role];
+    $roleWhere = '';
+    if ($role === 'caregiver')     $roleWhere = "(FIND_IN_SET('caregiver', person_type) OR FIND_IN_SET('student', person_type))";
+    elseif ($role === 'patient')   $roleWhere = "FIND_IN_SET('patient', person_type)";
+    elseif ($role === 'client')    $roleWhere = "FIND_IN_SET('client',  person_type)";
+    elseif ($role === 'student')   $roleWhere = "FIND_IN_SET('student', person_type)";
+    if (!$roleWhere) return $memo[$role] = [];
+    $q = "SELECT id, full_name, tch_id
+            FROM persons
+           WHERE $roleWhere AND archived_at IS NULL
+        ORDER BY last_name, first_name, full_name";
+    return $memo[$role] = $db->query($q)->fetchAll();
+}
+
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
 
@@ -400,7 +418,29 @@ foreach ($groupLabels as $groupKey => $label):
                         <?php endif; ?>
                     </form>
                 <?php else: ?>
-                    <span style="color:#6c757d;">No similar persons — create a new canonical record →</span>
+                    <?php $all = getAllCandidates($db, $a['person_role']); ?>
+                    <?php if ($all): ?>
+                    <div style="font-size:0.75rem;color:#6c757d;margin-bottom:0.2rem;">No auto-match — pick from full <?= htmlspecialchars($a['person_role']) ?> list:</div>
+                    <form method="POST" style="display:flex;gap:0.4rem;margin:0;">
+                        <?= csrfField() ?>
+                        <input type="hidden" name="action" value="map_alias">
+                        <input type="hidden" name="alias_id" value="<?= (int)$a['id'] ?>">
+                        <input type="hidden" name="return_role" value="<?= htmlspecialchars($roleFilter) ?>">
+                        <select name="person_id" class="form-control form-control-sm" style="font-size:0.85rem;" required>
+                            <option value="">Pick manually…</option>
+                            <?php foreach ($all as $s): ?>
+                            <option value="<?= (int)$s['id'] ?>">
+                                <?= htmlspecialchars($s['full_name']) ?><?= $s['tch_id'] ? ' (' . htmlspecialchars($s['tch_id']) . ')' : '' ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if ($canEdit): ?>
+                        <button class="btn btn-sm btn-primary" type="submit">Map</button>
+                        <?php endif; ?>
+                    </form>
+                    <?php else: ?>
+                        <span style="color:#6c757d;">No <?= htmlspecialchars($a['person_role']) ?> persons exist — create one →</span>
+                    <?php endif; ?>
                 <?php endif; ?>
             <?php endif; ?>
             </td>
