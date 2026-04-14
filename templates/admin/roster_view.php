@@ -266,12 +266,34 @@ require APP_ROOT . '/templates/layouts/admin.php';
         text-decoration: none; color: #495057;
     }
 
+    .caregiver-legend-wrap {
+        margin-top: 0.75rem;
+        max-width: 100%;
+        overflow: hidden;
+    }
+    .caregiver-legend-wrap .legend-heading {
+        font-size: 0.75rem; color: #6c757d; text-transform: uppercase;
+        letter-spacing: 0.04em; margin-bottom: 0.4rem; font-weight: 600;
+    }
     .caregiver-legend {
-        margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem;
-        font-size: 0.8rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 4px;
+        font-size: 0.78rem;
     }
     .caregiver-legend .chip {
-        padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.08);
+        padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.08);
+        display: flex; align-items: center; gap: 6px;
+        text-decoration: none;
+        overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    }
+    .caregiver-legend .chip strong {
+        flex: 0 0 auto;
+        min-width: 34px; text-align: center;
+        background: rgba(255,255,255,0.6); border-radius: 3px; padding: 0 4px;
+    }
+    .caregiver-legend .chip span.name {
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto;
     }
 
     @media print {
@@ -423,20 +445,24 @@ require APP_ROOT . '/templates/layouts/admin.php';
                     $cgId = $list[0]['caregiver_id'];
                     $col = caregiverColour($cgId);
                     $style = "background:{$col['bg']};color:{$col['fg']};";
-                    $texts = [];
                     $titleParts = [];
                     foreach ($list as $entry) {
                         $name = $entry['caregiver_name'] ?? '?';
-                        $parts = preg_split('/\s+/', trim($name));
-                        $surname = end($parts);
-                        $abbr = mb_strtoupper(mb_substr($surname, 0, 3));
-                        $texts[] = $entry['units'] < 1 ? $abbr.'½' : $abbr;
                         $titleParts[] = $name
                             . ($entry['units'] < 1 ? ' (half)' : '')
                             . ' — cost R'.number_format($entry['cost_rate'], 0)
                             . ($entry['bill_rate'] ? ', bill R'.number_format($entry['bill_rate'], 0) : ', not billed');
                     }
-                    $text = implode('/', $texts);
+                    // Cell label: single caregiver → 3-letter surname; multiple → +N
+                    if (count($list) === 1) {
+                        $entry = $list[0];
+                        $parts = preg_split('/\s+/', trim($entry['caregiver_name'] ?? '?'));
+                        $surname = end($parts);
+                        $abbr = mb_strtoupper(mb_substr($surname, 0, 3));
+                        $text = $entry['units'] < 1 ? $abbr.'½' : $abbr;
+                    } else {
+                        $text = '+' . count($list);
+                    }
                     $title = implode("\n", $titleParts);
                 }
                 ?>
@@ -466,21 +492,24 @@ require APP_ROOT . '/templates/layouts/admin.php';
 </div>
 
 <?php if (!empty($caregiverIds)): ?>
-<div class="caregiver-legend">
-    <strong style="align-self:center;">Caregivers this month:</strong>
-    <?php
-    $sortedCgIds = $caregiverIds;
-    asort($sortedCgIds);
-    foreach ($sortedCgIds as $cgId => $cgName):
-        $col = caregiverColour($cgId);
-        $parts = preg_split('/\s+/', trim($cgName));
-        $surname = end($parts);
-        $abbr = mb_strtoupper(mb_substr($surname, 0, 3));
-    ?>
-        <a href="<?= htmlspecialchars(filterUrl(['caregiver' => $cgId], $curParams)) ?>" class="chip" style="background:<?= $col['bg'] ?>;color:<?= $col['fg'] ?>;text-decoration:none;">
-            <strong><?= htmlspecialchars($abbr) ?></strong> <?= htmlspecialchars($cgName) ?>
-        </a>
-    <?php endforeach; ?>
+<div class="caregiver-legend-wrap">
+    <div class="legend-heading">Caregivers this month (<?= count($caregiverIds) ?>) — click to filter</div>
+    <div class="caregiver-legend">
+        <?php
+        $sortedCgIds = $caregiverIds;
+        asort($sortedCgIds);
+        foreach ($sortedCgIds as $cgId => $cgName):
+            $col = caregiverColour($cgId);
+            $parts = preg_split('/\s+/', trim($cgName));
+            $surname = end($parts);
+            $abbr = mb_strtoupper(mb_substr($surname, 0, 3));
+        ?>
+            <a href="<?= htmlspecialchars(filterUrl(['caregiver' => $cgId], $curParams)) ?>" class="chip" style="background:<?= $col['bg'] ?>;color:<?= $col['fg'] ?>;" title="<?= htmlspecialchars($cgName) ?>">
+                <strong><?= htmlspecialchars($abbr) ?></strong>
+                <span class="name"><?= htmlspecialchars($cgName) ?></span>
+            </a>
+        <?php endforeach; ?>
+    </div>
 </div>
 <?php endif; ?>
 
