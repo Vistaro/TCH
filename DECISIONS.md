@@ -13,6 +13,18 @@ New entries go at the top.
 
 ---
 
+## 2026-04-14 — Billing defaults live on `clients`, not `persons` (D1, Option B)
+
+**Chose:** Keep the four billing fields (`day_rate`, `billing_freq`, `shift_type`, `schedule`) as prefill-only **defaults on `clients`** (renamed `default_*`). The engagement row holds the actual contract rates; `clients.default_*` only prefill the new-engagement form. Migration 028 drops these from `persons` and adds/renames on `clients` with a backfill.
+**Over:** (A) Just drop them — cleaner, but Tuniti's workflow ("same client, same rate, different caregivers over time") would mean retyping the same rate every engagement.
+**Because:** Single source of truth for *contract* billing is the engagement (one rate per engagement row). The pre-engagements fields on `persons` were lying whenever a client had two engagements at different rates. Moving them to `clients` as `default_*` makes their purpose explicit (prefill, not truth) and saves Tuniti typing on the common case. If a default drifts, nothing is misreported — it's only a form prefill.
+
+## 2026-04-14 — DEV / PROD database separation (FR-0076 resolved)
+
+**Chose:** New dev DB `tch_placements_dev-353032377731` on `sdb-61.hosting.stackcp.net`; server-side `mysqldump` of prod restored into it; dev `.env` repointed.
+**Over:** Staying on the shared DB until UAT actually broke something.
+**Because:** Tuniti UAT means real test writes from outside users, and a shared DB would pollute prod billing rows the moment a tester clicks "create". The global "Production Database Discipline" rule mandates separation; the shared-DB exception (FR-0076) was only allowable while no real customer activity existed. Split done now while the window is quiet. Going-forward rule: any further dump/restore happens only inside a declared maintenance window with user-facing routes offline.
+
 ## 2026-04-13 — Multi-row contact tables (phones / emails / addresses), legacy columns kept as fallback
 
 **Chose:** Build new `person_phones`, `person_emails`, `person_addresses` tables with primary flags + FKs to `persons`. Keep the legacy scalar columns (`persons.mobile`, `secondary_number`, `email`, and the flat address columns) **in place** as a fallback. The new save helpers mirror the *primary* row from each new table back into the matching legacy column on every write.

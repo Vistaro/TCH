@@ -25,7 +25,7 @@ $canEdit  = userCan('client_view', 'edit');
 $editableSections = [
     'personal' => ['table' => 'persons', 'cols' => ['salutation','first_name','middle_names','last_name','known_as','title','initials','id_passport','dob','gender','nationality','home_language','other_language']],
     'address'  => ['table' => 'persons', 'cols' => ['complex_estate','street_address','suburb','city','province','postal_code','country']],
-    'billing'  => ['table' => 'persons', 'cols' => ['billing_freq','shift_type','schedule','day_rate']],
+    'billing'  => ['table' => 'clients', 'cols' => ['default_billing_freq','default_shift_type','default_schedule','default_day_rate']],
     'nok'      => ['table' => 'persons', 'cols' => ['nok_name','nok_relationship','nok_contact','nok_email']],
 ];
 
@@ -323,7 +323,9 @@ if ($flash === '' && isset($_GET['msg'])) {
 // ── Load person + client + linked patients ─────────────────────────────
 $stmt = $db->prepare(
     "SELECT p.*, c.id AS client_id, c.account_number AS c_account_number,
-            c.billing_entity AS c_billing_entity, c.billing_freq AS c_billing_freq
+            c.billing_entity AS c_billing_entity,
+            c.default_billing_freq, c.default_day_rate,
+            c.default_shift_type, c.default_schedule
      FROM persons p
      LEFT JOIN clients c ON c.id = p.id
      WHERE p.id = ? AND FIND_IN_SET('client', p.person_type)"
@@ -681,9 +683,10 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <?php endif; ?>
         </div>
 
-        <!-- Billing -->
+        <!-- Billing defaults -->
         <div class="person-card-section">
-            <h3>Billing <?= _editLink($personId, 'billing', $canEdit && $editSection !== 'billing') ?></h3>
+            <h3>Billing Defaults <?= _editLink($personId, 'billing', $canEdit && $editSection !== 'billing') ?></h3>
+            <p style="color:#6c757d;font-size:0.85rem;margin:0 0 0.5rem;">Prefilled into new Care Schedules for this client. Each engagement can override.</p>
             <?php if ($editSection === 'billing'): ?>
                 <form method="POST">
                     <?= csrfField() ?>
@@ -693,10 +696,10 @@ require APP_ROOT . '/templates/layouts/admin.php';
                         <dt>Billing Entity</dt><dd>
                             <input class="form-control" value="TCH Placements" disabled style="background:#e9ecef;color:#6c757d;">
                         </dd>
-                        <dt>Billing Frequency</dt><dd><input class="form-control" name="billing_freq" value="<?= _esc($person['billing_freq']) ?>" placeholder="Monthly / Weekly"></dd>
-                        <dt>Shift Type</dt>      <dd><input class="form-control" name="shift_type"   value="<?= _esc($person['shift_type']) ?>" placeholder="Day / Night / Live-In"></dd>
-                        <dt>Schedule</dt>        <dd><input class="form-control" name="schedule"     value="<?= _esc($person['schedule']) ?>"></dd>
-                        <dt>Day Rate (R)</dt>    <dd><input class="form-control" type="number" step="0.01" name="day_rate" value="<?= _esc($person['day_rate']) ?>"></dd>
+                        <dt>Default Billing Freq</dt><dd><input class="form-control" name="default_billing_freq" value="<?= _esc($person['default_billing_freq']) ?>" placeholder="Monthly / Weekly"></dd>
+                        <dt>Default Shift Type</dt>  <dd><input class="form-control" name="default_shift_type"   value="<?= _esc($person['default_shift_type']) ?>" placeholder="Day / Night / Live-In"></dd>
+                        <dt>Default Schedule</dt>    <dd><input class="form-control" name="default_schedule"     value="<?= _esc($person['default_schedule']) ?>"></dd>
+                        <dt>Default Day Rate (R)</dt><dd><input class="form-control" type="number" step="0.01" name="default_day_rate" value="<?= _esc($person['default_day_rate']) ?>"></dd>
                     </dl>
                     <?= _formActions($personId) ?>
                 </form>
@@ -704,10 +707,10 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <dl>
                     <dt>Account #</dt>       <dd><code><?= _esc($person['account_number']) ?: '—' ?></code></dd>
                     <dt>Billing Entity</dt>  <dd>TCH Placements</dd>
-                    <dt>Billing Freq</dt>    <dd><?= _esc($person['billing_freq']) ?: '—' ?></dd>
-                    <dt>Shift Type</dt>      <dd><?= _esc($person['shift_type']) ?: '—' ?></dd>
-                    <dt>Schedule</dt>        <dd><?= _esc($person['schedule']) ?: '—' ?></dd>
-                    <dt>Day Rate</dt>        <dd><?= $person['day_rate'] !== null ? 'R ' . number_format((float)$person['day_rate'], 2) : '—' ?></dd>
+                    <dt>Default Billing Freq</dt><dd><?= _esc($person['default_billing_freq']) ?: '—' ?></dd>
+                    <dt>Default Shift Type</dt>  <dd><?= _esc($person['default_shift_type']) ?: '—' ?></dd>
+                    <dt>Default Schedule</dt>    <dd><?= _esc($person['default_schedule']) ?: '—' ?></dd>
+                    <dt>Default Day Rate</dt>    <dd><?= $person['default_day_rate'] !== null ? 'R ' . number_format((float)$person['default_day_rate'], 2) : '—' ?></dd>
                 </dl>
             <?php endif; ?>
         </div>

@@ -2,6 +2,20 @@
 
 All notable changes to the TCH Placements project.
 
+## [Unreleased]
+
+### Infrastructure — DEV / PROD database split
+
+- **New dev DB** on `sdb-61.hosting.stackcp.net` (`tch_placements_dev-353032377731`). Server-side dump of prod (`~/db-backups/tch_prod_20260414T074716Z.sql`, 1.8M) restored into it. Dev `.env` repointed at new DB (backup at `.env.bak-20260414T074828Z`). Prod still on `shareddb-y.hosting.stackcp.net` / `tch_placements-313539d33a` — untouched. Split proven with a sentinel table written to dev only. Closes the shared-DB exception (FR-0076) ahead of Tuniti UAT.
+- Going-forward rule logged: once users are live, DB dumps/restores happen only in a maintenance window with users locked out.
+
+### Changed — D1: billing defaults moved off `persons` onto `clients`
+
+- **Migration 028 (`028_client_defaults_off_persons.sql`)** — renames `clients.billing_freq` → `clients.default_billing_freq`; adds `default_day_rate` / `default_shift_type` / `default_schedule`; backfills from `persons`; drops `persons.day_rate` / `billing_freq` / `shift_type` / `schedule`.
+- **Why:** these four fields on `persons` were leftover from the pre-engagements model and already lied when a client had two engagements at different rates. Single source of truth now: the engagement row holds the actual contract rates; client-level `default_*` columns are prefill-only for the new-engagement form.
+- `templates/admin/client_view.php` — "Billing" section renamed to "Billing Defaults" with a "prefilled into new Care Schedules for this client; each engagement can override" hint. Form field names switched to `default_*`.
+- `templates/admin/engagements.php` — patient picker now carries `data-bill-rate` from `clients.default_day_rate`; selecting a patient prefills the Bill Rate input (same pattern as caregiver → Cost Rate).
+
 ## [0.9.21] - 2026-04-13 (prod) — Client + Patient profiles, dedup, archive, billing history, "What's New" gate, bill-payer guardrail
 
 Rolls up all work since v0.9.20 into one prod cut.

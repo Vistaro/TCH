@@ -91,7 +91,12 @@ $caregiverOptions = $db->query(
 )->fetchAll();
 
 $patientOptions = $db->query(
-    "SELECT pt.person_id, p.full_name, pt.patient_name FROM patients pt JOIN persons p ON p.id = pt.person_id ORDER BY p.full_name"
+    "SELECT pt.person_id, p.full_name, pt.patient_name,
+            c.default_day_rate AS client_default_rate
+     FROM patients pt
+     JOIN persons p  ON p.id = pt.person_id
+     LEFT JOIN clients c ON c.id = pt.client_id
+     ORDER BY p.full_name"
 )->fetchAll();
 
 $productOptions = $db->query("SELECT * FROM products WHERE is_active = 1 ORDER BY sort_order")->fetchAll();
@@ -136,10 +141,10 @@ require APP_ROOT . '/templates/layouts/admin.php';
             </div>
             <div>
                 <label>Patient</label>
-                <select name="patient_id" required class="form-control">
+                <select name="patient_id" required class="form-control" id="eng-pt-select">
                     <option value="">Select...</option>
                     <?php foreach ($patientOptions as $o): ?>
-                    <option value="<?= $o['person_id'] ?>"><?= htmlspecialchars($o['patient_name'] ?: $o['full_name']) ?></option>
+                    <option value="<?= $o['person_id'] ?>" data-bill-rate="<?= $o['client_default_rate'] !== null ? (float)$o['client_default_rate'] : '' ?>"><?= htmlspecialchars($o['patient_name'] ?: $o['full_name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -154,7 +159,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.75rem;margin-top:0.75rem;">
             <div><label>Cost Rate (R/day)</label><input type="number" step="0.01" name="cost_rate" id="eng-cost-rate" required class="form-control"></div>
-            <div><label>Bill Rate (R/day)</label><input type="number" step="0.01" name="bill_rate" required class="form-control"></div>
+            <div><label>Bill Rate (R/day)</label><input type="number" step="0.01" name="bill_rate" id="eng-bill-rate" required class="form-control"></div>
             <div><label>Start Date</label><input type="date" name="start_date" required class="form-control"></div>
             <div><label>End Date (optional)</label><input type="date" name="end_date" class="form-control"></div>
         </div>
@@ -168,6 +173,10 @@ require APP_ROOT . '/templates/layouts/admin.php';
 document.getElementById('eng-cg-select')?.addEventListener('change', function() {
     const rate = this.options[this.selectedIndex].dataset.rate;
     if (rate) document.getElementById('eng-cost-rate').value = rate;
+});
+document.getElementById('eng-pt-select')?.addEventListener('change', function() {
+    const billRate = this.options[this.selectedIndex].dataset.billRate;
+    if (billRate) document.getElementById('eng-bill-rate').value = billRate;
 });
 </script>
 
