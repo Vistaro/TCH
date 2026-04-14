@@ -376,6 +376,29 @@ sqlLines.push(`UPDATE _panel_invoices_tmp t
   SET t.client_id = a.person_id;`);
 
 sqlLines.push('');
+sqlLines.push('-- ── 6b. Integrity gate: every panel invoice must resolve via aliases ──');
+sqlLines.push(`-- The alias table is the single source of truth for client-name resolution.
+-- Any unresolved alias here means a panel-header string in the workbook has no
+-- matching role='client' alias row. Operator must fix via /admin/config/aliases
+-- before re-running the ingest — we do NOT silently drop or misroute invoices.
+--
+-- SELECT below returns the offending aliases; downstream SQL uses IF() to
+-- abort the transaction with a descriptive error if any remain unresolved.
+SELECT alias_text AS unresolved_client_alias, SUM(amount) AS untracked_amount
+  FROM _panel_invoices_tmp
+ WHERE client_id IS NULL
+ GROUP BY alias_text;
+
+SET @unresolved_count = (SELECT COUNT(*) FROM _panel_invoices_tmp WHERE client_id IS NULL);
+SELECT IF(@unresolved_count = 0, 'panel-alias resolution: OK',
+          CONCAT('ABORT: ', @unresolved_count, ' panel-invoice rows have unresolved client aliases — fix in /admin/config/aliases before re-running'))
+  AS resolution_check;
+
+-- Note: check for 'ABORT' in resolution_check output before trusting the
+-- downstream apportionment. The CLI wrapper that runs this script
+-- should parse the result and refuse to commit if it starts with ABORT.`);
+
+sqlLines.push('');
 sqlLines.push('-- ── 7. Apportion bill_rate — client-month total ÷ shift count ──────');
 sqlLines.push(`-- bill_rate = SUM(invoice amount) / SUM(units) for shifts where client matches, for that month
 UPDATE daily_roster r

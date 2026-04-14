@@ -373,8 +373,21 @@ foreach ($nlSheet as $row) {
 echo "  Inserted $nlCount name lookup records\n";
 
 // ── 5. Ingest Client Revenue ────────────────────────────────
+//
+// DEPRECATED 2026-04-14. This block populates `client_revenue` from a
+// pre-digested "Client Revenue" sheet using a $clientIdMap built from
+// the workbook's "Clients" sheet — a second name-resolution path that
+// diverges from `tools/timesheet/build_ingest_sql.js` (which uses the
+// `timesheet_name_aliases` table as the single source of truth).
+//
+// Going forward, `client_revenue` should be populated by the Panel
+// ingest in the timesheet pipeline (alias-driven, gated by the
+// integrity check in step 6b). This seed block remains for the
+// one-off historical rebuild but must not be used against new inputs.
+// If you find yourself re-running this, pause and check whether the
+// Panel ingest can do it — almost certainly yes.
 
-echo "\n── Ingesting Client Revenue ──\n";
+echo "\n── Ingesting Client Revenue (DEPRECATED — alias-driven Panel ingest is canonical) ──\n";
 $crSheet = sheetToArray($dataWb->getSheetByName('Client Revenue'));
 $crCount = 0;
 $crIdMap = []; // sequential index => db id, for audit trail linking
