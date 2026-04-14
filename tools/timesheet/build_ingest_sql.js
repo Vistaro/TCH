@@ -34,11 +34,26 @@ function sha256(path) {
 
 function esc(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
-function serialToISO(serial) {
-  // Excel serial: days since 1900-01-01 (with the leap-year bug)
+// Extract intended year-month from a tab name like "Caregiver Jan 2026"
+function tabIntent(tabName) {
+  const months = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+  const m = String(tabName).match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{4})/i);
+  return m ? { year: parseInt(m[2]), month: months[m[1].toLowerCase()] } : null;
+}
+
+function serialToISO(serial, tabName) {
+  // Excel serial → date, then FORCE the year-month to match the tab name.
+  // Tuniti occasionally copy-pastes a previous year's tab and updates the
+  // name but not the numeric date serials; without this we'd file shifts
+  // under the wrong month/year.
   const epoch = new Date(Date.UTC(1899, 11, 30)); // 30 Dec 1899
   const d = new Date(epoch.getTime() + Number(serial) * 86400000);
-  return d.toISOString().slice(0, 10);
+  const day = d.getUTCDate();
+  let year = d.getUTCFullYear();
+  let month = d.getUTCMonth() + 1;
+  const intent = tabName ? tabIntent(tabName) : null;
+  if (intent) { year = intent.year; month = intent.month; }
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 }
 
 function parseShiftCell(raw) {
@@ -119,7 +134,7 @@ for (const tab of tswb.SheetNames) {
     if (!dateCell || !dateCell.v) continue;
     const dateSerial = Number(dateCell.v);
     if (isNaN(dateSerial) || dateSerial < 40000) continue;
-    const isoDate = serialToISO(dateSerial);
+    const isoDate = serialToISO(dateSerial, tab);
 
     for (const { col, caregiver, rate: monthRate } of cgCols) {
       const addr = XLSX.utils.encode_cell({ r, c: col });
@@ -208,7 +223,7 @@ for (const tab of panwb.SheetNames) {
         invoiceEvents.push({
           tab, cell: XLSX.utils.encode_cell({ r: rr, c }),
           clientAlias: canonClient,
-          date: serialToISO(dateSerial),
+          date: serialToISO(dateSerial, tab),
           amount, note,
         });
       }

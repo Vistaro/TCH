@@ -355,6 +355,28 @@ Per-caregiver column arithmetic (cells × rate) does not tie to the
 3. Missing rates (4 caregiver-months) hard-block ingest until Tuniti
    supplies the rate that applied.
 
+### Tuniti Timesheet: Jan 2026 tab has wrong date serials (added 2026-04-14)
+
+`Tuniti Caregiver Timesheets Apr-26.xlsx`, tab `Caregiver Jan 2026`:
+the numeric date serials in col A (rows 4-34) are Jan **2025** serials
+(45658-45688 = 1-31 Jan 2025), not Jan 2026 (which should be
+46023-46053). The tab title and the day-of-week labels in col B say
+2026 — suggests the tab was copy-pasted from Jan 2025 and only the
+title + day labels updated.
+
+**Impact if ingested literally:** all Jan 2026 shifts file under Jan
+2025 — around 294 shifts disappear from the 2026 roster reports and
+fail to match Jan 2026 Panel invoices.
+
+**Our fix (2026-04-14):** ingest now derives year-month from the tab
+NAME and uses only the day-of-month from the serial. Guards against
+this and any similar future copy-paste errors. No intervention needed
+before ingest.
+
+**Action for Tuniti:** please repair the Jan 2026 tab serials (or the
+whole column A) in the workbook, so it's internally consistent when
+they're working on it. No urgency — ingest handles it on our side.
+
 ### Timesheet data anomalies — self-check required (added 2026-04-14)
 
 Discovered during Phase 1 name-alignment of the Caregiver Timesheets
