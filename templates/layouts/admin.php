@@ -96,9 +96,14 @@ if ($user && empty($user['avatar_path'])) {
                 <?php endif; ?>
             <?php endif; ?>
 
-            <?php if (userCan('enquiries', 'read')): ?>
+            <?php if (userCan('enquiries', 'read') || userCan('onboarding', 'read')): ?>
                 <li class="nav-heading">Inbox</li>
-                <li><a href="<?= APP_URL ?>/admin/enquiries" class="<?= ($activeNav ?? '') === 'enquiries' ? 'active' : '' ?>">&#9632; Enquiries</a></li>
+                <?php if (userCan('enquiries', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/enquiries" class="<?= ($activeNav ?? '') === 'enquiries' ? 'active' : '' ?>">&#9632; Enquiries</a></li>
+                <?php endif; ?>
+                <?php if (userCan('onboarding', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/onboarding" class="<?= ($activeNav ?? '') === 'onboarding' ? 'active' : '' ?>">&#9632; Tuniti Onboarding</a></li>
+                <?php endif; ?>
             <?php endif; ?>
 
             <?php if (userCan('people_review', 'read')): ?>

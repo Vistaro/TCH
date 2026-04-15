@@ -134,6 +134,48 @@ if ($route === 'admin/unbilled-care') {
     exit;
 }
 
+// ── Onboarding dashboard + task subpages ──────────────────────────
+if ($route === 'admin/onboarding') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_dashboard.php';
+    exit;
+}
+if ($route === 'admin/onboarding/review') {
+    requirePagePermission('onboarding_review', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_review.php';
+    exit;
+}
+if ($route === 'admin/onboarding/jan2026-ack') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_jan2026_ack.php';
+    exit;
+}
+if ($route === 'admin/onboarding/products') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_products.php';
+    exit;
+}
+if ($route === 'admin/onboarding/aliases') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_aliases.php';
+    exit;
+}
+if ($route === 'admin/onboarding/contracts') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_contracts.php';
+    exit;
+}
+if ($route === 'admin/onboarding/caregiver-patterns') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_caregiver_patterns.php';
+    exit;
+}
+if ($route === 'admin/onboarding/reconciliation') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_reconciliation.php';
+    exit;
+}
+
 if ($route === 'admin/whats-new') {
     requirePagePermission('whats_new', 'read');
     require APP_ROOT . '/templates/admin/whats_new.php';

@@ -4,6 +4,51 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### Added — `/admin/onboarding` Tuniti task dashboard
+
+Replaces the current email-and-WhatsApp ping-pong with Tuniti for outstanding
+business data. Extensible task registry; adding a new task is one entry in
+`includes/onboarding_tasks.php` plus one subpage. Every task can accept
+file uploads (xlsx / doc / pdf / image — anything Tuniti has); uploads
+land in a shared review queue for admin to extract structured data from.
+
+- **Migration 032** — `onboarding_uploads`, `system_acknowledgements`,
+  `timesheet_reconciliation_items` tables. Registers `onboarding` and
+  `onboarding_review` pages in the permission registry. Grants Super
+  Admin + Admin full CRUD.
+- **Migration 033** — seeds `timesheet_reconciliation_items` with the 56
+  discrepancy rows from the Apr-26 Timesheet reconciliation workbook
+  (2026-04-14). Idempotent on the `apr-26-recon` batch.
+- **`includes/onboarding_tasks.php`** — registry with 6 tasks: contracts,
+  product_defaults, caregiver_patterns, alias_disambig, timesheet_recon,
+  jan2026_date_ack. Each entry has title, description, count function,
+  subpage URL, priority, upload hint.
+- **`includes/onboarding_upload.php`** — shared upload handler + widget
+  renderer. 25MB limit. Files land at `storage/onboarding/YYYY-MM/`
+  outside the webroot. sha256 hash captured, metadata in DB.
+- **`/admin/onboarding`** — dashboard landing page. Cards per task with
+  pending-count badge, priority colour, done tasks collapsed.
+- **`/admin/onboarding/review`** — admin queue of all uploads across all
+  tasks. Status workflow: uploaded → in_review → ingested / rejected.
+  Notes field per upload.
+- **`/admin/onboarding/jan2026-ack`** — one-shot ack button for the Jan
+  2026 date-serial parser fix.
+- **`/admin/onboarding/products`** — bulk-edit form for product billing
+  defaults (billing_freq, min_term_months, default_price).
+- **`/admin/onboarding/aliases`** — summary + deep-link to the existing
+  alias admin with pre-filtered unresolved view.
+- **`/admin/onboarding/contracts`** — lists draft contracts, accepts
+  upload, shortcut to `/admin/contracts/new`.
+- **`/admin/onboarding/caregiver-patterns`** — bulk table of caregivers
+  with day-of-week checkboxes, day/night/both shift selector, live-in
+  toggle. Saves to `caregivers.working_pattern`.
+- **`/admin/onboarding/reconciliation`** — 56-line reconciliation UI.
+  Each row shows computed vs sheet-total delta and pattern tag. Tuniti
+  picks resolution: accept loan / record bonus / confirm rate / accept
+  unexplained / flag / ignore. Writes decision + notes to the item row.
+  Loan-ledger writeback deferred to the caregiver-loans build.
+- **Nav** — new "Tuniti Onboarding" entry in the Inbox section.
+
 ### Tidy-up pass — alias re-map, sort arrows, column alignment (2026-04-15)
 
 - **Alias re-map cascade (`/admin/config/aliases`).** When an alias's `person_id`
