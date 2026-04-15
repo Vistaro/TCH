@@ -1637,7 +1637,22 @@ h3 { font-size: 1.35rem; }
     .navbar-nav a.btn {
         display: block;
         text-align: center;
-        padding: 0.85rem 1rem;
+        padding: 0.95rem 1rem;
+        /* Defensive: ensure the tap reaches the link in iOS Safari
+           regardless of the drawer's in-flight transform. */
+        pointer-events: auto;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(16,178,180,0.25);
+    }
+
+    /* Sign In button gets its own breathing room at the bottom. */
+    .navbar-nav .nav-signin {
+        margin-top: 1.5rem;
+        border-bottom: none !important;
+    }
+    .navbar-nav .nav-signin a.btn {
+        font-size: 1.05rem;
+        padding: 1.1rem 1rem;
     }
 
     body.public-menu-open .navbar-nav {

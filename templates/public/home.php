@@ -68,7 +68,7 @@ $enquiryResult = $_GET['enquiry'] ?? null;
             <li><a href="#why-tch" onclick="document.body.classList.remove('public-menu-open')">Why TCH</a></li>
             <li><a href="#how-it-works" onclick="document.body.classList.remove('public-menu-open')">How It Works</a></li>
             <li><a href="#enquire" onclick="document.body.classList.remove('public-menu-open')">Find a Caregiver</a></li>
-            <li><a href="<?= APP_URL ?>/login" class="btn btn-sm btn-primary" onclick="document.body.classList.remove('public-menu-open')">Sign In</a></li>
+            <li class="nav-signin"><a href="<?= APP_URL ?>/login" class="btn btn-primary">Sign In</a></li>
         </ul>
     </div>
 </nav>
