@@ -56,9 +56,9 @@ if ($filterCohort !== '') {
 }
 
 // ── Fetch flat rows, pivot in PHP ───────────────────────────────────────
-// Single source of truth: aggregate daily_roster (cost_rate × units) per
-// caregiver × month. caregiver_costs retained as historical read-only
-// snapshot; D3 ingest is authoritative.
+// Pivot daily_roster (cost_rate × units) per caregiver × month.
+// daily_roster is the single cost-side source of truth across the
+// whole reporting suite.
 $sql = "SELECT dr.caregiver_id,
                COALESCE(p.full_name, dr.caregiver_name) AS display_name,
                DATE_FORMAT(dr.roster_date, '%Y-%m-01') AS month_date,
@@ -147,14 +147,6 @@ function zar_cell(float $v): string {
 <p style="color:#666;font-size:0.85rem;margin:0 0 0.75rem 0;">
     Click any column header to sort. Click any cell value to see which clients
     contributed to that caregiver's earnings that month.
-</p>
-<p style="background:#fff3cd;border:1px solid #ffeeba;color:#856404;padding:0.5rem 0.75rem;border-radius:4px;font-size:0.85rem;margin:0 0 0.75rem 0;">
-    <i class="fas fa-info-circle"></i>
-    <strong>Why this total (R 709,620) differs from the dashboard's "Total Wages" (R 692,148):</strong>
-    this report reads the monthly-summary ledger (<code>caregiver_costs</code>), the dashboard reads
-    the per-shift ledger (<code>daily_roster.cost_rate</code>). Both were ingested from different
-    Tuniti spreadsheets and drift by ~R 17,500. Will reconcile when the roster redesign
-    (D2 in the backlog) makes the per-shift ledger the single source of truth.
 </p>
 
 <div class="report-table-wrap">
