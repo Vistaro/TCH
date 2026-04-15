@@ -1640,6 +1640,20 @@ h3 { font-size: 1.35rem; }
         padding: 0.85rem 1rem;
     }
 
+    /* The drawer is DOM-nested inside <nav class="navbar">, which is
+       position:sticky with z-index:100. That sticky container creates
+       a stacking context, capping the drawer's z-index:200 to within
+       the navbar's z-100 globally. The overlay at root-level z-199
+       would then sit ABOVE the drawer, intercepting every tap and
+       closing the drawer before the link click resolves.
+
+       Fix: raise the navbar's stacking context above the overlay while
+       the drawer is open, so the drawer (at z-200 within navbar) ends
+       up above the overlay (at root z-199). */
+    body.public-menu-open .navbar {
+        z-index: 250;
+    }
+
     body.public-menu-open .navbar-nav {
         transform: translateX(0);
     }
