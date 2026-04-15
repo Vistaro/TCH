@@ -50,9 +50,9 @@ $totMargin = $totRev - $totCost;
 <div class="report-table-wrap">
 <table class="report-table tch-data-table">
     <thead><tr>
-        <th>Account</th><th>Client Name</th><th>Patient Name</th>
-        <th>Entity</th><th>Revenue Months</th><th>Total Billed</th>
-        <th>Shifts</th><th>Total Cost</th><th>Gross Margin</th>
+        <th class="center">Account</th><th>Client Name</th><th>Patient Name</th>
+        <th class="center">Entity</th><th class="number">Revenue Months</th><th class="number">Total Billed</th>
+        <th class="number">Shifts</th><th class="number">Total Cost</th><th class="number">Gross Margin</th>
     </tr></thead>
     <tbody>
     <?php foreach ($rows as $r):
@@ -61,7 +61,7 @@ $totMargin = $totRev - $totCost;
     ?>
     <tr style="cursor:pointer;<?= $rowStyle ?>"
         onclick="window.location='<?= APP_URL ?>/admin/clients/<?= (int)$r['id'] ?>';">
-        <td><code><?= htmlspecialchars($r['account_number'] ?? '') ?></code></td>
+        <td class="center"><code><?= htmlspecialchars($r['account_number'] ?? '') ?></code></td>
         <td>
             <a href="<?= APP_URL ?>/admin/clients/<?= (int)$r['id'] ?>" onclick="event.stopPropagation();">
                 <?= htmlspecialchars($r['client_name'] ?? 'Company (no person)') ?>
@@ -69,7 +69,7 @@ $totMargin = $totRev - $totCost;
             <?php if ($r['archived_at']): ?> <span style="font-size:0.75rem;color:#856404;">(archived)</span><?php endif; ?>
         </td>
         <td><?= htmlspecialchars($r['patient_name'] ?? '') ?: '<span style="color:#ccc;">same</span>' ?></td>
-        <td><?= htmlspecialchars($r['billing_entity'] ?? '') ?></td>
+        <td class="center"><?= htmlspecialchars($r['billing_entity'] ?? '') ?></td>
         <td class="number"><?= (int)$r['revenue_rows'] ?></td>
         <td class="number"><?= (float)$r['total_billed'] > 0 ? 'R' . number_format((float)$r['total_billed'], 0) : '—' ?></td>
         <td class="number"><?= (int)$r['shift_count'] ?></td>

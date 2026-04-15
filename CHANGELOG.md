@@ -4,6 +4,29 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### Tidy-up pass — alias re-map, sort arrows, column alignment (2026-04-15)
+
+- **Alias re-map cascade (`/admin/config/aliases`).** When an alias's `person_id`
+  changes via the Map action, cascade the update to `daily_roster` rows that
+  were resolved via that alias (tracked by `source_alias_id`). Caregiver-role
+  aliases → update `caregiver_id`; patient-role aliases → update
+  `patient_person_id`. Client-role re-derivation via `patients.client_id`
+  remains a separate flow. Flash message reports the row count. Activity log
+  captures the cascade count.
+- **Sort arrows hardened (BUG-0037).** Rewrote `tch-table.js` arrow rendering
+  to use explicit unicode glyphs (↕ / ▲ / ▼) as `textContent` keyed on a
+  `data-sort-state` attribute, rather than the `color:transparent` + `::after`
+  CSS trick which could collide with page-level overrides. CSS updated to match;
+  removed the `::before` / `::after` placeholder tricks. Bulletproofs rendering
+  across every `tch-data-table`.
+- **Column alignment rollout.** Generalised the `.number` / `.center`
+  alignment classes in `style.css` to apply across every
+  `.tch-data-table` / `.name-table` (not just `.report-table`). Applied the
+  classes to: clients_list, caregivers_list, patients_list, users_list,
+  activity_log, email_log_list. (Contracts list already aligned; reports
+  aligned during the revenue-fix pass on 2026-04-14.) `roles_list` remains
+  as minor follow-up.
+
 ### Changed — "Unbilled Care" → "Care without matching invoice" (live query)
 
 - Renamed `Unbilled Care` tile + page to `Care without matching invoice`.

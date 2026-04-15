@@ -118,14 +118,14 @@ require APP_ROOT . '/templates/layouts/admin.php';
     <table class="name-table tch-data-table">
         <thead>
             <tr>
-                <th>When</th>
+                <th class="center">When</th>
                 <th>Actor</th>
                 <th>Impersonator</th>
-                <th>Action</th>
-                <th>Page</th>
+                <th class="center">Action</th>
+                <th class="center">Page</th>
                 <th>Entity</th>
                 <th>Summary</th>
-                <th>IP</th>
+                <th class="center">IP</th>
                 <th></th>
             </tr>
         </thead>
@@ -135,7 +135,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <?php else: ?>
                 <?php foreach ($rows as $r): ?>
                     <tr>
-                        <td><?= htmlspecialchars($r['created_at']) ?></td>
+                        <td class="center"><?= htmlspecialchars($r['created_at']) ?></td>
                         <td>
                             <?php if ($r['real_user_id']): ?>
                                 <?= htmlspecialchars($r['real_email'] ?? '#'.$r['real_user_id']) ?>
@@ -150,8 +150,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
                                 —
                             <?php endif; ?>
                         </td>
-                        <td><code><?= htmlspecialchars($r['action']) ?></code></td>
-                        <td><?= htmlspecialchars($r['page_code'] ?? '—') ?></td>
+                        <td class="center"><code><?= htmlspecialchars($r['action']) ?></code></td>
+                        <td class="center"><?= htmlspecialchars($r['page_code'] ?? '—') ?></td>
                         <td>
                             <?= htmlspecialchars($r['entity_type'] ?? '—') ?>
                             <?= $r['entity_id'] ? '#' . (int)$r['entity_id'] : '' ?>
@@ -169,7 +169,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                             echo activity_render_inline_diff($rowDiff);
                             ?>
                         </td>
-                        <td><?= htmlspecialchars($r['ip_address'] ?? '—') ?></td>
+                        <td class="center"><?= htmlspecialchars($r['ip_address'] ?? '—') ?></td>
                         <td>
                             <a href="<?= APP_URL ?>/admin/activity/<?= (int)$r['id'] ?>" class="btn btn-outline btn-sm">View</a>
                         </td>

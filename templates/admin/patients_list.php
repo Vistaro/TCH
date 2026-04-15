@@ -39,9 +39,9 @@ require APP_ROOT . '/templates/layouts/admin.php';
 <div class="report-table-wrap">
 <table class="report-table tch-data-table">
     <thead><tr>
-        <th>TCH ID</th><th>Patient Name</th><th>Display Name</th>
-        <th>Client (Billed To)</th><th>Account</th>
-        <th>Shifts</th><th>Last Shift</th>
+        <th class="center">TCH ID</th><th>Patient Name</th><th>Display Name</th>
+        <th>Client (Billed To)</th><th class="center">Account</th>
+        <th class="number">Shifts</th><th class="center">Last Shift</th>
     </tr></thead>
     <tbody>
     <?php foreach ($rows as $r):
@@ -49,7 +49,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     ?>
     <tr style="cursor:pointer;<?= $rowStyle ?>"
         onclick="window.location='<?= APP_URL ?>/admin/patients/<?= (int)$r['person_id'] ?>';">
-        <td><code><?= htmlspecialchars((string)($r['tch_id'] ?? '')) ?></code></td>
+        <td class="center"><code><?= htmlspecialchars((string)($r['tch_id'] ?? '')) ?></code></td>
         <td>
             <a href="<?= APP_URL ?>/admin/patients/<?= (int)$r['person_id'] ?>" onclick="event.stopPropagation();">
                 <?= htmlspecialchars($r['patient_name'] ?: $r['full_name']) ?>
@@ -62,9 +62,9 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <?= htmlspecialchars($r['client_name'] ?? '') ?>
             </a>
         </td>
-        <td><code><?= htmlspecialchars($r['account_number'] ?? '') ?></code></td>
+        <td class="center"><code><?= htmlspecialchars($r['account_number'] ?? '') ?></code></td>
         <td class="number"><?= (int)$r['shift_count'] ?></td>
-        <td><?= $r['last_shift'] ? htmlspecialchars($r['last_shift']) : '—' ?></td>
+        <td class="center"><?= $r['last_shift'] ? htmlspecialchars($r['last_shift']) : '—' ?></td>
     </tr>
     <?php endforeach; ?>
     </tbody>

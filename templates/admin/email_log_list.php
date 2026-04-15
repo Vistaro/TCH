@@ -89,12 +89,12 @@ require APP_ROOT . '/templates/layouts/admin.php';
     <table class="name-table tch-data-table">
         <thead>
             <tr>
-                <th>When</th>
+                <th class="center">When</th>
                 <th>To</th>
                 <th>Subject</th>
-                <th>Template</th>
-                <th>Status</th>
-                <th>Action</th>
+                <th class="center">Template</th>
+                <th class="center">Status</th>
+                <th class="center">Action</th>
             </tr>
         </thead>
         <tbody>
@@ -103,15 +103,15 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <?php else: ?>
                 <?php foreach ($rows as $r): ?>
                     <tr>
-                        <td><?= htmlspecialchars($r['created_at']) ?></td>
+                        <td class="center"><?= htmlspecialchars($r['created_at']) ?></td>
                         <td>
                             <?= htmlspecialchars($r['to_name'] ?? '') ?>
                             <?php if ($r['to_name']): ?><br><?php endif; ?>
                             <small><?= htmlspecialchars($r['to_email']) ?></small>
                         </td>
                         <td><?= htmlspecialchars($r['subject']) ?></td>
-                        <td><code><?= htmlspecialchars($r['template'] ?? '—') ?></code></td>
-                        <td>
+                        <td class="center"><code><?= htmlspecialchars($r['template'] ?? '—') ?></code></td>
+                        <td class="center">
                             <?php if ($r['status'] === 'sent'): ?>
                                 <span class="badge badge-success">Sent</span>
                             <?php elseif ($r['status'] === 'failed'): ?>
@@ -120,7 +120,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                                 <span class="badge badge-warning">Queued</span>
                             <?php endif; ?>
                         </td>
-                        <td>
+                        <td class="center">
                             <a href="<?= APP_URL ?>/admin/email-log/<?= (int)$r['id'] ?>" class="btn btn-outline btn-sm">View</a>
                         </td>
                     </tr>

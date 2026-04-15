@@ -289,11 +289,11 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <tr>
                 <th>Name</th>
                 <th>Email</th>
-                <th>Role</th>
+                <th class="center">Role</th>
                 <th>Manager</th>
-                <th>Status</th>
-                <th>Last Login</th>
-                <th>Actions</th>
+                <th class="center">Status</th>
+                <th class="center">Last Login</th>
+                <th class="center">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -304,9 +304,9 @@ require APP_ROOT . '/templates/layouts/admin.php';
                     <tr>
                         <td><strong><?= htmlspecialchars($r['full_name']) ?></strong></td>
                         <td><?= htmlspecialchars($r['email']) ?></td>
-                        <td><?= htmlspecialchars($r['role_name'] ?? '—') ?></td>
+                        <td class="center"><?= htmlspecialchars($r['role_name'] ?? '—') ?></td>
                         <td><?= htmlspecialchars($r['manager_email'] ?? '—') ?></td>
-                        <td>
+                        <td class="center">
                             <?php if ((int)$r['is_active'] === 1): ?>
                                 <?php if (!empty($r['locked_until']) && strtotime($r['locked_until']) > time()): ?>
                                     <span class="badge badge-warning">Locked</span>
@@ -319,7 +319,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                                 <span class="badge badge-muted">Inactive</span>
                             <?php endif; ?>
                         </td>
-                        <td><?= $r['last_login'] ? htmlspecialchars($r['last_login']) : '<span style="color:#999;">never</span>' ?></td>
+                        <td class="center"><?= $r['last_login'] ? htmlspecialchars($r['last_login']) : '<span style="color:#999;">never</span>' ?></td>
                         <td>
                             <a href="<?= APP_URL ?>/admin/users/<?= (int)$r['id'] ?>" class="btn btn-outline btn-sm">View</a>
                             <?php if ($canEdit && (int)$r['id'] !== (int)$me['id']): ?>

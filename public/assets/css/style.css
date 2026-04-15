@@ -809,7 +809,9 @@ h3 { font-size: 1.35rem; }
     background: #FAFBFC;
 }
 
-.report-table .number {
+.report-table .number,
+.tch-data-table .number,
+.name-table .number {
     text-align: right;
     font-variant-numeric: tabular-nums;
     padding-right: 1.25rem;
@@ -818,7 +820,9 @@ h3 { font-size: 1.35rem; }
 /* Centre-align for fixed-width / short-string columns — TCH IDs, dates,
    yes/no flags, phone numbers, short codes. Apply class="center" to the
    <th> and matching <td>s. */
-.report-table .center {
+.report-table .center,
+.tch-data-table .center,
+.name-table .center {
     text-align: center;
 }
 
@@ -1796,30 +1800,20 @@ table.tch-data-table th.tch-sortable:hover {
 
 table.tch-data-table th.tch-sortable .tch-sort-arrow {
     display: inline-block;
-    width: 1rem;
+    min-width: 1rem;
     color: #9CA3AF;
     font-size: 0.85em;
     margin-left: 0.25rem;
     vertical-align: middle;
     transition: color 0.15s ease;
+    /* Arrow glyph is set directly by JS as textContent. No ::after or
+       color:transparent trickery — glyph is always visible in the state
+       set by data-sort-state. Defensive against page-level CSS overrides. */
 }
-
-table.tch-data-table th.tch-sorted-asc .tch-sort-arrow::after {
-    content: '\25B2'; /* ▲ */
+table.tch-data-table th.tch-sortable .tch-sort-arrow[data-sort-state="asc"],
+table.tch-data-table th.tch-sortable .tch-sort-arrow[data-sort-state="desc"] {
     color: #10B2B4;
-}
-table.tch-data-table th.tch-sorted-desc .tch-sort-arrow::after {
-    content: '\25BC'; /* ▼ */
-    color: #10B2B4;
-}
-table.tch-data-table th.tch-sorted-asc .tch-sort-arrow,
-table.tch-data-table th.tch-sorted-desc .tch-sort-arrow {
-    color: transparent; /* hide the placeholder ↕, show ::after arrow */
-}
-table.tch-data-table th.tch-sorted-asc .tch-sort-arrow::before,
-table.tch-data-table th.tch-sorted-desc .tch-sort-arrow::before {
-    /* absorb the placeholder text so ::after shows cleanly */
-    content: '';
+    font-weight: bold;
 }
 
 /* Filter row — sits below the header row, inside thead */

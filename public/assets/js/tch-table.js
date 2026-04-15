@@ -91,10 +91,15 @@
             th.classList.add('tch-sortable');
             th.setAttribute('data-col-idx', String(colIdx));
 
-            // Append a sort indicator
+            // Append a sort indicator. Using a stateful span with
+            // data-sort-state so the CSS can show the right glyph for
+            // unsorted / asc / desc without ::after tricks that can
+            // collide with page-level CSS overrides.
             var arrow = document.createElement('span');
             arrow.className = 'tch-sort-arrow';
-            arrow.innerHTML = ' &#x2195;'; // ↕ placeholder
+            arrow.setAttribute('data-sort-state', 'none');
+            arrow.textContent = '\u2195'; // ↕ default placeholder — overwritten on sort
+            arrow.setAttribute('aria-hidden', 'true');
             th.appendChild(arrow);
 
             th.addEventListener('click', function (ev) {
@@ -146,6 +151,11 @@
         qsa('th', qs('thead', table)).forEach(function (other) {
             other.removeAttribute('data-sort-dir');
             other.classList.remove('tch-sorted-asc', 'tch-sorted-desc');
+            var otherArrow = qs('.tch-sort-arrow', other);
+            if (otherArrow) {
+                otherArrow.setAttribute('data-sort-state', 'none');
+                otherArrow.textContent = '\u2195';
+            }
         });
 
         // Original order recovery: we stashed the original index on each row
@@ -202,6 +212,11 @@
 
         th.setAttribute('data-sort-dir', nextDir);
         th.classList.add(nextDir === 'asc' ? 'tch-sorted-asc' : 'tch-sorted-desc');
+        var thisArrow = qs('.tch-sort-arrow', th);
+        if (thisArrow) {
+            thisArrow.setAttribute('data-sort-state', nextDir);
+            thisArrow.textContent = nextDir === 'asc' ? '\u25B2' : '\u25BC';  // ▲ / ▼
+        }
     }
 
     /**

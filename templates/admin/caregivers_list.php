@@ -67,18 +67,18 @@ foreach ($rows as $r) {
 <div class="report-table-wrap">
 <table class="report-table tch-data-table">
     <thead><tr>
-        <th>TCH ID</th><th>Name</th><th>Known As</th><th>Cohort</th>
-        <th>Status</th><th>Day Rate</th><th>Shifts</th><th>Total Earned</th>
+        <th class="center">TCH ID</th><th>Name</th><th>Known As</th><th class="center">Cohort</th>
+        <th class="center">Status</th><th class="number">Day Rate</th><th class="number">Shifts</th><th class="number">Total Earned</th>
         <th>Mobile</th>
     </tr></thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
     <tr>
-        <td><code><?= htmlspecialchars($r['tch_id']) ?></code></td>
+        <td class="center"><code><?= htmlspecialchars($r['tch_id']) ?></code></td>
         <td><a href="<?= APP_URL ?>/admin/students/<?= (int)$r['id'] ?>"><?= htmlspecialchars($r['full_name']) ?></a></td>
         <td><?= htmlspecialchars($r['known_as'] ?? '') ?></td>
-        <td><?= htmlspecialchars($r['cohort'] ?? 'N/K') ?></td>
-        <td><span class="badge badge-<?= $r['cg_status'] === 'placed' ? 'success' : ($r['cg_status'] === 'available' ? 'info' : 'muted') ?>"><?= ucfirst($r['cg_status']) ?></span></td>
+        <td class="center"><?= htmlspecialchars($r['cohort'] ?? 'N/K') ?></td>
+        <td class="center"><span class="badge badge-<?= $r['cg_status'] === 'placed' ? 'success' : ($r['cg_status'] === 'available' ? 'info' : 'muted') ?>"><?= ucfirst($r['cg_status']) ?></span></td>
         <td class="number"><?= $r['day_rate'] ? 'R' . number_format((float)$r['day_rate'], 0) : '—' ?></td>
         <td class="number"><?= (int)$r['shift_count'] ?></td>
         <td class="number"><?= (float)$r['total_earned'] > 0 ? 'R' . number_format((float)$r['total_earned'], 0) : '—' ?></td>

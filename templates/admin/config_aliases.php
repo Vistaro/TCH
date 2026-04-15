@@ -87,10 +87,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
                       WHERE id = ?"
                 );
                 $stmt->execute([$personId, (int)($_SESSION['user_id'] ?? 0), $aliasId]);
+
+                // Re-map trigger — cascade to daily_roster rows that were
+                // resolved via this alias. Source is the roster row's
+                // source_alias_id FK. Handles caregiver- and patient-role
+                // aliases; client-role re-derivation is via patients.client_id
+                // which is its own separate flow, so not cascaded here.
+                $cascadeRows = 0;
+                if ($aliasRole === 'caregiver') {
+                    $cg = $db->prepare(
+                        "UPDATE daily_roster
+                            SET caregiver_id = ?
+                          WHERE source_alias_id = ?
+                            AND (caregiver_id IS NULL OR caregiver_id <> ?)"
+                    );
+                    $cg->execute([$personId, $aliasId, $personId]);
+                    $cascadeRows = $cg->rowCount();
+                } elseif ($aliasRole === 'patient') {
+                    $pt = $db->prepare(
+                        "UPDATE daily_roster
+                            SET patient_person_id = ?
+                          WHERE source_alias_id = ?
+                            AND (patient_person_id IS NULL OR patient_person_id <> ?)"
+                    );
+                    $pt->execute([$personId, $aliasId, $personId]);
+                    $cascadeRows = $pt->rowCount();
+                }
+
                 logActivity('alias_mapped', 'config_aliases', 'timesheet_name_aliases', $aliasId,
-                    'Mapped alias to person_id=' . $personId, null, ['person_id' => $personId]);
+                    'Mapped alias to person_id=' . $personId
+                        . ($cascadeRows > 0 ? ' — cascaded to ' . $cascadeRows . ' roster rows' : ''),
+                    null, ['person_id' => $personId, 'cascaded_roster_rows' => $cascadeRows]);
                 $db->commit();
-                $flash = 'Alias mapped.';
+                $flash = 'Alias mapped.'
+                    . ($cascadeRows > 0
+                        ? ' ' . $cascadeRows . ' roster row' . ($cascadeRows === 1 ? '' : 's')
+                            . ' re-pointed to the new canonical person.'
+                        : '');
             } catch (Throwable $e) {
                 $db->rollBack();
                 $flash = 'Error: ' . $e->getMessage(); $flashType = 'error';
