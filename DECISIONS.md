@@ -9,6 +9,11 @@ Append-only. One entry per non-obvious design choice. Format:
 **Because:** …
 ```
 
+## 2026-04-16 — Per-line dates on `contract_lines`; parent `contracts.start_date` / `.end_date` become a display cache (FR-B)
+**Chose:** Add `start_date` + `end_date` (nullable) to `contract_lines` via migration 037. Each line carries its own run; `end_date = NULL` means ongoing. The parent `contracts.start_date` / `contracts.end_date` stay in place for now but are treated as display-cache / sort-key only — anywhere that cares about a line's actual window reads the line's own dates, falling through to the contract's dates only when the line's are NULL (migration 037 backfilled every existing row, so the fallback is a safety net for edge cases, not the primary path).
+**Over:** Leaving the single contract-level start/end and forcing every line to share them; or dropping `contracts.start_date` / `.end_date` immediately.
+**Because:** Real quotes bundle multiple products with different runs — "Day Care Jan–Mar, Errand Care Feb-ongoing" is common. Single contract-level dates either forced identical windows across lines (wrong) or required a separate contract per run (fragmented the commercial record). Per-line dates model reality. Retaining the contract-level columns avoids a noisy cutover — `contracts_list.php` and `onboarding_contracts.php` still sort by `c.start_date`, which is fine as a summary value. A follow-up (FR-B2) will either compute `contracts.start_date` / `.end_date` from lines (MIN/MAX with NULL-wins-for-ongoing) on read and retire the stored columns, or leave them as an advisory cache — TBD when FR-B2 is scoped.
+
 ## 2026-04-16 — Upload extension whitelist widened beyond spreadsheets
 **Chose:** Allowlist of `xlsx, xls, csv, pdf, doc, docx, png, jpg, jpeg, txt` on `includes/onboarding_upload.php::onboardingHandleUpload()`.
 **Over:** Spreadsheet-only list (`xlsx, xls, csv`).

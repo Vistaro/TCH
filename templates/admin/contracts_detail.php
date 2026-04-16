@@ -133,11 +133,17 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <th class="number">Bill rate</th>
             <th class="number">Units / period</th>
             <th class="number">Period total</th>
+            <th class="center">Starts</th>
+            <th class="center">Ends</th>
             <th>Notes</th>
         </tr></thead>
         <tbody>
         <?php foreach ($lines as $ln):
-            $lineTotal = (float)$ln['bill_rate'] * (float)$ln['units_per_period'];
+            $lineTotal   = (float)$ln['bill_rate'] * (float)$ln['units_per_period'];
+            // Fall through to the parent contract's dates if this line
+            // pre-dates migration 037 and has not been individually set.
+            $lineStart   = $ln['start_date'] ?: $c['start_date'];
+            $lineEnd     = $ln['end_date']   ?: $c['end_date'];
         ?>
             <tr>
                 <td><strong><?= htmlspecialchars($ln['product_name']) ?></strong> <code style="color:#6c757d;font-size:0.75rem;"><?= htmlspecialchars($ln['product_code']) ?></code></td>
@@ -146,6 +152,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <td class="number">R<?= number_format((float)$ln['bill_rate'], 2) ?></td>
                 <td class="number"><?= rtrim(rtrim(number_format((float)$ln['units_per_period'], 2), '0'), '.') ?></td>
                 <td class="number">R<?= number_format($lineTotal, 2) ?></td>
+                <td class="center"><?= $lineStart ? htmlspecialchars($lineStart) : '—' ?></td>
+                <td class="center"><?= $lineEnd ? htmlspecialchars($lineEnd) : '<em style="color:#6c757d;">ongoing</em>' ?></td>
                 <td><?= htmlspecialchars((string)($ln['notes'] ?? '')) ?></td>
             </tr>
         <?php endforeach; ?>
@@ -154,7 +162,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <tr style="font-weight:600;border-top:2px solid #333;">
                 <td colspan="5">Total per billing period</td>
                 <td class="number">R<?= number_format($periodTotal, 2) ?></td>
-                <td></td>
+                <td colspan="3"></td>
             </tr>
         </tfoot>
     </table>
