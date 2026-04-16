@@ -141,6 +141,51 @@ Ross-approved deploy window (recommendation: migrations run outside a
 maintenance window — zero forward risk — with the rsync of dependent
 code following after).
 
+### Outage-recovery 7-commit series (backfilled 2026-04-16)
+
+Governance review of the 2026-04-15-outage recovery series flagged
+that only the migrations-A commit (`7278bf9`) carried a CHANGELOG
+entry — the other six commits shipped without their own rollback
+recipe. Backfilled post-PROD (as a documentation commit, not an
+amend — the original SHAs are preserved; `git push origin main`
+already sealed them). Entries in chronological order below.
+
+#### 2026-04-16 — refactor(onboarding): display-label renames on products + reconciliation (`ad98f07`)
+**What changed:** Three user-visible label tweaks. `onboarding_products.php` table headers "Min term (months)" → "Min Requirement" and "Default day rate (R)" → "Default rate (R)" so the labels stay correct whatever billing frequency is picked. `onboarding_reconciliation.php` recon-row details summary "Suggested Tuniti query" → "What needs to be done" — same content, clearer framing for Tuniti.
+**Files touched:** `templates/admin/onboarding_products.php`, `templates/admin/onboarding_reconciliation.php`.
+**Rollback:** Revert those three `<th>` / `<summary>` strings to their pre-commit values. Zero schema dependency. No DB change. Safe to do live.
+**Why:** First-pass copy polish supporting the multi-unit pricing narrative that FR-A would carry forward. Cheapest user-facing improvement in the bundle.
+
+#### 2026-04-16 — feat(products): add 'hourly' to billing_freq options (`173bc2c`)
+**What changed:** The products billing-freq dropdown and POST whitelist in `onboarding_products.php` now accept `'hourly'` as a selectable billing frequency. The intro copy above the table was rewritten to explain that the "Min" value carries the unit of whichever billing freq is the default (hours for hourly, months for monthly, etc.).
+**Files touched:** `templates/admin/onboarding_products.php`.
+**Rollback:** Remove `'hourly'` from the hardcoded whitelist on the POST handler AND from the `<foreach>` option list AND revert the intro paragraph. But rollback is only safe if the underlying `products.default_billing_freq` ENUM is also rolled back (migration 034). Do the code rollback + the 034 inverse migration (`ALTER TABLE products MODIFY COLUMN default_billing_freq ENUM('daily','weekly','monthly','per_visit','upfront_only') NOT NULL DEFAULT 'monthly'`) — and only after verifying no products row uses `'hourly'`, otherwise the ALTER fails.
+**Why:** Depends on migration 034 (shipped in commit `7278bf9`). Makes hourly a genuinely selectable option at the product-defaults layer.
+
+#### 2026-04-16 — fix(caregiver-patterns): replace silent truncate with length-guard throw (`059aec8`)
+**What changed:** The bulk-save handler in `onboarding_caregiver_patterns.php` previously did `if (strlen($pattern) > 20) $pattern = substr($pattern, 0, 20)` to keep writes within the old `VARCHAR(20)` column. Realistic 7-day patterns serialise to up to 38 chars, so the truncate silently clipped "MON,TUE,WED,THU,FRI,SAT,SUN|NIGHT|LIVEIN" to "MON,TUE,WED,THU,FRI," — losing the shift + live-in suffix and corrupting parseability for every caregiver working ≥5 days. This commit removes the silent truncate and replaces it with an explicit length guard that throws a `RuntimeException` if a pattern ever exceeds 64 chars (the column's new width post migration 035), causing the transaction to roll back cleanly. Also drops a misleading file-level comment that contradicted itself ("width 20 - enough for X won't fit, we truncate").
+**Files touched:** `templates/admin/onboarding_caregiver_patterns.php`.
+**Rollback:** Restore the silent truncate (restoring the data-corruption bug). Only do this if you're rolling back migration 035 AT THE SAME TIME — otherwise the >20-char throw path becomes dead and every long pattern save succeeds (the column is still VARCHAR(64), no truncation happens), but there's no functional regression from leaving the throw in place with the wider column. So practical rollback advice: leave this commit alone even if 035 is rolled back.
+**Why:** Depends on migration 035 (shipped in commit `7278bf9`). Closes a silent data-corruption path for every caregiver working 5+ days.
+
+#### 2026-04-16 — feat(recon): day_rate cascade + permission swap + transactional audit fix (`486eef2`)
+**What changed:** Three changes in one commit on the reconciliation screen. (1) New optional "correct rate" input on `onboarding_reconciliation.php`; a `rate_corrected` resolution with a new_rate value now cascades the rate through to `caregivers.day_rate` when the caregiver name resolves unambiguously via the alias table OR `persons.full_name`. Ambiguous name matches (two caregivers sharing a name) are skipped — `day_rate` is business-critical and silently picking the wrong row has real cost. (2) `logActivity()` call moved from inside the transaction to AFTER commit, per the Transactional Audit Logging standing rule — failed mutations now roll back cleanly without leaving orphan audit entries. (3) Edit gate swapped from `userCan('caregiver_view','edit')` to `userCan('onboarding','edit')`. On DEV + PROD, no role holds `caregiver_view.edit`, so the pre-swap `$canEdit` evaluated to false for EVERY user including Super Admin — the recon screen's edit UI was silently disabled for everyone. Post-swap, Super Admin + Admin regain edit access per migration 032's grant. **Reclassifies the "swap" as a bug fix restoring intended access, not a refactor.** Also harmonises `permission_page` on two entries in `includes/onboarding_tasks.php` for consistency (dead metadata today but coherence protected for the next reader).
+**Files touched:** `templates/admin/onboarding_reconciliation.php`, `includes/onboarding_tasks.php`, `DECISIONS.md`.
+**Rollback:** Revert all three to their pre-commit shapes. The permission revert restores the Super-Admin-can't-edit bug — be explicit with users if you do this. The cascade revert removes the `new_rate` input and the `caregivers.day_rate` write (historical saves keep the `rate_corrected` resolution status but lose the day-rate cascade). The audit-logging revert moves log back into the txn (restores the "audit lost on rollback" edge case). No schema dependencies — safe to do live.
+**Why:** Tightest fix-and-feature bundle in the series: a bug fix restoring intended admin access + a genuine feature (rate cascade) + a standing-rule compliance fix (audit timing).
+
+#### 2026-04-16 — fix(caregiver-patterns): permission swap + move logActivity out of txn (`905ded1`)
+**What changed:** Same two fixes as the reconciliation screen but applied to `onboarding_caregiver_patterns.php`: edit gate swapped from `caregiver_view.edit` to `onboarding.edit` (same empirical bug fix — the gate was false for every user pre-swap), and the bulk-save `logActivity()` call moved to after `$db->commit()` using a null sentinel so failed mutations skip the log write. Mirrors commit `486eef2` on the recon screen.
+**Files touched:** `templates/admin/onboarding_caregiver_patterns.php`.
+**Rollback:** Revert to pre-commit shape. Permission revert restores the "no user can edit" bug. Audit revert restores "audit lost on rollback" edge case. No schema dependencies.
+**Why:** Consistency pass — what we fixed on the recon screen we fixed on the patterns screen. Caregiver-patterns had the same disabled-for-everyone bug pre-swap, same resolution now.
+
+#### 2026-04-16 — feat(onboarding): monthly upload screens for Timesheet + Revenue workbooks (`2950913`)
+**What changed:** Two new onboarding task subpages for the monthly ingest rhythm. `/admin/onboarding/upload-timesheet` and `/admin/onboarding/upload-revenue` each accept an `.xlsx` upload via the shared `onboardingHandleUpload()` helper, store the file outside the webroot at `storage/onboarding/YYYY-MM/`, and register the upload against the task registry so the dashboard counter reflects current-month status. Each page carries a Format-expectation block describing the expected Excel shape (tabs, headers, cell contents) plus a graceful placeholder if the optional reference screenshot isn't in the webroot. `public/index.php` routes both URLs. Two new task registry entries (`periodic_timesheet_upload`, `periodic_revenue_upload`) appear on the dashboard, counting 1 until a current-month file reaches `status = 'ingested'`. Also hardens `includes/onboarding_upload.php` with a per-upload extension allowlist (`xlsx, xls, csv, pdf, doc, docx, png, jpg, jpeg, txt`) — rejects `.php`, `.svg`, `.exe`, `.js`, `.html`, `.htaccess` and anything else not on the allowlist.
+**Files touched:** `templates/admin/onboarding_upload_timesheet.php` (new), `templates/admin/onboarding_upload_revenue.php` (new), `public/index.php` (routes), `includes/onboarding_tasks.php` (two new task entries), `includes/onboarding_upload.php` (extension allowlist), `DECISIONS.md`.
+**Rollback:** Delete the two new template files, remove the two new routes from `public/index.php`, remove the two new task entries from `onboarding_tasks.php`, and revert the extension allowlist in `onboarding_upload.php`. Zero schema dependency (the `onboarding_uploads` table from migration 032 already existed). Existing uploads under `storage/onboarding/` stay as dead files — harmless but worth cleaning if the rollback is permanent.
+**Why:** Closes the email-attachment workflow gap: Tuniti's monthly Timesheet + Revenue workbooks now have a first-class place to land in the system with a recorded-in-DB audit trail, not buried in email threads. The extension allowlist is a defence-in-depth floor against the most common upload-attack classes.
+
 ### Added — `/admin/onboarding` Tuniti task dashboard
 
 Replaces the current email-and-WhatsApp ping-pong with Tuniti for outstanding
