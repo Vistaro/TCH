@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
                 $freq = $fields['billing_freq'] ?? '';
                 $term = (int)($fields['min_term'] ?? 0);
                 $price = (float)($fields['price'] ?? 0);
-                if (!in_array($freq, ['monthly','weekly','daily','per_visit','upfront_only'], true)) continue;
+                if (!in_array($freq, ['hourly','daily','weekly','monthly','per_visit','upfront_only'], true)) continue;
                 $stmt = $db->prepare(
                     "UPDATE products
                         SET default_billing_freq = ?, default_min_term_months = ?, default_price = ?
@@ -77,7 +77,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
 <h2 style="margin:0 0 0.5rem 0;">Product billing defaults</h2>
 <p style="color:#6c757d;margin-bottom:1rem;">
-    For each product we offer, confirm how we bill by default, the minimum commitment, and the default day rate. These are prefilled on every new contract line so you don't re-type them.
+    For each product we offer, confirm how we bill by default, the minimum commitment in the unit that matches the billing frequency (e.g. <em>hours</em> for hourly, <em>months</em> for monthly), and the default rate per billing unit. These are prefilled on every new contract line so you don't re-type them.
 </p>
 
 <form method="POST">
@@ -103,7 +103,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
             </td>
             <td class="center">
                 <select name="product[<?= (int)$r['id'] ?>][billing_freq]" class="form-control form-control-sm" <?= $canEdit ? '' : 'disabled' ?>>
-                    <?php foreach (['monthly','weekly','daily','per_visit','upfront_only'] as $opt): ?>
+                    <?php foreach (['hourly','daily','weekly','monthly','per_visit','upfront_only'] as $opt): ?>
                         <option value="<?= $opt ?>" <?= $r['default_billing_freq'] === $opt ? 'selected' : '' ?>><?= ucfirst(str_replace('_', ' ', $opt)) ?></option>
                     <?php endforeach; ?>
                 </select>
