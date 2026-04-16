@@ -4,6 +4,114 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+## [v0.9.24] — 2026-04-16 — Quote & Portal Plan foundation (FR-A, FR-B)
+
+First build phase toward the quote-to-contract-to-scheduling pipeline
+Ross scoped out this session. Lays the schema + first UI piece for
+multi-unit product pricing, per-line dates on contracts, and the
+columns the quote state machine (FR-D) will read in the next phase.
+All migrations applied + verified on DEV before deploy; metadata-only
+on InnoDB, no row data coerced.
+
+### Plan document
+
+- **`docs/TCH_Quote_And_Portal_Plan.md`** — 11 FRs (A–K) in the
+  standing three-layer format, sequenced into five phases. Covers
+  multi-unit pricing, per-line dates, quote builder, state machine,
+  rate-override permission, PDF boilerplate, email delivery, client +
+  patient user classes, portal acceptance, mid-contract changes, and
+  caregiver availability (parallel track — prereq for scheduling).
+
+### FR-A — multi-unit product pricing
+
+- **Migration 036** — new `product_billing_rates` child table
+  `(product_id FK, billing_freq, rate, currency_code DEFAULT 'ZAR',
+  is_default, is_active)` with unique `(product_id, billing_freq)`.
+  Backfilled one `is_default=1` row per active product from the
+  existing `products.default_billing_freq` + `products.default_price`.
+  Currency column is forward-looking; v1 is ZAR-only.
+- **`/admin/onboarding/products`** rewritten as a card-per-product
+  layout. Each product shows a 6-row table (hourly / daily / weekly
+  / monthly / per-visit / upfront-only) with an Active checkbox + rate
+  input + Default radio (scoped to that product). Save handler upserts
+  against `product_billing_rates` and preserves history by flipping
+  `is_active=0` on unticked rows rather than deleting. One activity-log
+  entry per product with full before/after snapshot, written AFTER
+  commit per the Transactional Audit Logging rule.
+- **Task counter** for Task 2 (Product billing defaults) on the
+  onboarding dashboard switched to flag pending as "no active default
+  row with rate > 0 in `product_billing_rates`".
+- **Partial FR-A2 (first call-site cutover).** `contracts_create.php`
+  now reads product picker prefill data (price + billing freq) from
+  `product_billing_rates` via LEFT JOIN + COALESCE fallback to the
+  legacy columns. The `/admin/products` full CRUD page still reads the
+  legacy columns — its retrofit + the column-drop migration are the
+  remaining FR-A2 work.
+
+### FR-B — per-line dates on `contract_lines`
+
+- **Migration 037** adds nullable `start_date` + `end_date` to
+  `contract_lines`. Backfilled every existing row from its parent
+  contract's dates inside the same transaction. `end_date = NULL`
+  means ongoing (matches the convention on `contracts.end_date`).
+- **Contract detail page** renders the new columns in the Product
+  lines table with graceful fallback: if a line's own date is NULL,
+  display the parent contract's date. "Ongoing" label shown when
+  `end_date` is NULL.
+- `contracts.start_date` / `.end_date` stay in place as a display-cache
+  / sort-key (contract list + onboarding contracts still read them).
+  Follow-up FR-B2 will decide whether to compute them from lines on
+  read and retire the stored columns, or keep them as an advisory
+  cache. `DECISIONS.md` captures the rationale.
+
+### Schema prep for FR-C / FR-D (quote builder + state machine)
+
+- **Migration 038** widens `contract_lines.billing_freq` ENUM to
+  include `'hourly'` (closes the matching gap after migration 034
+  widened `products.default_billing_freq` in v0.9.23). Widens
+  `contracts.status` ENUM to add `'sent'`, `'accepted'`, `'rejected'`,
+  `'expired'` for the quote state machine. Adds 5 nullable columns
+  to `contracts`: `quote_reference VARCHAR(30) UNIQUE`, `sent_at`,
+  `accepted_at`, `acceptance_method` ENUM, `acceptance_note` TEXT.
+  All metadata-only.
+
+### Bug fix — contract detail page 500
+
+- **`templates/admin/contracts_detail.php`** referenced
+  `u_created.first_name` + `u_created.last_name` which don't exist
+  on the users table (it has `full_name`). Every contract detail
+  view 500'd with "Unknown column 'u_created.first_name' in 'field
+  list'". Dropped the dead JOIN + unused aliases; page renders cleanly.
+  Found during the FR-B DEV smoke test, fixed in the same commit series.
+
+### Housekeeping
+
+- **`DECISIONS.md`** — three new entries: per-line contract dates
+  rationale (FR-B); ambiguous-name cascade choice in reconciliation
+  (W2 from the 2026-04-16 outage recovery); upload extension whitelist
+  widening (W1).
+- **`docs/TCH_Ross_Todo.md`** — Item 16 ("Client/patient onboarding
+  workflow — care proposal + email acceptance") marked **SUPERSEDED**
+  and pointed at the Quote & Portal Plan. Same scope expressed as a
+  cleaner 11-FR series; kills the dual-source-of-truth risk.
+
+### Destructive-if-rolled-back flags
+
+- Rolling back 036 drops `product_billing_rates` and any data it
+  contains (though the legacy columns on `products` remain for now).
+- Rolling back 037 drops the new `start_date` / `end_date` columns
+  from `contract_lines`, losing any line-specific dates entered.
+- Rolling back 038 fails if any row uses the new ENUM values
+  (`contract_lines.billing_freq = 'hourly'`, or `contracts.status IN
+  ('sent','accepted','rejected','expired')`). Verify PROD distributions
+  before any rollback.
+
+## [v0.9.23] — 2026-04-16 — Onboarding dashboard + outage-recovery refinements
+
+Shipped the Apr-15 session's uncommitted work after the Anthropic
+outage ended it mid-response, plus the onboarding dashboard + surrounding
+polish that had been on dev since 2026-04-15 waiting for deploy.
+
 ### DB refinements — migrations 034 + 035 (2026-04-16)
 
 Post-outage schema work enabling the onboarding refinements that were
