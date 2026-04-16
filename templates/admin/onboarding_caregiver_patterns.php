@@ -47,8 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit && ($_POST['action'] ?? ''
                 $shift = in_array($fields['shift'] ?? '', $validShifts, true) ? $fields['shift'] : 'DAY';
                 $liveIn = !empty($fields['livein']) ? 'LIVEIN' : '';
                 $pattern = implode(',', $days) . '|' . $shift . ($liveIn ? '|' . $liveIn : '');
-                // Keep within column width (varchar 20) — truncate defensively
-                if (strlen($pattern) > 20) $pattern = substr($pattern, 0, 20);
+                // caregivers.working_pattern is VARCHAR(64) since migration 035.
+                // Max realistic serialisation is 38 chars (full 7-day week +
+                // NIGHT + LIVEIN). If we ever exceed the column width, fail
+                // loudly — silent truncation corrupts parseable patterns and
+                // loses the day/shift/live-in flags on the right.
+                if (strlen($pattern) > 64) {
+                    throw new RuntimeException(
+                        'Pattern too long (' . strlen($pattern) . ' chars) for caregiver ' . $pid
+                    );
+                }
                 $stmt = $db->prepare("UPDATE caregivers SET working_pattern = ? WHERE person_id = ?");
                 $stmt->execute([$pattern, $pid]);
                 if ($stmt->rowCount()) $changed++;
@@ -71,7 +79,6 @@ if ($flash === '' && isset($_GET['msg'])) {
     $flash = (string)$_GET['msg']; $flashType = (string)($_GET['type'] ?? 'success');
 }
 
-// Width 20 — enough for e.g. "MON,TUE,WED,THU,FRI|DAY|LIVEIN" won't fit. We compact to 3-letter day codes and truncate.
 $rows = $db->query(
     "SELECT c.person_id, c.day_rate, c.status, c.working_pattern,
             p.full_name, p.tch_id
