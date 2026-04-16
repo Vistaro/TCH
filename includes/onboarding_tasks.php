@@ -60,12 +60,22 @@ function onboardingTasks(): array {
             'upload_hint'    => '',
             'added_at'       => '2026-04-15',
             'count_fn'       => function (PDO $db): int {
+                // A product is "pending" if its min-term isn't set OR it
+                // has no active default row with a rate > 0 in
+                // product_billing_rates (migration 036).
                 return (int)$db->query(
-                    "SELECT COUNT(*) FROM products
-                      WHERE is_active = 1
-                        AND (default_price IS NULL OR default_price = 0
-                             OR default_billing_freq IS NULL
-                             OR default_min_term_months IS NULL)"
+                    "SELECT COUNT(*) FROM products p
+                      WHERE p.is_active = 1
+                        AND (
+                          p.default_min_term_months IS NULL
+                          OR NOT EXISTS (
+                            SELECT 1 FROM product_billing_rates pbr
+                             WHERE pbr.product_id = p.id
+                               AND pbr.is_default = 1
+                               AND pbr.is_active  = 1
+                               AND pbr.rate > 0
+                          )
+                        )"
                 )->fetchColumn();
             },
         ],
