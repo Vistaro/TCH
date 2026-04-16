@@ -153,10 +153,25 @@ delivery each change independently.
 contracts          — commercial contract: client × patient × start ×
                      end (nullable = ongoing) × status × invoice
                      fields. One row per patient. Superseded_by chain
-                     for mid-contract product switches.
+                     for mid-contract product switches. Also acts as
+                     a quote while status ∈ (draft, sent, rejected,
+                     expired); flips to a live contract on acceptance.
+                     Carries quote_reference / sent_at / accepted_at /
+                     acceptance_method / acceptance_note for the
+                     quote state machine (added migration 038).
 contract_lines     — product × billing_freq × min_term × bill_rate ×
-                     units_per_period. Multiple lines per contract
-                     supported (e.g. weekday Day Rate + weekend Night).
+                     units_per_period × start_date × end_date
+                     (per-line dates added migration 037; each line
+                     can have its own run, end_date NULL = ongoing).
+                     billing_freq accepts 'hourly' since migration 038.
+product_billing_rates — child of products (migration 036). Each
+                     product carries 1..N (product_id, billing_freq,
+                     rate, currency_code, is_default, is_active)
+                     rows. The is_default=1 + is_active=1 row drives
+                     prefill on new quote / contract lines.
+                     products.default_billing_freq and default_price
+                     stay in place as backwards-compat until all
+                     call-sites cut over (FR-A2 follow-up).
 engagements        — caregiver assignment to a contract (exists today,
                      being repurposed from the old all-in-one model).
 daily_roster       — per-shift delivery. Columns: caregiver_id,
