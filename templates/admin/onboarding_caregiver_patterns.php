@@ -13,7 +13,10 @@ $activeNav = 'onboarding';
 
 $db      = getDB();
 $uid     = (int)($_SESSION['user_id'] ?? 0);
-$canEdit = userCan('caregiver_view', 'edit');
+// Edit rights gated by the onboarding page permission — migration 032
+// granted this to Super Admin + Admin, which is the right audience for
+// the Tuniti task dashboard. Avoids hard dependency on caregiver_view.edit.
+$canEdit = userCan('onboarding', 'edit');
 
 $flash = ''; $flashType = 'success';
 
@@ -38,6 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit && ($_POST['action'] ?? ''
         $validDays = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
         $validShifts = ['DAY','NIGHT','BOTH'];
         $changed = 0;
+        // Logging is called AFTER the transaction commits (standing rule);
+        // $logCount stays null on rollback so no audit entry is written for
+        // a failed mutation.
+        $logCount = null;
         $db->beginTransaction();
         try {
             foreach ($patterns as $pid => $fields) {
@@ -61,14 +68,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit && ($_POST['action'] ?? ''
                 $stmt->execute([$pattern, $pid]);
                 if ($stmt->rowCount()) $changed++;
             }
-            logActivity('caregiver_patterns_bulk', 'onboarding', 'caregivers', 0,
-                'Saved working patterns for ' . $changed . ' caregiver(s)',
-                null, ['changed' => $changed]);
             $db->commit();
+            $logCount = $changed;
             $flash = "Saved. {$changed} caregiver pattern(s) updated.";
         } catch (Throwable $e) {
             $db->rollBack();
             $flash = 'Error: ' . $e->getMessage(); $flashType = 'error';
+        }
+
+        if ($logCount !== null) {
+            logActivity('caregiver_patterns_bulk', 'onboarding', 'caregivers', 0,
+                'Saved working patterns for ' . $logCount . ' caregiver(s)',
+                null, ['changed' => $logCount]);
         }
     }
     header('Location: ' . APP_URL . '/admin/onboarding/caregiver-patterns?msg=' . urlencode($flash) . '&type=' . urlencode($flashType));
