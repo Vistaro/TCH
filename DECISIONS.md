@@ -9,6 +9,16 @@ Append-only. One entry per non-obvious design choice. Format:
 **Because:** …
 ```
 
+## 2026-04-16 — `onboarding_tasks.php#permission_page` harmonised to `'onboarding'` despite being dead metadata
+**Chose:** Set `permission_page => 'onboarding'` on every entry in `onboardingTasks()`, including task 3 (`caregiver_patterns`) and task 5 (`timesheet_recon`) which had inherited `'caregiver_view'` from an earlier scoping attempt.
+**Over:** (a) Leaving the two entries on `'caregiver_view'` and documenting the inconsistency; (b) Removing the `permission_page` field altogether.
+**Because:** The field is declared but not read anywhere in the codebase — the onboarding dashboard (`templates/admin/onboarding_dashboard.php`) renders every registered task unconditionally; route-level gating is done by `requirePagePermission('onboarding','read')` in `public/index.php`, and the edit gate is the `$canEdit = userCan(...)` call inside each subpage template. So today the field is dead metadata. Harmonising costs nothing, protects against a future change that starts reading it (a filter on the dashboard, a cron job that rescans tasks by page scope, etc.), and keeps the registry coherent with itself. Removing the field would be a larger rework than this commit warrants; left as a cleanup candidate for the next pass on onboarding.
+
+## 2026-04-16 — Ambiguous-name cascade in timesheet reconciliation: skip rather than LIMIT 1
+**Chose:** When resolving the caregiver for a `rate_corrected` reconciliation, COUNT matches first against both the alias table and `persons.full_name`. If either returns > 1, flag the row as `ambiguous` and skip the `UPDATE caregivers SET day_rate`. The resolution row still saves with the new rate; the flash tells Tuniti to map the alias first.
+**Over:** The previous `LIMIT 1` on each lookup that would silently cascade to whichever caregiver happened to match first.
+**Because:** `caregivers.day_rate` is business-critical — a silent wrong-person update has a real cost (pay disputes, incorrect cost apportionment on future shifts). `persons.full_name` is NOT unique (two caregivers can legitimately share a name and be distinguished by `tch_id`). The alias table can also legitimately carry multiple unresolved mappings for the same raw string. Deferring the cascade to an unambiguous mapping moves the ambiguity resolution to the operator flow where it belongs.
+
 ## 2026-04-14 — Revenue reports read from `client_revenue`, not apportioned `daily_roster.bill_rate`
 **Chose:** One table per grain. `daily_roster` = cost grain (per shift); `client_revenue` = revenue grain (per client × month). Revenue reports pivot `client_revenue` directly.
 **Over:** Apportioning invoice totals down to per-shift `bill_rate` on `daily_roster` and summing those as "revenue." Single-table-drives-everything was seductive but wrong.

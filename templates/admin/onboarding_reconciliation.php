@@ -17,7 +17,7 @@ $activeNav = 'onboarding';
 
 $db      = getDB();
 $uid     = (int)($_SESSION['user_id'] ?? 0);
-$canEdit = userCan('caregiver_view', 'edit');
+$canEdit = userCan('onboarding', 'edit');
 
 $flash = ''; $flashType = 'success';
 
@@ -28,19 +28,133 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit) {
         $itemId  = (int)($_POST['item_id'] ?? 0);
         $status  = $_POST['resolution_status'] ?? '';
         $notes   = trim($_POST['resolution_notes'] ?? '');
+        $newRate = $_POST['new_rate'] ?? '';
+        $newRate = ($newRate === '' || !is_numeric($newRate)) ? null : (float)$newRate;
         $allowed = ['accepted_loan','recorded_bonus','rate_corrected','accepted_unexplained','flagged','ignored'];
         if ($itemId && in_array($status, $allowed, true)) {
-            $stmt = $db->prepare(
-                "UPDATE timesheet_reconciliation_items
-                    SET resolution_status = ?, resolution_notes = ?,
-                        resolved_by_user_id = ?, resolved_at = NOW()
-                  WHERE id = ?"
-            );
-            $stmt->execute([$status, $notes, $uid, $itemId]);
-            logActivity('recon_resolved', 'onboarding', 'timesheet_reconciliation_items', $itemId,
-                'Resolved reconciliation item → ' . $status, null,
-                ['status' => $status, 'notes' => $notes]);
-            $flash = 'Resolved. ' . (($status === 'flagged') ? 'Parked for investigation.' : '');
+            // Load the item so we can resolve caregiver on rate_corrected
+            $item = $db->prepare("SELECT * FROM timesheet_reconciliation_items WHERE id = ?");
+            $item->execute([$itemId]);
+            $itemRow = $item->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            // Audit payload is built inside the try block, but logActivity()
+            // is called AFTER commit per the standing Transactional Audit
+            // Logging rule — logging inside the txn would roll back with the
+            // mutation on failure, losing the exact event under dispute.
+            $logMessage = null;
+            $logContext = null;
+
+            $db->beginTransaction();
+            try {
+                // Persist the resolution + optional new rate
+                $stmt = $db->prepare(
+                    "UPDATE timesheet_reconciliation_items
+                        SET resolution_status = ?, resolution_notes = ?,
+                            rate = COALESCE(?, rate),
+                            resolved_by_user_id = ?, resolved_at = NOW()
+                      WHERE id = ?"
+                );
+                $stmt->execute([$status, $notes, $newRate, $uid, $itemId]);
+
+                // On rate_corrected, cascade to caregivers.day_rate if the
+                // caregiver can be resolved unambiguously. Ambiguous matches
+                // (same name in alias table OR persons.full_name) are
+                // skipped — day_rate is business-critical and silently
+                // picking the wrong row has real cost.
+                $rateCascade = null;
+                $ambiguous   = false;
+                if ($status === 'rate_corrected' && $newRate !== null && $itemRow) {
+                    $pid = (int)($itemRow['person_id'] ?? 0);
+
+                    if ($pid === 0) {
+                        // Alias table — count first, only resolve if exactly one match.
+                        $ra = $db->prepare(
+                            "SELECT COUNT(*) FROM timesheet_name_aliases
+                              WHERE person_role = 'caregiver'
+                                AND alias_text  = ?
+                                AND person_id IS NOT NULL"
+                        );
+                        $ra->execute([$itemRow['caregiver_name']]);
+                        $aliasMatches = (int)$ra->fetchColumn();
+                        if ($aliasMatches === 1) {
+                            $rs = $db->prepare(
+                                "SELECT person_id FROM timesheet_name_aliases
+                                  WHERE person_role = 'caregiver'
+                                    AND alias_text  = ?
+                                    AND person_id IS NOT NULL
+                                  LIMIT 1"
+                            );
+                            $rs->execute([$itemRow['caregiver_name']]);
+                            $pid = (int)($rs->fetchColumn() ?: 0);
+                        } elseif ($aliasMatches > 1) {
+                            $ambiguous = true;
+                        }
+                    }
+
+                    if ($pid === 0 && !$ambiguous) {
+                        // persons.full_name — count first, only resolve if exactly one match.
+                        $rp = $db->prepare(
+                            "SELECT COUNT(*) FROM persons
+                              WHERE FIND_IN_SET('caregiver', person_type)
+                                AND full_name = ?"
+                        );
+                        $rp->execute([$itemRow['caregiver_name']]);
+                        $personMatches = (int)$rp->fetchColumn();
+                        if ($personMatches === 1) {
+                            $rp2 = $db->prepare(
+                                "SELECT id FROM persons
+                                  WHERE FIND_IN_SET('caregiver', person_type)
+                                    AND full_name = ?
+                                  LIMIT 1"
+                            );
+                            $rp2->execute([$itemRow['caregiver_name']]);
+                            $pid = (int)($rp2->fetchColumn() ?: 0);
+                        } elseif ($personMatches > 1) {
+                            $ambiguous = true;
+                        }
+                    }
+
+                    if ($ambiguous) {
+                        $rateCascade = ['person_id' => 0, 'note' => 'ambiguous name match — map alias first'];
+                    } elseif ($pid > 0) {
+                        $upd = $db->prepare("UPDATE caregivers SET day_rate = ? WHERE person_id = ?");
+                        $upd->execute([$newRate, $pid]);
+                        // Save person_id on the recon row for future reference
+                        $db->prepare("UPDATE timesheet_reconciliation_items SET person_id = ? WHERE id = ?")
+                           ->execute([$pid, $itemId]);
+                        $rateCascade = ['person_id' => $pid, 'new_rate' => $newRate];
+                    } else {
+                        $rateCascade = ['person_id' => 0, 'note' => 'caregiver not linked — map alias first'];
+                    }
+                }
+
+                $logMessage = 'Resolved reconciliation item → ' . $status
+                    . ($rateCascade && $rateCascade['person_id'] > 0
+                        ? ' — updated caregiver day_rate to R' . number_format((float)$newRate, 2)
+                        : '');
+                $logContext = ['status' => $status, 'notes' => $notes, 'new_rate' => $newRate, 'rate_cascade' => $rateCascade];
+
+                $db->commit();
+
+                if ($ambiguous) {
+                    $flash = 'Resolved — rate saved on the item, but the caregiver name matches more than one person. Map them on /admin/config/aliases before the rate will cascade.';
+                    $flashType = 'success';
+                } elseif ($status === 'rate_corrected' && $rateCascade && $rateCascade['person_id'] === 0) {
+                    $flash = 'Resolved — rate saved on the item, but caregiver not linked. Map them on /admin/config/aliases to cascade the rate.';
+                    $flashType = 'success';
+                } else {
+                    $flash = 'Resolved.' . ($status === 'flagged' ? ' Parked for investigation.' : '');
+                }
+            } catch (Throwable $e) {
+                $db->rollBack();
+                $flash = 'Error: ' . $e->getMessage(); $flashType = 'error';
+                $logMessage = null;
+            }
+
+            if ($logMessage !== null) {
+                logActivity('recon_resolved', 'onboarding', 'timesheet_reconciliation_items', $itemId,
+                    $logMessage, null, $logContext);
+            }
         } else {
             $flash = 'Invalid resolution.'; $flashType = 'error';
         }
@@ -136,11 +250,11 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </details>
 
     <?php if ($isPending && $canEdit): ?>
-    <form method="POST" style="margin-top:0.75rem;display:flex;gap:0.5rem;align-items:flex-start;flex-wrap:wrap;">
+    <form method="POST" style="margin-top:0.75rem;display:flex;gap:0.5rem;align-items:flex-start;flex-wrap:wrap;" class="recon-resolve-form">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="resolve">
         <input type="hidden" name="item_id" value="<?= (int)$r['id'] ?>">
-        <select name="resolution_status" class="form-control form-control-sm" required style="min-width:200px;">
+        <select name="resolution_status" class="form-control form-control-sm resolution-select" required style="min-width:200px;" onchange="this.closest('form').querySelector('.rate-input-wrap').style.display = this.value === 'rate_corrected' ? '' : 'none';">
             <option value="">Pick resolution…</option>
             <option value="accepted_loan">Accept as loan deduction</option>
             <option value="recorded_bonus">Record as bonus</option>
@@ -149,6 +263,9 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <option value="flagged">Flag for investigation</option>
             <option value="ignored">Ignore — not actionable</option>
         </select>
+        <span class="rate-input-wrap" style="display:none;">
+            <input type="number" step="0.01" min="0" name="new_rate" class="form-control form-control-sm" placeholder="Correct rate (R)" style="width:140px;" title="New day/hourly rate. Writes through to the caregiver's day_rate when they're linked.">
+        </span>
         <input type="text" name="resolution_notes" class="form-control form-control-sm" placeholder="Notes (required for 'unexplained' or 'flagged')" style="flex:1;min-width:250px;">
         <button class="btn btn-primary btn-sm" type="submit">Resolve</button>
     </form>
