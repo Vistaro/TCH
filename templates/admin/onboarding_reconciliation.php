@@ -129,7 +129,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
         </div>
     </div>
     <details style="margin-top:0.5rem;">
-        <summary style="cursor:pointer;color:#0d6efd;font-size:0.85rem;">Suggested Tuniti query</summary>
+        <summary style="cursor:pointer;color:#0d6efd;font-size:0.85rem;">What needs to be done</summary>
         <div style="margin-top:0.4rem;padding:0.6rem;background:#f8f9fa;border-radius:4px;font-size:0.85rem;color:#495057;">
             <?= htmlspecialchars($r['suggested_query'] ?? '') ?>
         </div>

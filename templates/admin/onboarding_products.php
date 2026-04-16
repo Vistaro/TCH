@@ -87,8 +87,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <tr>
                 <th>Product</th>
                 <th class="center">Billing freq</th>
-                <th class="number">Min term (months)</th>
-                <th class="number">Default day rate (R)</th>
+                <th class="number">Min Requirement</th>
+                <th class="number">Default rate (R)</th>
             </tr>
         </thead>
         <tbody>
