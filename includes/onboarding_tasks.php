@@ -130,6 +130,48 @@ function onboardingTasks(): array {
             },
         ],
 
+        // ─── Task 7 — periodic: monthly Timesheet workbook upload ────
+        'periodic_timesheet_upload' => [
+            'title'          => 'Upload latest Caregiver Timesheet workbook',
+            'description'    => 'Each month, upload the latest Tuniti Caregiver Timesheet Excel so shift cost data is current. Counts 1 until a current-month file has been ingested.',
+            'subpage'        => '/admin/onboarding/upload-timesheet',
+            'permission_page'=> 'onboarding',
+            'priority'       => 'high',
+            'accepts_upload' => true,
+            'upload_hint'    => 'Tuniti Caregiver Timesheets Apr-26.xlsx (or later). One tab per month.',
+            'added_at'       => '2026-04-15',
+            'count_fn'       => function (PDO $db): int {
+                $done = (int)$db->query(
+                    "SELECT COUNT(*) FROM onboarding_uploads
+                      WHERE task_key = 'periodic_timesheet_upload'
+                        AND status = 'ingested'
+                        AND DATE_FORMAT(ingested_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')"
+                )->fetchColumn();
+                return $done > 0 ? 0 : 1;
+            },
+        ],
+
+        // ─── Task 8 — periodic: monthly Revenue Panel workbook upload ─
+        'periodic_revenue_upload' => [
+            'title'          => 'Upload latest Revenue Panel workbook',
+            'description'    => 'Each month, upload the latest Tuniti Revenue to Clients Excel so client billing data is current. Counts 1 until a current-month file has been ingested.',
+            'subpage'        => '/admin/onboarding/upload-revenue',
+            'permission_page'=> 'onboarding',
+            'priority'       => 'high',
+            'accepts_upload' => true,
+            'upload_hint'    => 'Tuniti Revenue to Clients Apr-26.xlsx (or later). One tab per month, client panels in a grid.',
+            'added_at'       => '2026-04-15',
+            'count_fn'       => function (PDO $db): int {
+                $done = (int)$db->query(
+                    "SELECT COUNT(*) FROM onboarding_uploads
+                      WHERE task_key = 'periodic_revenue_upload'
+                        AND status = 'ingested'
+                        AND DATE_FORMAT(ingested_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')"
+                )->fetchColumn();
+                return $done > 0 ? 0 : 1;
+            },
+        ],
+
         // ─── Task 6 ────────────────────────────────────────────────
         'jan2026_date_ack' => [
             'title'          => 'Jan 2026 Timesheet date acknowledgement',

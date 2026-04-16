@@ -175,6 +175,16 @@ if ($route === 'admin/onboarding/reconciliation') {
     require APP_ROOT . '/templates/admin/onboarding_reconciliation.php';
     exit;
 }
+if ($route === 'admin/onboarding/upload-timesheet') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_upload_timesheet.php';
+    exit;
+}
+if ($route === 'admin/onboarding/upload-revenue') {
+    requirePagePermission('onboarding', 'read');
+    require APP_ROOT . '/templates/admin/onboarding_upload_revenue.php';
+    exit;
+}
 
 if ($route === 'admin/whats-new') {
     requirePagePermission('whats_new', 'read');

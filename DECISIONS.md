@@ -9,6 +9,11 @@ Append-only. One entry per non-obvious design choice. Format:
 **Because:** …
 ```
 
+## 2026-04-16 — Upload extension whitelist widened beyond spreadsheets
+**Chose:** Allowlist of `xlsx, xls, csv, pdf, doc, docx, png, jpg, jpeg, txt` on `includes/onboarding_upload.php::onboardingHandleUpload()`.
+**Over:** Spreadsheet-only list (`xlsx, xls, csv`).
+**Because:** Task 3 (caregiver_patterns) upload hint explicitly invites non-spreadsheet uploads ("Availability list, WhatsApp thread, spreadsheet — anything you have"). A spreadsheet-only allowlist would break documented intent — Tuniti realistically sends PDF printouts, Word docs, WhatsApp screenshots. The widened list still blocks every dangerous class: `.php`, `.svg`, `.exe`, `.js`, `.html`, `.htaccess`. MIME-content validation via `finfo_file()` is deferred as a defence-in-depth follow-up FR — the extension allowlist is the floor, not the ceiling.
+
 ## 2026-04-16 — `onboarding_tasks.php#permission_page` harmonised to `'onboarding'` despite being dead metadata
 **Chose:** Set `permission_page => 'onboarding'` on every entry in `onboardingTasks()`, including task 3 (`caregiver_patterns`) and task 5 (`timesheet_recon`) which had inherited `'caregiver_view'` from an earlier scoping attempt.
 **Over:** (a) Leaving the two entries on `'caregiver_view'` and documenting the inconsistency; (b) Removing the `permission_page` field altogether.

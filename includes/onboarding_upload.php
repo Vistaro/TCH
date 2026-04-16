@@ -27,6 +27,23 @@ function onboardingHandleUpload(PDO $db, string $taskKey, int $uploaderUserId, a
     $ext  = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
     if ($ext === '' || strlen($ext) > 10) $ext = 'bin';
 
+    // Extension whitelist — blocks .php / .htaccess / .exe / .svg / .js /
+    // .html and any other executable or XSS-vector class of file. The list
+    // covers spreadsheets (Tasks 7/8 — timesheet + revenue workbooks) plus
+    // the evidence types Task 3 (caregiver patterns) realistically accepts
+    // from Tuniti (PDF printouts, Word docs, WhatsApp screenshots, plain
+    // text). Files outside the webroot already limit direct-execute risk,
+    // but this is the floor — never trust the extension alone.
+    $allowedExts = ['xlsx','xls','csv','pdf','doc','docx','png','jpg','jpeg','txt'];
+    if (!in_array($ext, $allowedExts, true)) {
+        return [
+            'ok' => false,
+            'msg' => 'File type ".' . $ext . '" is not accepted. Allowed: '
+                   . implode(', ', array_map(fn($e) => '.' . $e, $allowedExts)) . '.',
+            'upload_id' => null,
+        ];
+    }
+
     $sha = hash_file('sha256', (string)$file['tmp_name']);
     if (!$sha) {
         return ['ok' => false, 'msg' => 'Could not read uploaded file.', 'upload_id' => null];
