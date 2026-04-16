@@ -10,13 +10,11 @@ $stmt = $db->prepare(
     "SELECT c.*,
             pp.full_name AS patient_name, pp.tch_id AS patient_tch_id,
             cp.full_name AS client_name,  cp.tch_id AS client_tch_id,
-            cl.account_number, cl.default_billing_freq,
-            u_created.first_name AS created_by_first, u_created.last_name AS created_by_last
+            cl.account_number, cl.default_billing_freq
      FROM contracts c
 LEFT JOIN persons pp ON pp.id = c.patient_person_id
 LEFT JOIN clients cl ON cl.id = c.client_id
 LEFT JOIN persons cp ON cp.id = cl.person_id
-LEFT JOIN users u_created ON u_created.id = c.created_by_user_id
     WHERE c.id = ?"
 );
 $stmt->execute([$contractId]);
