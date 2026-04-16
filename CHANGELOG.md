@@ -4,6 +4,35 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### DB refinements — migrations 034 + 035 (2026-04-16)
+
+Post-outage schema work enabling the onboarding refinements that were
+in-flight when the 2026-04-15 session ended. Both migrations are
+forward-safe (metadata-only on InnoDB, no row data rewritten) but
+**destructive if rolled back** — see per-migration notes below.
+
+- **Migration 034** — widens `products.default_billing_freq` ENUM to
+  add `'hourly'`. Column was already `ENUM NOT NULL DEFAULT 'monthly'`
+  from migration 031, so this is a pure ENUM-widening. No row data is
+  coerced; distribution verified unchanged on DEV (6 products all
+  `monthly`, 0 NULLs pre-migration; same post-migration). **Destructive
+  if rolled back:** once a row is saved as `'hourly'`, reverting to
+  migration 031's ENUM will fail. Verify no rows use `'hourly'` before
+  any rollback attempt.
+- **Migration 035** — widens `caregivers.working_pattern` from
+  `VARCHAR(20)` to `VARCHAR(64)`. The original width silently truncated
+  realistic 7-day serialisations (`MON,TUE,WED,THU,FRI,SAT,SUN|NIGHT|LIVEIN`
+  = 38 chars) down to 20, losing the shift + live-in suffix and
+  corrupting the parseable format. `NOT NULL DEFAULT 'MON-SUN'` preserved.
+  139 caregiver rows unchanged on DEV verification. **Destructive if
+  rolled back:** reverting to `VARCHAR(20)` would truncate any row with
+  a post-widening pattern > 20 chars.
+
+Both migrations applied on DEV and verified; PROD run deferred to a
+Ross-approved deploy window (recommendation: migrations run outside a
+maintenance window — zero forward risk — with the rsync of dependent
+code following after).
+
 ### Added — `/admin/onboarding` Tuniti task dashboard
 
 Replaces the current email-and-WhatsApp ping-pong with Tuniti for outstanding
