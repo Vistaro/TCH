@@ -140,9 +140,22 @@ $patients = $db->query(
      ORDER BY p.full_name"
 )->fetchAll();
 
+// Product picker data — pull prefill values from the product's default
+// row in product_billing_rates (migration 036) so the picker respects
+// the multi-unit pricing model. Falls back to the legacy products columns
+// for any product whose default row hasn't been set up yet (e.g. a brand-
+// new product before onboarding has filled in rates).
 $products = $db->query(
-    "SELECT id, code, name, default_price, default_billing_freq, default_min_term_months
-     FROM products WHERE is_active = 1 ORDER BY sort_order"
+    "SELECT p.id, p.code, p.name, p.default_min_term_months,
+            COALESCE(pbr.rate,         p.default_price)         AS prefill_rate,
+            COALESCE(pbr.billing_freq, p.default_billing_freq)  AS prefill_freq
+       FROM products p
+  LEFT JOIN product_billing_rates pbr
+         ON pbr.product_id = p.id
+        AND pbr.is_default = 1
+        AND pbr.is_active  = 1
+      WHERE p.is_active = 1
+   ORDER BY p.sort_order"
 )->fetchAll();
 
 require APP_ROOT . '/templates/layouts/admin.php';
@@ -236,8 +249,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
                         <option value="">—</option>
                         <?php foreach ($products as $pr): ?>
                             <option value="<?= (int)$pr['id'] ?>"
-                                    data-price="<?= (float)$pr['default_price'] ?>"
-                                    data-freq="<?= htmlspecialchars($pr['default_billing_freq']) ?>"
+                                    data-price="<?= (float)($pr['prefill_rate'] ?? 0) ?>"
+                                    data-freq="<?= htmlspecialchars((string)($pr['prefill_freq'] ?? '')) ?>"
                                     data-minterm="<?= (int)$pr['default_min_term_months'] ?>"
                                     <?= ($ln['product_id'] ?? 0) == $pr['id'] ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($pr['name']) ?>
@@ -245,7 +258,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                         <?php endforeach; ?>
                     </select></td>
                     <td><select name="line_billing_freq[]" class="form-control form-control-sm">
-                        <?php foreach (['monthly','weekly','daily','per_visit','upfront_only'] as $f): ?>
+                        <?php foreach (['hourly','daily','weekly','monthly','per_visit','upfront_only'] as $f): ?>
                             <option value="<?= $f ?>" <?= ($ln['billing_freq'] ?? 'monthly') === $f ? 'selected' : '' ?>><?= htmlspecialchars($f) ?></option>
                         <?php endforeach; ?>
                     </select></td>
