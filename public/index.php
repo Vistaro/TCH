@@ -232,6 +232,16 @@ if ($route === 'admin/onboarding/upload-revenue') {
     exit;
 }
 
+if ($route === 'admin/help') {
+    // User-guide / manual page. Intentionally bound to the generic
+    // 'dashboard' read permission — every logged-in admin user should
+    // be able to read the user guide regardless of their specific
+    // page grants.
+    requirePagePermission('dashboard', 'read');
+    require APP_ROOT . '/templates/admin/help.php';
+    exit;
+}
+
 if ($route === 'admin/whats-new') {
     requirePagePermission('whats_new', 'read');
     require APP_ROOT . '/templates/admin/whats_new.php';

@@ -149,6 +149,9 @@ if ($user && empty($user['avatar_path'])) {
             <?php endif; ?>
 
             <li class="nav-separator">
+                <a href="<?= APP_URL ?>/admin/help" class="<?= ($activeNav ?? '') === 'help' ? 'active' : '' ?>">&#9632; User Guide</a>
+            </li>
+            <li class="nav-separator">
                 <a href="<?= APP_URL ?>/logout">&#9632; Sign Out</a>
             </li>
         </ul>
