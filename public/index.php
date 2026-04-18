@@ -22,6 +22,26 @@ $route = trim($_GET['route'] ?? '', '/');
 // ─── Parametric admin routes ────────────────────────────────────────────
 // Matched before the static switch so /admin/users/123 doesn't fall through.
 
+if (preg_match('#^admin/quotes/(\d+)(?:/edit)?$#', $route, $m)) {
+    $_GET['contract_id'] = (int)$m[1];
+    $isEdit = str_ends_with($route, '/edit');
+    requirePagePermission('quotes', $isEdit ? 'edit' : 'read');
+    require APP_ROOT . '/templates/admin/' . ($isEdit ? 'quotes_create.php' : 'quotes_detail.php');
+    exit;
+}
+
+if ($route === 'admin/quotes/new') {
+    requirePagePermission('quotes', 'create');
+    require APP_ROOT . '/templates/admin/quotes_create.php';
+    exit;
+}
+
+if ($route === 'admin/quotes') {
+    requirePagePermission('quotes', 'read');
+    require APP_ROOT . '/templates/admin/quotes_list.php';
+    exit;
+}
+
 if (preg_match('#^admin/opportunities/(\d+)(?:/edit)?$#', $route, $m)) {
     $_GET['opp_id'] = (int)$m[1];
     $isEdit = str_ends_with($route, '/edit');

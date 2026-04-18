@@ -4,6 +4,89 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### FR-C + FR-E — Quote builder + rate-override permission — 2026-04-18 (dev)
+
+Internal quote builder lands on top of the FR-L sales pipeline. A
+quote IS a draft-status contract (single source of truth — same
+`contracts` + `contract_lines` tables), presented through a quote-
+focused lens at `/admin/quotes`. Opportunities at the Quoted stage
+can now generate a quote document; accepted quotes feed the opp's
+Closed-Won transition to create the live contract.
+
+- **Migration 041** — `contract_lines.rate_override_reason`
+  VARCHAR(255) nullable + `quotes` and `quotes_rate_override` page
+  entries with role grants. Super Admin everything. Admin: quotes
+  R/C/E (no delete), rate-override NOT granted (stays
+  Super-Admin-only until Ross delegates via the Roles matrix).
+  **Rollback:** `ALTER TABLE contract_lines DROP COLUMN
+  rate_override_reason;` + `DELETE FROM` the two page entries and
+  associated role_permissions rows.
+
+- **`/admin/quotes` list** — status tabs (Open / Draft / Sent /
+  Accepted / Rejected / Expired / All). Shows opportunity ref +
+  title, client/patient, line count, period total. Draft-first
+  sort so in-progress quotes surface fast.
+
+- **`/admin/quotes/new` + `/{id}/edit` — the quote builder.**
+  - Accepts `?opportunity_id=N` — pre-fills client, patient,
+    title, expected start date; stamps `contracts.opportunity_id`
+    AND `opportunities.contract_id` on first save (bi-directional
+    link). If the opp already has a quote, redirects to the
+    existing quote's edit page rather than creating a duplicate.
+  - Line-item editor with unit-aware rate picker: picking a
+    product rebuilds the unit dropdown to only the units that
+    product supports (from `product_billing_rates` where
+    `is_active=1`), is_default first. Rate field prefills from
+    the exact unit-row, not just the product default.
+  - Per-line start/end dates (FR-B).
+  - Running totals per line + quote total, computed live
+    client-side. Server recomputes on save — no cached totals
+    stored (single-source-of-truth rule).
+  - FR-E rate override: rate input `readonly` for users without
+    `quotes_rate_override.edit`. Override reason input appears
+    when the rate differs from the product default and is
+    required to save. Override count surfaces in the audit log
+    summary line.
+  - Auto-generated `quote_reference` in the `Q-YYYY-NNNN` series
+    on first save.
+  - Only quote-relevant statuses (draft/sent/accepted/rejected/
+    expired) in the status selector. Post-active contracts bounce
+    to `/admin/contracts/{id}/edit`.
+
+- **`/admin/quotes/{id}` detail.**
+  - Header with quote ref, status pill, patient/client, linked
+    opportunity.
+  - Action bar: Mark as Sent (from Draft), Record acceptance
+    (dialog — method dropdown + optional note, stamps
+    `accepted_at` + `acceptance_method` + `acceptance_note`),
+    Mark Rejected, Mark Expired.
+  - Accepted + no opportunity: manual "Activate as live contract"
+    button (flips to `status='active'`). With an opportunity, the
+    activation fires on the Closed-Won transition instead —
+    message reminds the user.
+  - Line items table with per-line override flag surfaced,
+    quote total footer, acceptance receipt block when accepted.
+
+- **"Build quote" button on opportunity detail** — green CTA
+  visible when opp is open + has no linked contract yet. Opens
+  the builder with `?opportunity_id` prefill. Once a quote
+  exists, the panel shows the quote ref + status + "Continue
+  editing" link. Active contracts point at `/admin/contracts/{id}`.
+
+- **Routing** — four new routes under `/admin/quotes`.
+
+- **Admin nav** — Quotes added under Records heading, after
+  Pipeline + Opportunities (visible with `quotes.read`).
+
+### Rollback (full FR-C / FR-E revert)
+
+1. Revert app commits.
+2. Run 041 rollback SQL.
+
+No data migrated — all new columns nullable, no row coercion.
+
+---
+
 ### FR-L — Sales pipeline (opportunities + Kanban) — 2026-04-18 (dev)
 
 Added 2026-04-18 after Ross's steer that the quote builder (FR-C) must

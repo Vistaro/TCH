@@ -353,19 +353,40 @@ $isClosed = $opp['status'] === 'closed' || (int)$opp['is_closed_won'] === 1 || (
 </div>
 <?php endif; ?>
 
-<!-- Linked contract -->
+<!-- Linked quote / contract -->
 <div style="background:#fff;border:1px solid #dee2e6;border-radius:4px;padding:1rem 1.2rem;margin-bottom:1rem;">
     <h3 style="margin-top:0;font-size:1rem;">Quote / contract</h3>
-    <?php if ($opp['contract_id']): ?>
+    <?php
+    $canBuildQuote = userCan('quotes', 'create');
+    $isQuoteStatus = $opp['contract_id'] && in_array($opp['contract_status'], ['draft','sent','accepted','rejected','expired'], true);
+    $isLiveContract = $opp['contract_id'] && in_array($opp['contract_status'], ['active','on_hold','cancelled','completed'], true);
+    ?>
+    <?php if ($isQuoteStatus): ?>
+        <p style="margin:0 0 0.4rem 0;">
+            Quote
+            <a href="<?= APP_URL ?>/admin/quotes/<?= (int)$opp['contract_id'] ?>">
+                <strong>#<?= (int)$opp['contract_id'] ?></strong>
+            </a>
+            — status: <strong><?= htmlspecialchars((string)$opp['contract_status']) ?></strong>.
+        </p>
+        <?php if ($canBuildQuote): ?>
+            <a href="<?= APP_URL ?>/admin/quotes/<?= (int)$opp['contract_id'] ?>/edit" class="btn btn-sm btn-primary">Continue editing quote</a>
+        <?php endif; ?>
+    <?php elseif ($isLiveContract): ?>
         <p style="margin:0;">
-            Linked contract
+            Active contract
             <a href="<?= APP_URL ?>/admin/contracts/<?= (int)$opp['contract_id'] ?>">#<?= (int)$opp['contract_id'] ?></a>
             — status: <strong><?= htmlspecialchars((string)$opp['contract_status']) ?></strong>
             <?php if ($opp['contract_start_date']): ?>, starts <?= htmlspecialchars($opp['contract_start_date']) ?><?php endif; ?>.
         </p>
     <?php else: ?>
         <p style="color:#6c757d;margin:0 0 0.6rem 0;font-style:italic;">No quote built yet.</p>
-        <p style="color:#6c757d;font-size:0.85rem;margin:0;">Quote builder (FR-C) is coming next — once live, "Build quote" will appear here and generate a draft contract linked to this opportunity.</p>
+        <?php if ($canBuildQuote && (int)$opp['is_closed_won'] !== 1 && (int)$opp['is_closed_lost'] !== 1): ?>
+            <a href="<?= APP_URL ?>/admin/quotes/new?opportunity_id=<?= (int)$oppId ?>" class="btn btn-sm btn-primary" style="background:#15803d;border-color:#15803d;">
+                + Build quote
+            </a>
+            <p style="color:#6c757d;font-size:0.85rem;margin:0.4rem 0 0 0;">Pre-fills client, patient, and expected start from this opportunity.</p>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
 
