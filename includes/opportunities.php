@@ -109,3 +109,128 @@ function oppSourceOptions(): array {
         'other'       => 'Other',
     ];
 }
+
+/**
+ * Move an opportunity to a new stage, applying the closure side-effects
+ * (Closed-Lost reason capture, Closed-Won contract-activation).
+ *
+ * Shared between the Kanban AJAX move handler and the opportunity-detail
+ * button bar — both callers produce the same DB state for the same input,
+ * only differing in how they present errors (JSON vs HTML flash).
+ *
+ * Opens and commits its own transaction. Caller must NOT already be in
+ * a transaction. Writes an audit-log entry on success.
+ *
+ * Returns an array:
+ *   [
+ *     'ok'          => bool,
+ *     'message'     => string   // user-facing error on failure, success line on ok
+ *     'activated_contract_id' => int|null  // set when a Closed-Won flipped a contract
+ *   ]
+ *
+ * On validation failure (bad stage / missing reason / opp not found) the
+ * function rolls back, returns ok=false, and does NOT throw — callers can
+ * decide how to surface the message.
+ *
+ * @param PDO     $db         live connection
+ * @param int     $oppId      opportunity.id being moved
+ * @param int     $newStageId sales_stages.id target (must be is_active = 1)
+ * @param string  $source     short token included in the audit log summary
+ *                            e.g. 'kanban' / 'detail' — helps tell which UI
+ *                            surface triggered the change
+ * @param ?string $reasonLost required iff target stage is_closed_lost = 1
+ * @param ?string $reasonNote optional free-text note for Closed-Lost
+ */
+function advanceOpportunityStage(
+    PDO $db,
+    int $oppId,
+    int $newStageId,
+    string $source = '',
+    ?string $reasonLost = null,
+    ?string $reasonNote = null
+): array {
+    try {
+        $db->beginTransaction();
+
+        $oppStmt = $db->prepare(
+            "SELECT o.*, s.slug AS stage_slug
+               FROM opportunities o
+          LEFT JOIN sales_stages s ON s.id = o.stage_id
+              WHERE o.id = ?"
+        );
+        $oppStmt->execute([$oppId]);
+        $opp = $oppStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$opp) {
+            $db->rollBack();
+            return ['ok' => false, 'message' => 'Opportunity not found.', 'activated_contract_id' => null];
+        }
+
+        $stageStmt = $db->prepare("SELECT * FROM sales_stages WHERE id = ? AND is_active = 1");
+        $stageStmt->execute([$newStageId]);
+        $newStage = $stageStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$newStage) {
+            $db->rollBack();
+            return ['ok' => false, 'message' => 'Target stage not available.', 'activated_contract_id' => null];
+        }
+
+        $activatedContractId = null;
+
+        if ((int)$newStage['is_closed_lost'] === 1) {
+            if (!$reasonLost || !array_key_exists($reasonLost, reasonLostOptions())) {
+                $db->rollBack();
+                return ['ok' => false, 'message' => 'A reason is required to mark an opportunity lost.', 'activated_contract_id' => null];
+            }
+            $db->prepare(
+                "UPDATE opportunities
+                    SET stage_id = ?, status = 'closed',
+                        reason_lost = ?, reason_lost_note = ?,
+                        closed_at = NOW()
+                  WHERE id = ?"
+            )->execute([$newStageId, $reasonLost, $reasonNote, $oppId]);
+        } elseif ((int)$newStage['is_closed_won'] === 1) {
+            $db->prepare(
+                "UPDATE opportunities
+                    SET stage_id = ?, status = 'closed', closed_at = NOW()
+                  WHERE id = ?"
+            )->execute([$newStageId, $oppId]);
+
+            $cid = (int)($opp['contract_id'] ?? 0);
+            if ($cid > 0) {
+                $db->prepare(
+                    "UPDATE contracts
+                        SET status = 'active',
+                            accepted_at = COALESCE(accepted_at, NOW()),
+                            acceptance_method = COALESCE(acceptance_method, 'phone')
+                      WHERE id = ? AND status IN ('draft','sent','accepted')"
+                )->execute([$cid]);
+                $activatedContractId = $cid;
+            }
+        } else {
+            $db->prepare("UPDATE opportunities SET stage_id = ? WHERE id = ?")
+               ->execute([$newStageId, $oppId]);
+        }
+
+        $db->commit();
+
+        $summary = 'Stage: ' . ($opp['stage_slug'] ?? '?') . ' → ' . $newStage['slug']
+                   . ($source !== '' ? ' (' . $source . ')' : '');
+        logActivity(
+            'opportunity_stage_changed',
+            $source === 'kanban' ? 'pipeline' : 'opportunities',
+            'opportunities', $oppId,
+            $summary,
+            ['stage_id' => (int)$opp['stage_id']],
+            ['stage_id' => $newStageId]
+        );
+
+        return [
+            'ok' => true,
+            'message' => 'Stage updated to ' . $newStage['name'] . '.',
+            'activated_contract_id' => $activatedContractId,
+        ];
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('advanceOpportunityStage failed: ' . $e->getMessage());
+        return ['ok' => false, 'message' => 'Server error moving stage.', 'activated_contract_id' => null];
+    }
+}

@@ -44,76 +44,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit && ($_POST['action'] ?? ''
     } else {
         $action = $_POST['action'] ?? '';
 
-        try {
-            $db->beginTransaction();
-            $before = $db->prepare(
-                "SELECT o.stage_id, o.status, o.reason_lost, o.contract_id, s.is_closed_won, s.is_closed_lost, s.slug AS stage_slug
-                   FROM opportunities o
-              LEFT JOIN sales_stages s ON s.id = o.stage_id
-                  WHERE o.id = ?"
+        if ($action === 'advance_stage') {
+            $res = advanceOpportunityStage(
+                $db, $oppId, (int)$_POST['new_stage_id'],
+                'detail',
+                $_POST['reason_lost']      ?? null,
+                trim($_POST['reason_lost_note'] ?? '') ?: null
             );
-            $before->execute([$oppId]);
-            $prev = $before->fetch(PDO::FETCH_ASSOC) ?: [];
-
-            if ($action === 'advance_stage') {
-                $newStageId = (int)$_POST['new_stage_id'];
-                $stage = $db->prepare("SELECT * FROM sales_stages WHERE id = ?");
-                $stage->execute([$newStageId]);
-                $newStage = $stage->fetch(PDO::FETCH_ASSOC);
-                if (!$newStage) throw new RuntimeException('Unknown stage.');
-
-                if ((int)$newStage['is_closed_lost'] === 1) {
-                    // Reason required for Closed-Lost
-                    $reason = $_POST['reason_lost'] ?? null;
-                    $reasonNote = trim($_POST['reason_lost_note'] ?? '') ?: null;
-                    if (!$reason || !array_key_exists($reason, reasonLostOptions())) {
-                        throw new RuntimeException('A reason is required to mark an opportunity lost.');
-                    }
-                    $db->prepare(
-                        "UPDATE opportunities
-                            SET stage_id = ?, status = 'closed',
-                                reason_lost = ?, reason_lost_note = ?,
-                                closed_at = NOW()
-                          WHERE id = ?"
-                    )->execute([$newStageId, $reason, $reasonNote, $oppId]);
-                } elseif ((int)$newStage['is_closed_won'] === 1) {
-                    // Closed-Won: flip any linked draft contract to active
-                    $db->prepare(
-                        "UPDATE opportunities
-                            SET stage_id = ?, status = 'closed', closed_at = NOW()
-                          WHERE id = ?"
-                    )->execute([$newStageId, $oppId]);
-
-                    $cidRow = $db->prepare("SELECT contract_id FROM opportunities WHERE id = ?");
-                    $cidRow->execute([$oppId]);
-                    $cid = (int)($cidRow->fetchColumn() ?: 0);
-                    if ($cid > 0) {
-                        $db->prepare(
-                            "UPDATE contracts
-                                SET status = 'active', accepted_at = COALESCE(accepted_at, NOW()),
-                                    acceptance_method = COALESCE(acceptance_method, 'phone')
-                              WHERE id = ? AND status IN ('draft','sent','accepted')"
-                        )->execute([$cid]);
-                    }
-                } else {
-                    // Ordinary open-stage transition
-                    $db->prepare(
-                        "UPDATE opportunities SET stage_id = ? WHERE id = ?"
-                    )->execute([$newStageId, $oppId]);
-                }
-
-                $db->commit();
-                logActivity(
-                    'opportunity_stage_changed', 'opportunities', 'opportunities', $oppId,
-                    'Stage: ' . ($prev['stage_slug'] ?? '?') . ' → ' . $newStage['slug'],
-                    ['stage_id' => (int)($prev['stage_id'] ?? 0)],
-                    ['stage_id' => $newStageId]
-                );
-
-                header('Location: ' . APP_URL . '/admin/opportunities/' . $oppId . '?msg=' . urlencode('Stage updated.'));
+            if ($res['ok']) {
+                header('Location: ' . APP_URL . '/admin/opportunities/' . $oppId . '?msg=' . urlencode($res['message']));
                 exit;
-            } elseif ($action === 'reopen') {
-                // Find a sensible open stage — default to Qualifying
+            }
+            $flash = $res['message']; $flashType = 'error';
+        } elseif ($action === 'reopen') {
+            try {
+                $db->beginTransaction();
+                // Find a sensible open stage — default to Qualifying, else first open stage in sort order
                 $openStage = $db->query(
                     "SELECT id FROM sales_stages
                       WHERE slug = 'qualifying' AND is_active = 1 LIMIT 1"
@@ -126,6 +72,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit && ($_POST['action'] ?? ''
                     )->fetchColumn();
                 }
                 if (!$openStage) throw new RuntimeException('No open stage available.');
+                $prevStatusRow = $db->prepare("SELECT status FROM opportunities WHERE id = ?");
+                $prevStatusRow->execute([$oppId]);
+                $prevStatus = $prevStatusRow->fetchColumn();
                 $db->prepare(
                     "UPDATE opportunities
                         SET stage_id = ?, status = 'open',
@@ -133,26 +82,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEdit && ($_POST['action'] ?? ''
                             closed_at = NULL
                       WHERE id = ?"
                 )->execute([(int)$openStage, $oppId]);
-
                 $db->commit();
                 logActivity('opportunity_reopened', 'opportunities', 'opportunities', $oppId,
-                    'Reopened', ['status' => $prev['status'] ?? null], ['status' => 'open']);
+                    'Reopened', ['status' => $prevStatus ?: null], ['status' => 'open']);
                 header('Location: ' . APP_URL . '/admin/opportunities/' . $oppId . '?msg=' . urlencode('Opportunity reopened.'));
                 exit;
-            } elseif ($action === 'archive') {
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) $db->rollBack();
+                $flash = 'Error: ' . $e->getMessage(); $flashType = 'error';
+            }
+        } elseif ($action === 'archive') {
+            try {
+                $prevStatusRow = $db->prepare("SELECT status FROM opportunities WHERE id = ?");
+                $prevStatusRow->execute([$oppId]);
+                $prevStatus = $prevStatusRow->fetchColumn();
                 $db->prepare("UPDATE opportunities SET status = 'archived' WHERE id = ?")->execute([$oppId]);
-                $db->commit();
                 logActivity('opportunity_archived', 'opportunities', 'opportunities', $oppId,
-                    'Archived', ['status' => $prev['status'] ?? null], ['status' => 'archived']);
+                    'Archived', ['status' => $prevStatus ?: null], ['status' => 'archived']);
                 header('Location: ' . APP_URL . '/admin/opportunities?status=archived');
                 exit;
-            } else {
-                throw new RuntimeException('Unknown action.');
+            } catch (Throwable $e) {
+                $flash = 'Error: ' . $e->getMessage(); $flashType = 'error';
             }
-        } catch (Throwable $e) {
-            if ($db->inTransaction()) $db->rollBack();
-            $flash = 'Error: ' . $e->getMessage();
-            $flashType = 'error';
+        } else {
+            $flash = 'Unknown action.'; $flashType = 'error';
         }
     }
 }
