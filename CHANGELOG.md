@@ -4,6 +4,36 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### Migration runner + 039/040/041 applied on DEV — 2026-04-18
+
+Per governance's adopted pattern (portfolio-wide skeleton sent by
+governance in the `tch-migration-runner-2026-04-18` thread), the
+agent now runs migrations itself via SSH rather than handing them
+to Ross to paste. First time this pattern has been exercised on
+any project in the portfolio.
+
+- **`scripts/migrate.sh`** — server-side bash. Pre-migration
+  `mysqldump` snapshot (paired with the agent's local git SHA +
+  manifest sidecar), abort-if-snapshot-empty, apply, last-5 per-env
+  retention, rollback recipe echoed at the end. Parses only DB_*
+  lines out of `.env` (values with spaces like `APP_NAME="TCH
+  Placements"` break naive `source .env`). Refuses to run `prod`
+  against a dev-named DB and vice versa.
+- **Invocation** — local agent SSHes server-side:
+  `ssh <key> <host> 'cd <path> && AGENT_GIT_SHA=<local-sha>
+  bash ./scripts/migrate.sh dev <id>'`.
+- **Migrations 039 + 040 + 041 applied on DEV** at
+  2026-04-18T22:59:52Z / 23:00:26Z / 23:00:54Z. Three snapshots at
+  `~/backups/pre-migration/` (180K each, gzipped) paired with
+  manifest files naming git SHA `5c13224`.
+- **Verification** — `opportunities` (0 rows, fresh),
+  `sales_stages` (6 seeded), `contracts.opportunity_id` (nullable
+  FK present), `contract_lines.rate_override_reason` (VARCHAR(255)
+  present), pages `opportunities / pipeline / quotes /
+  quotes_rate_override` registered.
+- **PROD stays deferred** per the ship-event rule — agent will
+  not run `migrate.sh prod` without explicit Ross approval.
+
 ### FR-F Phase 1 — Quote PDF (print-view) — 2026-04-18 (dev)
 
 Generic TCH-branded quote PDF, ready to send today.
