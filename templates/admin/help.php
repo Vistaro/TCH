@@ -215,13 +215,14 @@ and <strong>Admin</strong>.</p>
     <p class="what"><strong>What this is:</strong> the read view of a quote. Status transitions (Send / Accept / Reject / Expire) live here.</p>
     <div class="do"><strong>What you do here:</strong>
         <ul>
+            <li><strong>Download PDF</strong> — opens a print-friendly version of the quote. Use your browser's Print → Save as PDF to get a file you can email the client.</li>
             <li><strong>Mark as Sent</strong> once you've emailed / given the quote to the client.</li>
             <li><strong>Record acceptance</strong> when they agree — a dialog asks how (email / phone / in-person / signed-PDF / portal) and lets you add a note. The quote transitions to <em>Accepted</em>.</li>
             <li><strong>Mark Rejected</strong> if they decline, or <strong>Mark Expired</strong> if time runs out and they went quiet.</li>
             <li>If there's no linked opportunity: <strong>Activate as live contract</strong> on an accepted quote flips it to status=active.</li>
         </ul>
     </div>
-    <div class="tips"><strong>Tips:</strong> The typical flow is: Draft (building) → Sent (off to client) → Accepted (they said yes). Then the opportunity's Closed-Won transition triggers the contract activation. You don't need to click "Activate" separately if the quote came from an opportunity.</div>
+    <div class="tips"><strong>Tips:</strong> The typical flow is: Draft (building) → Sent (off to client) → Accepted (they said yes). Then the opportunity's Closed-Won transition triggers the contract activation. You don't need to click "Activate" separately if the quote came from an opportunity. The PDF uses a generic TCH template for now — a branded version with Tuniti's letterhead is coming.</div>
 </div>
 
 <!-- ═════════════════════════════════════════════════════════════

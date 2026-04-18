@@ -178,6 +178,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
         <?php if ($canEdit && $q['status'] === 'draft'): ?>
             <a href="<?= APP_URL ?>/admin/quotes/<?= $quoteId ?>/edit" class="btn btn-sm btn-primary">Edit</a>
         <?php endif; ?>
+        <a href="<?= APP_URL ?>/admin/quotes/<?= $quoteId ?>/print" target="_blank" class="btn btn-sm" style="background:#1e40af;color:#fff;border:0;">Download PDF</a>
         <a href="<?= APP_URL ?>/admin/quotes" class="btn btn-sm" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;">← List</a>
     </div>
 </div>

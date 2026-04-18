@@ -4,6 +4,39 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### FR-F Phase 1 — Quote PDF (print-view) — 2026-04-18 (dev)
+
+Generic TCH-branded quote PDF, ready to send today.
+
+- **`templates/admin/quote_print.php`** — standalone print-optimised
+  HTML page at `/admin/quotes/{id}/print`. A4 layout with TCH
+  header block (pulled from `regions` where `is_primary=1`), quote
+  reference + meta (issued / valid / care-start), line-items table
+  with per-line dates + notes, quote total, terms placeholder, bank
+  details placeholder, acceptance signature block. Top toolbar tells
+  the user to press Ctrl+P / ⌘+P → Save as PDF; toolbar hides under
+  `@media print`.
+- **"Download PDF" button** added to the quote detail page action
+  bar — opens the print view in a new tab.
+- **Zero new dependencies.** No Composer install, no server-side
+  PDF library — uses the browser's native Print → Save as PDF path.
+  Works today on every modern browser, across desktop and mobile.
+  Phase 2 (server-side PDF for email attachment — prereq for FR-G
+  automatic email delivery) remains a future commit.
+- **Placeholders** for terms + bank details are visible in the
+  template (yellow dashed box) — Ross fills these in when ready,
+  either by editing the template directly or wiring `system_settings`
+  rows. Tuniti's branded letterhead replacement is FR-F Phase 1b
+  (onboarding task).
+- **Help page** (`/admin/help`) updated to reference the Download
+  PDF button in the quote detail section.
+
+### Rollback
+
+Pure view addition — no schema, no data. Revert the commit.
+
+---
+
 ### FR-C + FR-E — Quote builder + rate-override permission — 2026-04-18 (dev)
 
 Internal quote builder lands on top of the FR-L sales pipeline. A
