@@ -9,6 +9,11 @@ Append-only. One entry per non-obvious design choice. Format:
 **Because:** …
 ```
 
+## 2026-04-18 — `/admin/help` bound to `dashboard.read`, not its own RBAC page
+**Chose:** Route the user-guide page at `/admin/help` through the generic `dashboard.read` permission. Every logged-in admin sees the guide regardless of their specific page grants.
+**Over:** Registering a dedicated `help.read` page in the `pages` / `role_permissions` registry so each role's access is managed independently.
+**Because:** The guide is informational and aids onboarding — hiding it from any logged-in admin only costs them time finding answers. A separate permission would add a row to maintain with zero practical gating we'd actually want. Revisit if/when caregiver or client portals exist and non-admin users reach the system — at that point the guide either splits into admin/caregiver/client flavours or picks up a role-aware filter. Logged 2026-04-18 with Ross's sign-off in the autonomous-cleanup session; see `docs/sessions/2026-04-18-autonomous-cleanup.md`.
+
 ## 2026-04-16 — Per-line dates on `contract_lines`; parent `contracts.start_date` / `.end_date` become a display cache (FR-B)
 **Chose:** Add `start_date` + `end_date` (nullable) to `contract_lines` via migration 037. Each line carries its own run; `end_date = NULL` means ongoing. The parent `contracts.start_date` / `contracts.end_date` stay in place for now but are treated as display-cache / sort-key only — anywhere that cares about a line's actual window reads the line's own dates, falling through to the contract's dates only when the line's are NULL (migration 037 backfilled every existing row, so the fallback is a safety net for edge cases, not the primary path).
 **Over:** Leaving the single contract-level start/end and forcing every line to share them; or dropping `contracts.start_date` / `.end_date` immediately.

@@ -22,15 +22,30 @@ $activeNav = 'opportunities';
 $flash = '';
 $flashType = 'success';
 
-// Convert-from-enquiry prefill (only used when ?from_enquiry=N and no POST yet)
+// Convert-from-enquiry prefill (only used when ?from_enquiry=N and no POST yet).
+//
+// Guardrail: only client-type enquiries convert to opportunities.
+// Caregiver-type enquiries are job applicants, not prospects; general-type
+// enquiries are informational. The "+ Convert to Opportunity" button on
+// enquiries.php already hides for non-client types, but this server-side
+// check blocks direct-URL access as well.
 $fromEnquiryId = (!$isEdit && $_SERVER['REQUEST_METHOD'] !== 'POST')
     ? (int)($_GET['from_enquiry'] ?? 0)
     : 0;
 $enquiryPrefill = null;
+$enquiryRejectReason = null;
 if ($fromEnquiryId > 0) {
     $stmt = $db->prepare("SELECT * FROM enquiries WHERE id = ?");
     $stmt->execute([$fromEnquiryId]);
     $enquiryPrefill = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$enquiryPrefill) {
+        $enquiryRejectReason = 'Enquiry not found.';
+    } elseif (($enquiryPrefill['enquiry_type'] ?? '') !== 'client') {
+        $enquiryRejectReason = 'Only client-type enquiries can be converted to opportunities. '
+            . 'This enquiry is a '. $enquiryPrefill['enquiry_type'] . '-type submission.';
+        $enquiryPrefill = null;
+        $fromEnquiryId = 0;
+    }
 }
 
 // ── Handle POST ────────────────────────────────────────────────────
@@ -235,6 +250,14 @@ require APP_ROOT . '/templates/layouts/admin.php';
 <?php if ($flash): ?>
     <div class="flash flash-<?= htmlspecialchars($flashType) ?>" style="padding:0.8rem 1rem;margin-bottom:1rem;border-radius:4px;background:<?= $flashType === 'error' ? '#f8d7da' : '#d1e7dd' ?>;color:<?= $flashType === 'error' ? '#842029' : '#0f5132' ?>;">
         <?= htmlspecialchars($flash) ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($enquiryRejectReason): ?>
+    <div style="padding:0.8rem 1rem;margin-bottom:1rem;border-radius:4px;background:#f8d7da;color:#842029;border:1px solid #f5c2c7;">
+        <strong>Cannot convert this enquiry.</strong> <?= htmlspecialchars($enquiryRejectReason) ?>
+        <a href="<?= APP_URL ?>/admin/enquiries" style="margin-left:0.4rem;">Back to inbox</a>
+        or <a href="<?= APP_URL ?>/admin/opportunities/new" style="margin-left:0.2rem;">create a blank opportunity</a>.
     </div>
 <?php endif; ?>
 
