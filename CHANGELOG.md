@@ -4,6 +4,153 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### FR-L — Sales pipeline (opportunities + Kanban) — 2026-04-18 (dev)
+
+Added 2026-04-18 after Ross's steer that the quote builder (FR-C) must
+sit inside a sales-pipeline context. Pattern lifted from the Nexus-CRM
+opportunity + kanban model (stages as lookup table, native HTML5
+drag-drop, optimistic UI). TCH-specific divergences: single-currency
+(ZAR), no approval workflow, single `owner_user_id` (no coworkers
+table), no stage-gate enforcement engine (can add later if needed).
+
+Writeup: `docs/TCH_Quote_And_Portal_Plan.md` §4 FR-L. Companion
+Acquire / Manage / Exit lifecycle reporting captured as FR-M for
+follow-up.
+
+- **Migration 039** — `opportunities` + `sales_stages` tables.
+  - `sales_stages` is a lookup (not ENUM) so Ross can rename / reorder
+    / disable stages without schema churn. Carries
+    `probability_percent`, `is_closed_won`, `is_closed_lost`,
+    `is_active`, `sort_order`. Seeded with six defaults:
+    New (10%) / Qualifying (25%) / Quoted (60%) /
+    Negotiating (80%) / Closed-Won (100%) / Closed-Lost (0%).
+  - `opportunities` holds the sales record: ref (`OPP-YYYY-NNNN`),
+    title, source (`enquiry`/`referral`/`direct_call`/`walk_in`/`other`)
+    + nullable `source_enquiry_id` back-pointer + `source_note`,
+    nullable `client_id` + `patient_person_id` (filled as we
+    qualify), contact snapshot (name/email/phone) carried from
+    enquiry, `owner_user_id`, `stage_id`, `expected_value_cents`,
+    `expected_start_date`, `contract_id` (set by FR-C when the
+    quote is built), `status` ENUM (open/closed/archived) for
+    soft-delete, `reason_lost` ENUM + note (required on
+    Closed-Lost transition), `closed_at`, notes, full audit
+    columns. Indices on stage, owner, status, source, client,
+    patient, contract, and created.
+  - Registers `opportunities` + `pipeline` in the `pages`
+    permission registry. Super Admin: full CRUD. Admin: RCE
+    (no delete), matching the contracts pattern.
+  - **Rollback:** `DROP TABLE opportunities; DROP TABLE
+    sales_stages;` and the two `DELETE FROM pages/role_permissions`
+    statements at the top of the migration file.
+
+- **Migration 040** — `contracts.opportunity_id` nullable FK.
+  - Back-pointer so a quote (draft contract built by FR-C from a
+    Quoted-stage opp) can trace to its originating opportunity.
+    FR-M Acquire reporting uses this to compute "opportunity →
+    won rate" and forecast value.
+  - Bi-directional: `opportunities.contract_id` (in 039) +
+    `contracts.opportunity_id` (in 040). v1: one opp → one
+    contract. Unique constraints deferred until multi-quote-per-opp
+    lands (not needed now).
+  - Existing contracts: `opportunity_id` stays NULL. No backfill.
+  - **Rollback:** `ALTER TABLE contracts DROP FOREIGN KEY
+    fk_contract_opportunity; ALTER TABLE contracts DROP COLUMN
+    opportunity_id;`
+
+- **`/admin/opportunities` — list + detail + create/edit.**
+  - List (`templates/admin/opportunities_list.php`): filterable by
+    stage (including "all open" shortcut), owner, status tabs
+    (open/closed/archived/all). Headline counts per tab. Rows
+    colour-coded by stage (green Won / red Lost / blue otherwise);
+    closed-status rows dimmed to 75% opacity. Links to Kanban and
+    "New Opportunity".
+  - Create/edit (`templates/admin/opportunities_create.php`): single
+    form with fieldsets for Opportunity / Source / Who-it's-for /
+    Care requirement + estimate / Notes. Client + patient pickers
+    optional (nullable early). Expected value entered in Rand,
+    stored in cents. Audit-logged via `logActivity` with before/after.
+  - Detail (`templates/admin/opportunities_detail.php`): header
+    with ref, title, stage pill, owner, edit/list/pipeline links.
+    Stage-transition button bar (drop dialog for Closed-Lost
+    reason; confirm dialog for Closed-Won which flips any linked
+    draft contract to `status='active'`). Side panel: source with
+    enquiry backlink, key dates, reason-lost block. Activity
+    timeline via existing `renderActivityTimeline()` helper —
+    same Notes + Tasks panel as client/patient pages so nothing
+    new to learn.
+
+- **`/admin/pipeline` — Kanban board.**
+  - One column per active sales_stage, columns ordered by
+    `sort_order`. Cards show ref / title / client-or-patient-or-
+    contact / expected monthly value / owner. Column totals in
+    ZAR at the top of each column.
+  - Drag-and-drop via native HTML5 events (no library — matches
+    TCH's "no-heavy-JS admin" pattern). POSTs to
+    `/ajax/opp-stage-move` with CSRF; optimistic UI moves the card
+    immediately, rolls back if server rejects (permission,
+    stage validation, or missing Closed-Lost reason).
+  - Closed-Lost drop opens an inline reason dialog (dropdown +
+    optional note) before the AJAX POST fires. Closed-Won drop
+    fires a confirm() prompt, then the AJAX POST which flips any
+    linked draft contract to `active`.
+  - Optional `?owner=<id>` filter. Drags blocked for users
+    without `opportunities.edit`.
+
+- **Enquiry → Opportunity conversion.**
+  - Enquiry detail page (`templates/admin/enquiries.php`) now
+    shows a green "+ Convert to Opportunity" button for
+    client-type enquiries (hidden for `caregiver`/`general` types).
+    Routes to `/admin/opportunities/new?from_enquiry={id}`.
+  - Create form pre-fills title (`"Care enquiry — {submitter}"`),
+    contact snapshot (name/email/phone), and care summary
+    (`[care_type] message`) from the enquiry record. Source is
+    locked to `enquiry` with `source_enquiry_id` set.
+  - On save, the enquiry flips to `status='converted'` (if it
+    was `new`/`contacted`) and `handled_by`/`handled_at` stamped.
+  - If the enquiry already has an opportunity, the button
+    becomes "View opportunity OPP-YYYY-NNNN →" pointing at the
+    existing record — no duplicate creation.
+
+- **AJAX handler** — `templates/admin/opp_stage_move_handler.php`,
+  routed at `/ajax/opp-stage-move`. POST-only, CSRF-checked,
+  permission-gated (`opportunities.edit`), transactional,
+  audit-logged. Returns `{success:true}` or
+  `{success:false, message:...}` JSON. Rejects if target stage is
+  inactive, if opp not found, or if Closed-Lost reason missing
+  or invalid.
+
+- **Shared helpers** — `includes/opportunities.php`:
+  `nextOppRef()`, `fetchSalesStages()`, `fetchOpportunity()`,
+  `reasonLostOptions()`, `oppSourceOptions()`. Single source of
+  truth for vocabulary across list/detail/create/pipeline/handler.
+
+- **Admin nav** — Pipeline and Opportunities added under the
+  Records heading (visible to anyone with `pipeline.read` or
+  `opportunities.read` respectively).
+
+### Follow-up (deferred to FR-C)
+
+FR-C (quote builder) was the original plan-doc next step, but
+depends on opportunities existing first so the quote can stamp
+`contracts.opportunity_id`. Now unblocked: next build pass wires
+a "Build quote from this opp" button on the opportunity detail
+page that opens `/admin/quotes/new?opportunity_id={id}` and
+creates the draft contract linked both ways.
+
+### Rollback (full FR-L revert)
+
+1. Revert app code commits (git).
+2. Run the 040 rollback SQL first (`DROP FK` + `DROP COLUMN`
+   on `contracts`).
+3. Run the 039 rollback SQL (drop both tables + clean up
+   `pages` and `role_permissions`).
+
+No data loss on revert — pre-FR-L state has no opportunities
+and no `contracts.opportunity_id`, so there's nothing to
+migrate back.
+
+---
+
 ## [v0.9.24] — 2026-04-16 — Quote & Portal Plan foundation (FR-A, FR-B)
 
 First build phase toward the quote-to-contract-to-scheduling pipeline

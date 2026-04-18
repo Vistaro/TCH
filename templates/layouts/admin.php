@@ -52,8 +52,14 @@ if ($user && empty($user['avatar_path'])) {
                 <li><a href="<?= APP_URL ?>/admin" class="<?= ($activeNav ?? '') === 'dashboard' ? 'active' : '' ?>">&#9632; Dashboard</a></li>
             <?php endif; ?>
 
-            <?php if (userCan('caregivers_list', 'read') || userCan('clients_list', 'read') || userCan('patients_list', 'read') || userCan('engagements', 'read') || userCan('roster_input', 'read') || userCan('student_tracking', 'read')): ?>
+            <?php if (userCan('caregivers_list', 'read') || userCan('clients_list', 'read') || userCan('patients_list', 'read') || userCan('engagements', 'read') || userCan('roster_input', 'read') || userCan('student_tracking', 'read') || userCan('opportunities', 'read') || userCan('pipeline', 'read')): ?>
                 <li class="nav-heading">Records</li>
+                <?php if (userCan('pipeline', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/pipeline" class="<?= ($activeNav ?? '') === 'pipeline' ? 'active' : '' ?>">&#9632; Pipeline</a></li>
+                <?php endif; ?>
+                <?php if (userCan('opportunities', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/opportunities" class="<?= ($activeNav ?? '') === 'opportunities' ? 'active' : '' ?>">&#9632; Opportunities</a></li>
+                <?php endif; ?>
                 <?php if (userCan('student_tracking', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/students" class="<?= ($activeNav ?? '') === 'student-tracking' ? 'active' : '' ?>">&#9632; Students</a></li>
                 <?php endif; ?>

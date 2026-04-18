@@ -22,6 +22,32 @@ $route = trim($_GET['route'] ?? '', '/');
 // ─── Parametric admin routes ────────────────────────────────────────────
 // Matched before the static switch so /admin/users/123 doesn't fall through.
 
+if (preg_match('#^admin/opportunities/(\d+)(?:/edit)?$#', $route, $m)) {
+    $_GET['opp_id'] = (int)$m[1];
+    $isEdit = str_ends_with($route, '/edit');
+    requirePagePermission('opportunities', $isEdit ? 'edit' : 'read');
+    require APP_ROOT . '/templates/admin/' . ($isEdit ? 'opportunities_create.php' : 'opportunities_detail.php');
+    exit;
+}
+
+if ($route === 'admin/opportunities/new') {
+    requirePagePermission('opportunities', 'create');
+    require APP_ROOT . '/templates/admin/opportunities_create.php';
+    exit;
+}
+
+if ($route === 'admin/opportunities') {
+    requirePagePermission('opportunities', 'read');
+    require APP_ROOT . '/templates/admin/opportunities_list.php';
+    exit;
+}
+
+if ($route === 'admin/pipeline') {
+    requirePagePermission('pipeline', 'read');
+    require APP_ROOT . '/templates/admin/pipeline.php';
+    exit;
+}
+
 if (preg_match('#^admin/contracts/(\d+)(?:/edit)?$#', $route, $m)) {
     $_GET['contract_id'] = (int)$m[1];
     $isEdit = str_ends_with($route, '/edit');
@@ -384,6 +410,12 @@ switch ($route) {
     // POST only. Auth + CSRF enforced inside the handler.
     case 'ajax/report-issue':
         require APP_ROOT . '/templates/admin/report_issue_handler.php';
+        break;
+
+    // ─── AJAX: Kanban drag-drop stage move ──────────────────────────────
+    // POST only. Auth + CSRF + permission enforced inside the handler.
+    case 'ajax/opp-stage-move':
+        require APP_ROOT . '/templates/admin/opp_stage_move_handler.php';
         break;
 
     // ─── Matrix-report drill-down (GET, returns HTML fragment) ─────────

@@ -420,6 +420,71 @@ Each entry below is a ready-to-file Hub FR.
 
 ---
 
+### FR-L — Sales pipeline: opportunities + Kanban board
+
+**Business description**
+
+- **Outcome:** Every enquiry that's worth working on is promoted to an **Opportunity** — a record of a potential care engagement being worked toward Closed-Won or Closed-Lost. Tuniti (and Ross) can see every open opportunity on a Kanban board by stage, and drag cards through the stages as they progress. The quote builder (FR-C) creates quotes attached to an opportunity, and a won opportunity generates the active contract.
+- **What it does:**
+  - New record type: **Opportunity**. Fields capture who it's for (client + patient, nullable until qualified), expected value, expected start date, source (enquiry / referral / direct call / Tuniti walk-in), assigned owner, stage, notes, reason-lost (if closed-lost).
+  - Stages (draft): **New → Qualifying → Quoted → Negotiating → Closed-Won / Closed-Lost**. Settable by Ross when we flesh this out.
+  - `/admin/enquiries` gets a "Convert to Opportunity" button — promotes an enquiry to an Opportunity, carrying name/phone/email/care_type across.
+  - `/admin/opportunities` — list view + filter by stage/owner/date-range.
+  - `/admin/pipeline` — Kanban board, columns = stages, cards = opportunities, drag to move.
+  - Quotes (FR-C) attach to an Opportunity, not directly to an enquiry. One Opportunity can have multiple quote iterations (revision after client feedback).
+  - Closed-Won transition triggers: contract goes active, engagements/scheduling can begin.
+  - Closed-Lost requires a reason (drop-down: price, timing, competitor, lost-contact, other + free text).
+- **Why it matters:** Without this, enquiries are a flat inbox and the sales funnel has no visibility. Tuniti doesn't know what to chase; Ross can't report on pipeline health or forecast revenue. This is the "Acquire" phase reporting surface (see FR-M).
+- **If we don't do it:** Sales work lives in Tuniti's head. No pipeline reporting. No forecasting. No way to see "15 opportunities worth R200k are in the Quoted stage this month".
+
+**Technical description**
+
+- **Architecture context:** Pattern lifted from Nexus CRM's opportunity model. Sits between `enquiries` (raw inbox) and `contracts` (signed deals). Quotes live on `contracts` with `status='draft'` (already built) but gain an FK to `opportunities`.
+- **Proposed approach:**
+  1. Migration: new table `opportunities` with: `id`, `source_enquiry_id` (FK nullable), `client_id` + `patient_id` (FKs nullable early), `stage` (ENUM), `owner_user_id` (FK users), `expected_value_cents` (nullable), `expected_start_date` (nullable), `source` (ENUM: enquiry/referral/direct/walk_in/other), `notes`, `reason_lost`, `closed_at`, standard created/updated timestamps.
+  2. Migration: add `contracts.opportunity_id` FK (nullable). Existing contracts stay NULL; new quotes via FR-C stamp it.
+  3. `/admin/opportunities` list + detail + create/edit pages.
+  4. `/admin/pipeline` Kanban — one column per stage, drag-and-drop moves cards (saves new stage via AJAX + activity log).
+  5. "Convert enquiry to opportunity" handler on enquiry detail — creates the Opportunity, stamps `source_enquiry_id`, sets `enquiries.status='converted'`.
+  6. Every mutation audit-logged per standing rule.
+- **Dependencies / risks:**
+  - Best shipped **before or alongside** FR-C so the quote builder stamps `contracts.opportunity_id` from day 1 — avoids a later backfill.
+  - Kanban drag-drop needs a small JS lift; use a lightweight library or hand-rolled native-HTML5 drag-drop (no React / heavy framework — matches the rest of the admin).
+  - Stage list needs Ross's final call; the draft above is a starting point lifted from Nexus CRM.
+- **Acceptance criteria:**
+  - An enquiry can be converted to an opportunity in one click; client + patient pickers inline if not yet linked.
+  - The pipeline Kanban loads all open opportunities grouped by stage.
+  - Dragging a card from Qualifying to Quoted updates the DB and writes an activity-log entry.
+  - Closing an opportunity as Won triggers the contract going active; closing as Lost requires a reason.
+  - Reporting queries against `opportunities` support "open pipeline value by stage" and "conversion rate enquiry → won".
+
+---
+
+### FR-M — Lifecycle reporting: Acquire / Manage / Exit
+
+**Business description**
+
+- **Outcome:** Three reporting surfaces, one per phase of the customer lifecycle, each built for its own audience. Business health is visible at a glance rather than computed from spreadsheets on demand.
+- **What it does:**
+  - **Acquire reports** — pipeline KPIs for Tuniti + Ross. Open pipeline value by stage, conversion rate enquiry → won, average days in each stage, win rate, sales velocity, revenue forecasts. Kanban view from FR-L is the "live" surface; this FR is the periodic-report surface.
+  - **Manage reports** — ops KPIs while the client is active. Active patient count, hours delivered this month, revenue this month, gross margin, caregiver continuity per patient, client tenure distribution, unbilled care value outstanding, caregiver utilisation rate.
+  - **Exit reports** — strategic KPIs on churn. Clients exited this period, reason-for-leaving breakdown, average length of relationship, lifetime-value distribution at exit, time-to-exit curve (i.e. how long before we lose them).
+- **Why it matters:** Running a care business blind to these three surfaces means decisions get made on gut feel. Separating by audience means each one only sees what matters to them.
+- **If we don't do it:** Reporting stays ad-hoc. No single source of business health.
+
+**Technical description**
+
+- **Architecture context:** Each report surface is a new page under `/admin/reports/` (or equivalent). Data comes from `opportunities` (Acquire), `daily_roster` + `contracts` + `patients` (Manage), and `contracts` + exit-reason tracking (Exit). No new source-of-truth tables — just read-side reporting views or direct queries.
+- **Proposed approach:** Full scoping deferred until FR-L is in place — the Acquire reports depend on the opportunity data model existing. Expect this to break into sub-FRs: M1 Acquire, M2 Manage, M3 Exit. Each needs its own scoping session to agree KPIs + visualisations.
+- **Dependencies / risks:**
+  - Acquire depends on FR-L.
+  - Manage largely deliverable now — daily_roster + contracts data already exist; just needs aggregations + UI.
+  - Exit needs an "exit reason" capture at the point a contract goes to `completed` status — small pre-req.
+  - Scope is wide; ship in slices.
+- **Acceptance criteria:** Deferred — defined per sub-FR.
+
+---
+
 ## 5. Explicitly out of scope (for now)
 
 These came up in the discussion and are deliberately deferred.
@@ -436,7 +501,7 @@ These came up in the discussion and are deliberately deferred.
 
 ## 6. Follow-up: Hub filing
 
-Once Ross has reviewed this plan, these 11 FRs (FR-A through FR-K) should land in Nexus Hub under the `tch` project. I'll file them there once the Hub API token is wired per the SessionStart briefing, or Ross can file them manually from this doc as time permits. Each writeup above is already in the three-layer format Hub expects.
+Once Ross has reviewed this plan, these 13 FRs (FR-A through FR-M) should land in Nexus Hub under the `tch` project. I'll file them there once the Hub API token is wired per the SessionStart briefing, or Ross can file them manually from this doc as time permits. Each writeup above is already in the three-layer format Hub expects.
 
 ---
 

@@ -91,8 +91,31 @@ if ($detailId > 0) {
 
     require APP_ROOT . '/templates/layouts/admin.php';
     ?>
-    <div style="margin-bottom:1rem;">
+    <div style="margin-bottom:1rem;display:flex;gap:0.5rem;justify-content:space-between;align-items:center;flex-wrap:wrap;">
         <a href="<?= APP_URL ?>/admin/enquiries" class="btn btn-outline btn-sm">&larr; Back to inbox</a>
+        <?php
+        // Already-converted detection — avoid building a duplicate opp.
+        $existingOpp = null;
+        if (userCan('opportunities', 'read')) {
+            $oppStmt = $db->prepare(
+                "SELECT id, opp_ref, title FROM opportunities
+                  WHERE source_enquiry_id = ?
+                  ORDER BY id DESC LIMIT 1"
+            );
+            $oppStmt->execute([(int)$enq['id']]);
+            $existingOpp = $oppStmt->fetch() ?: null;
+        }
+        ?>
+        <?php if ($existingOpp): ?>
+            <a href="<?= APP_URL ?>/admin/opportunities/<?= (int)$existingOpp['id'] ?>" class="btn btn-primary btn-sm">
+                View opportunity <?= htmlspecialchars($existingOpp['opp_ref']) ?> →
+            </a>
+        <?php elseif (userCan('opportunities', 'create') && $enq['enquiry_type'] === 'client'): ?>
+            <a href="<?= APP_URL ?>/admin/opportunities/new?from_enquiry=<?= (int)$enq['id'] ?>"
+               class="btn btn-primary btn-sm" style="background:#15803d;border-color:#15803d;">
+                + Convert to Opportunity
+            </a>
+        <?php endif; ?>
     </div>
 
     <div class="person-card">
