@@ -158,10 +158,25 @@ require APP_ROOT . '/templates/layouts/admin.php';
         $total = 0; foreach ($stageOpps as $o) $total += (int)($o['expected_value_cents'] ?? 0);
         $stageClass = (int)$stage['is_closed_won'] === 1 ? 'is-won' : ((int)$stage['is_closed_lost'] === 1 ? 'is-lost' : '');
     ?>
-        <div class="kanban-col <?= $stageClass ?>" data-stage-id="<?= $sid ?>" data-stage-slug="<?= htmlspecialchars($stage['slug']) ?>" data-is-lost="<?= (int)$stage['is_closed_lost'] ?>" data-is-won="<?= (int)$stage['is_closed_won'] ?>">
+        <?php
+        // Closed stages show only as drop targets — opps transition
+        // to status='closed' and fall off the board, so counts/totals
+        // are always 0 there. Suppress to avoid visual clutter.
+        $isClosedCol = (int)$stage['is_closed_won'] === 1 || (int)$stage['is_closed_lost'] === 1;
+        ?>
+        <div class="kanban-col <?= $stageClass ?>" data-stage-id="<?= $sid ?>" data-stage-slug="<?= htmlspecialchars($stage['slug']) ?>" data-is-lost="<?= (int)$stage['is_closed_lost'] ?>" data-is-won="<?= (int)$stage['is_closed_won'] ?>" data-is-closed="<?= $isClosedCol ? 1 : 0 ?>">
             <div class="kanban-col-head">
-                <span><?= htmlspecialchars($stage['name']) ?> <span style="color:#94a3b8;font-weight:400;">(<?= count($stageOpps) ?>)</span></span>
-                <span class="kanban-col-total">R<?= number_format($total / 100, 0) ?></span>
+                <span>
+                    <?= htmlspecialchars($stage['name']) ?>
+                    <?php if (!$isClosedCol): ?>
+                        <span class="kanban-col-count" style="color:#94a3b8;font-weight:400;">(<?= count($stageOpps) ?>)</span>
+                    <?php endif; ?>
+                </span>
+                <?php if (!$isClosedCol): ?>
+                    <span class="kanban-col-total">R<?= number_format($total / 100, 0) ?></span>
+                <?php else: ?>
+                    <span class="kanban-col-total" style="font-size:0.72rem;color:#94a3b8;">drop to close</span>
+                <?php endif; ?>
             </div>
             <?php foreach ($stageOpps as $o):
                 $valStr = $o['expected_value_cents'] !== null
@@ -181,9 +196,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
-            <?php if (empty($stageOpps)): ?>
-                <div style="color:#94a3b8;font-size:0.78rem;text-align:center;padding:1rem 0.4rem;font-style:italic;">Drop cards here</div>
-            <?php endif; ?>
+            <div class="kanban-col-empty" style="color:#94a3b8;font-size:0.78rem;text-align:center;padding:1rem 0.4rem;font-style:italic;<?= empty($stageOpps) ? '' : 'display:none;' ?>">Drop cards here</div>
         </div>
     <?php endforeach; ?>
 </div>
@@ -303,6 +316,8 @@ require APP_ROOT . '/templates/layouts/admin.php';
         if (reason) body.append('reason_lost', reason);
         if (note)   body.append('reason_lost_note', note);
 
+        const newCol = card.parentElement;
+
         fetch(MOVE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -311,19 +326,54 @@ require APP_ROOT . '/templates/layouts/admin.php';
         .then(r => r.json())
         .then(data => {
             if (!data.success) {
-                oldCol.appendChild(card);  // roll back
+                oldCol.appendChild(card);           // roll back the optimistic move
+                TCH_refreshColumn(oldCol);
+                TCH_refreshColumn(newCol);
                 alert(data.message || 'Move rejected.');
                 return;
             }
             if (removeOnSuccess) {
-                // Card leaves the open-pipeline board once closed
-                card.remove();
+                card.remove();                       // closed-won/lost: card leaves the open-pipeline board
             }
+            TCH_refreshColumn(oldCol);
+            TCH_refreshColumn(newCol);
         })
         .catch(err => {
             oldCol.appendChild(card);
+            TCH_refreshColumn(oldCol);
+            TCH_refreshColumn(newCol);
             alert('Network error: ' + err.message);
         });
+    }
+
+    /**
+     * After a successful (or failed-and-rolled-back) drop, recompute
+     * the column's card count + R total and show/hide the "Drop cards
+     * here" placeholder. Keeps the UI honest without a page reload.
+     */
+    function TCH_refreshColumn(col) {
+        if (!col) return;
+        const cards = col.querySelectorAll('.kanban-card');
+        const isClosed = col.dataset.isClosed === '1';
+
+        const countEl = col.querySelector('.kanban-col-count');
+        if (countEl) countEl.textContent = '(' + cards.length + ')';
+
+        if (!isClosed) {
+            let total = 0;
+            cards.forEach(c => {
+                const v = c.querySelector('.kanban-value');
+                if (!v) return;
+                // Pull digits out of the card's value string (e.g. 'R15,000/mo' → 15000)
+                const match = v.textContent.replace(/[^\d]/g, '');
+                if (match) total += parseInt(match, 10);
+            });
+            const totalEl = col.querySelector('.kanban-col-total');
+            if (totalEl) totalEl.textContent = 'R' + total.toLocaleString('en-ZA');
+        }
+
+        const empty = col.querySelector('.kanban-col-empty');
+        if (empty) empty.style.display = cards.length === 0 ? '' : 'none';
     }
 })();
 </script>
