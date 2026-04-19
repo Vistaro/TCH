@@ -242,6 +242,13 @@ foreach ($db->query("SELECT status, COUNT(*) AS n FROM enquiries GROUP BY status
 require APP_ROOT . '/templates/layouts/admin.php';
 ?>
 
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:1rem;flex-wrap:wrap;">
+    <p style="color:#64748b;margin:0;font-size:0.9rem;">Every public enquiry + every enquiry logged by hand lands here. Open one to work it through to conversion.</p>
+    <?php if (userCan('enquiries', 'create')): ?>
+        <a href="<?= APP_URL ?>/admin/enquiries/new" class="btn btn-primary btn-sm">+ New Enquiry</a>
+    <?php endif; ?>
+</div>
+
 <div class="dash-cards" style="margin-bottom:1.5rem;">
     <?php foreach (['new','contacted','converted','closed','spam'] as $s): ?>
         <div class="dash-card<?= $s === 'new' ? ' accent' : '' ?>">

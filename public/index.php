@@ -404,6 +404,11 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/enquiries.php';
         break;
 
+    case 'admin/enquiries/new':
+        requirePagePermission('enquiries', 'create');
+        require APP_ROOT . '/templates/admin/enquiries_create.php';
+        break;
+
     // ─── User management ───────────────────────────────────────────────
     case 'admin/users':
         requirePagePermission('users', 'read');
