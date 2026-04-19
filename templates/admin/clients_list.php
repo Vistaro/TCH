@@ -61,7 +61,13 @@ $totMargin = $totRev - $totCost;
     ?>
     <tr style="cursor:pointer;<?= $rowStyle ?>"
         onclick="window.location='<?= APP_URL ?>/admin/clients/<?= (int)$r['id'] ?>';">
-        <td class="center"><code><?= htmlspecialchars($r['account_number'] ?? '') ?></code></td>
+        <td class="center">
+            <?php if (!empty($r['account_number'])): ?>
+                <code><?= htmlspecialchars($r['account_number']) ?></code>
+            <?php else: ?>
+                <span style="color:#adb5bd;">—</span>
+            <?php endif; ?>
+        </td>
         <td>
             <a href="<?= APP_URL ?>/admin/clients/<?= (int)$r['id'] ?>" onclick="event.stopPropagation();">
                 <?= htmlspecialchars($r['client_name'] ?? 'Company (no person)') ?>
