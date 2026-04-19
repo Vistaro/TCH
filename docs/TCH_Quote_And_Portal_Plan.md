@@ -485,6 +485,225 @@ Each entry below is a ready-to-file Hub FR.
 
 ---
 
+### FR-N — Geo + operating radius + travel charging
+
+**Business description**
+
+- **Outcome:** TCH knows the geographic distance between Tuniti's office and every patient. Operations can define an "accepted radius" that filters which patients we'll take on, and the system understands when travel costs are significant enough to need charging differently.
+- **What it does:**
+  - Each patient's care-location address gets a latitude/longitude (geocoded once on save).
+  - Patient list view and detail page surface the distance from Tuniti office in km — straight-line first, ideally driving distance + driving time later.
+  - A configurable "accepted radius" in `system_settings` (e.g. 25km) — patients beyond it surface a warning when scheduled.
+  - Where travel cost is meaningful, a per-km or per-trip travel surcharge can attach to a contract line (FR-A multi-unit pricing already supports per-visit; we just need a "travel" billing unit).
+  - Caregiver availability filter: when matching (FR-K + future Phase 5), reject caregivers whose travel exceeds caregiver's configured maximum tolerance.
+- **Why it matters:** Today the operating area is in Tuniti's head. Patients far away get accepted, eat caregiver time + cost, and the bill doesn't reflect the travel burden. A defined radius + surcharge mechanism turns "do we take this patient?" from a judgement call into a policy.
+- **If we don't do it:** Tuniti makes ad-hoc accept/reject decisions; travel costs absorbed silently into margin; caregivers complain about long unpaid travel; matching engine can't filter by distance.
+
+**Technical description**
+
+- **Architecture context:** Tuniti GPS coords already in `system_settings` (`tuniti.office.lat`, `tuniti.office.lng`). `includes/settings.php::tunitiOfficeCoords()` returns them. No consumer yet. Patient table already has address fields; needs lat/lng columns.
+- **Proposed approach:**
+  1. Migration: add `latitude DECIMAL(10,7)` + `longitude DECIMAL(10,7)` + `geocoded_at TIMESTAMP` to `persons` (or to a `person_addresses` table if one already exists for that purpose). Same on `caregivers` for caregiver-end distances.
+  2. Geocoder helper `includes/geocode.php` — calls a free service (OpenStreetMap Nominatim or Google Maps free tier) on save when address changes. Cached; never re-geocode unless address changes.
+  3. Distance helper — Haversine formula for straight-line km. Driving-distance can be a follow-up if needed.
+  4. New `system_settings` keys: `operations.accepted_radius_km`, `operations.travel_surcharge_per_km`, `operations.travel_warning_radius_km`.
+  5. Patient list + detail UI surfaces distance + a colour-coded badge (green within radius, amber within warning band, red beyond).
+  6. Engagement create flow: warning banner if patient is beyond `accepted_radius_km`. Hard-block configurable per Ross.
+  7. Add `travel` billing unit to the `product_billing_rates.billing_freq` ENUM (FR-A already supports multi-unit) so travel surcharges become a quote line.
+- **Dependencies / risks:**
+  - Geocoder API key management. Nominatim is free with rate-limiting; Google Maps is more reliable but free tier has caps. Choose one; don't try to support both v1.
+  - GDPR-equivalent: patient address + lat/lng is personal data — already covered under POPIA discipline.
+  - Driving distance vs straight-line: straight-line is good enough for v1. Driving-distance APIs are cost-bearing.
+- **Acceptance criteria:**
+  - Patient detail shows distance from Tuniti office.
+  - Operations setting a radius and the patient list highlights out-of-radius patients.
+  - Engagement form warns when scheduling beyond the accepted radius.
+  - A quote can include a travel-surcharge line that appears on the PDF.
+
+---
+
+### FR-O — LeadTrekker integration
+
+**Business description**
+
+- **Outcome:** Tuniti's inbound leads (currently coming via [LeadTrekker](https://leadtrekker.com/)) land directly in our `enquiries` inbox, alongside public-website submissions and manual phone entries. One inbox, one workflow, regardless of source.
+- **What it does:**
+  - LeadTrekker pushes new leads into our system via webhook (preferred) or email-to-inbox parser (fallback).
+  - Each LeadTrekker lead becomes an `enquiries` row with `source = 'leadtrekker'`, carrying name, email, phone, message, and any tracking metadata (campaign, source URL, ad ID).
+  - Tuniti works the lead through the existing enquiry workflow → opportunity → quote → contract.
+  - Reporting layer can attribute won contracts back to LeadTrekker source for ROI on ad spend.
+- **Why it matters:** Tuniti currently receives LeadTrekker emails / WhatsApps and manually transcribes them. Source attribution is lost; lead-to-customer cycle time is invisible. Bringing leads inside our system gives us the full Acquire-phase reporting (FR-M) we already promised.
+- **If we don't do it:** LeadTrekker stays a parallel inbox; manual transcription continues; the Acquire-phase reporting has a blind spot equal to "lead source unknown for X% of opportunities".
+
+**Technical description**
+
+- **Architecture context:** `enquiries` table already accepts inbound via the public form handler (`templates/public/enquire_handler.php`). Adding a webhook endpoint follows the same pattern but with a shared-secret instead of CSRF.
+- **Proposed approach:**
+  1. Migration: extend `enquiries.source_page` semantics — add `'leadtrekker'` as a recognised value alongside `'public_form'` / `'admin_manual'`. Add `external_id` column for the LeadTrekker record ID + `external_metadata JSON` for campaign tracking.
+  2. New endpoint at `public/index.php` route `webhook/leadtrekker` that:
+     - Verifies a shared-secret header (LeadTrekker → us).
+     - Maps LeadTrekker payload fields to `enquiries` columns.
+     - Inserts with `source_page = 'leadtrekker'`, `enquiry_type = 'client'` (default; LeadTrekker probably only sends caregiver-need leads).
+     - Logs to `activity_log`.
+     - Returns 200 + JSON ack.
+  3. Configuration in `system_settings`: `leadtrekker.shared_secret`, `leadtrekker.enabled`.
+  4. Admin page `/admin/config/integrations` to surface the webhook URL + secret + enabled toggle (replaces the "where do I configure this?" question).
+- **Dependencies / risks:**
+  - LeadTrekker's actual webhook format: needs investigation. May need API keys + polling instead of webhook.
+  - If LeadTrekker only supports email forwarding (no webhook), we add an inbound email parser as fallback. Slower, more brittle, but works.
+  - Shared-secret rotation procedure documented.
+- **Acceptance criteria:**
+  - LeadTrekker creates a test lead → it appears in `/admin/enquiries` within seconds with source = leadtrekker and the original campaign metadata visible.
+  - The lead converts through the standard pipeline and reporting attributes the won deal back to the leadtrekker source.
+
+---
+
+### FR-P — WhatsApp outbound communications
+
+**Business description**
+
+- **Outcome:** TCH can send WhatsApp messages to caregivers, patients, and clients directly from the system — not via Tuniti manually copy-pasting on her phone. Notifications, reminders, simple acks, and (in FR-Q) approval flows all run through one channel customers actually read.
+- **What it does:**
+  - System can send a templated WhatsApp message to any person record with a phone number, on demand or triggered by event (e.g. "Quote sent", "Shift confirmed", "Invoice due").
+  - Per-recipient channel preference: each person can opt for WhatsApp, email, or both.
+  - Template library — pre-approved message templates (Meta requires pre-approval for non-conversational messages).
+  - All sent messages logged to `whatsapp_log` similarly to the existing `email_log`, with delivery / read receipts where Meta provides them.
+- **Why it matters:** WhatsApp is the channel Tuniti's caregivers and clients actually use. Email gets ignored. Today every WhatsApp message is sent manually from Tuniti's phone — doesn't scale beyond ~50 active caregivers and is invisible to the system.
+- **If we don't do it:** Caregiver/client comms stay manual; system has no visibility into what was said when; reminders depend on Tuniti remembering to send them.
+
+**Technical description**
+
+- **Architecture context:** Meta WhatsApp Cloud API. Free under 1,000 service conversations / month (well above Tuniti current scale). Requires a WhatsApp Business Account + verified phone number + template pre-approval for non-conversational messages.
+- **Proposed approach:**
+  1. Provisioning (one-off, Tuniti action): WhatsApp Business Account, verified number, Meta-approved templates.
+  2. `includes/whatsapp.php` helper — wraps the Cloud API. `whatsappSend($personId, $template, $variables)` analogous to `mailerSend()`.
+  3. Config in `system_settings`: API token, business account ID, phone number ID, default sender display name.
+  4. New table `whatsapp_log` mirroring `email_log` shape: recipient, template, variables, sent_at, status, response payload.
+  5. Webhook receiver for delivery / read receipts → updates `whatsapp_log.status`.
+  6. Per-person `comm_preference` field (enum: `email`, `whatsapp`, `both`) — defaults to `whatsapp` for caregivers, `email` for clients.
+  7. Quote send (FR-G) and other notification triggers respect `comm_preference`.
+- **Dependencies / risks:**
+  - Template pre-approval can take days from Meta. Plan early.
+  - Volume tier — under 1k conv/month is free. Exceeding it is small cost ($0.005-0.05 per conv depending on country) but should be metered.
+  - Phone number verification complexity — Tuniti supplies a number we can use (or we use intelligentae's number with display-name override).
+- **Acceptance criteria:**
+  - Sending a quote triggers a WhatsApp message to the client (where they've opted in) AND an email (where they've opted in).
+  - The `whatsapp_log` records the send with template + status.
+  - Tuniti can view a person's communication history (email + WhatsApp combined) on their detail page.
+
+---
+
+### FR-Q — WhatsApp shift workflow with GPS check-in/out
+
+**Business description**
+
+- **Outcome:** Caregivers accept work, confirm they've arrived at the patient (with GPS verification), and confirm they've left at end of shift — all over WhatsApp. Optional geofence verifies they stayed at the patient's location through the shift. Shift-status events feed billing automatically.
+- **What it does:**
+  - When a shift is scheduled, the caregiver receives a WhatsApp with "Accept / Decline" buttons (Meta supports interactive messages).
+  - On the day of the shift, when caregiver opens the WhatsApp link to confirm arrival, their browser is asked for GPS — if within X metres of the patient address, check-in is confirmed and stamped.
+  - At end of shift, caregiver gets another WhatsApp with "End shift" — same GPS check.
+  - (Optional v2) Geofence: caregiver's portal background-pings location every Y minutes — if they leave the patient address geofence, an alert goes to the manager.
+  - Shift-status transitions auto-flip in the roster: scheduled → accepted → in-progress → completed → ready-for-invoicing.
+- **Why it matters:** The biggest unsolved problem in homecare is "did the caregiver actually do the shift". Today Tuniti relies on caregiver-reported timesheets. With GPS-verified check-in/out, billing has hard evidence that care was delivered, caregivers can't pad hours, and clients can be invoiced with confidence.
+- **If we don't do it:** Trust-based timesheets continue; disputes between caregivers / clients / Tuniti continue; safety risk if a caregiver fails to arrive and nobody notices for hours.
+
+**Technical description**
+
+- **Architecture context:** Combines FR-N (patient lat/lng) + FR-P (WhatsApp outbound) + FR-S (caregiver portal mini surface for GPS capture). Meta WhatsApp interactive messages support button replies + URL buttons.
+- **Proposed approach:**
+  1. Shift scheduling triggers FR-P WhatsApp send with two interactive buttons: "Accept" and "Can't do this shift".
+  2. Caregiver tap → WhatsApp webhook fires → roster updated to `status='accepted'` (or surfaces decline + replacement workflow).
+  3. ~30 min before shift start, send a second WhatsApp with a URL button to a tokenised page in the caregiver portal (FR-S).
+  4. Tokenised page reads `navigator.geolocation` → posts back to server → server compares against patient coordinates (FR-N) → if within Xm, stamps check-in; if not, prompts caregiver to confirm location manually.
+  5. End-of-shift identical flow.
+  6. (Phase 2) Geofence: PWA background sync (FR-S) polls location every 15 min during shift; if outside Xm of patient, alerts manager via FR-P.
+  7. Roster gains shift-status state machine columns: `accepted_at`, `arrived_at`, `arrived_lat/lng`, `departed_at`, `departed_lat/lng`, `geofence_breach_at`.
+- **Dependencies / risks:**
+  - GPS accuracy on cheap Android phones can be ±50m — set the radius generously.
+  - Caregiver may have no data on patient site — design for offline (PWA caches the check-in form, syncs when online).
+  - Geofence drains battery; make optional per shift / per caregiver.
+  - Privacy: caregivers consent to location tracking only during scheduled shift windows. Document this clearly in the caregiver portal terms.
+- **Acceptance criteria:**
+  - Tuniti schedules a shift; caregiver gets a WhatsApp; taps Accept; status updates.
+  - Caregiver arrives at patient; opens the check-in link; GPS within radius; check-in stamped.
+  - Caregiver leaves; check-out stamped; shift status → completed → eligible for invoicing.
+  - Failed GPS proximity surfaces a warning + manager review queue.
+
+---
+
+### FR-R — Release-gating policy (admin role gating)
+
+**Business description**
+
+- **Outcome:** What we have built is decoupled from what Tuniti can see. Features are released to Tuniti users in deliberate phases, recorded in a release log. Insulates the build from scope creep and lets us release coherent slices instead of half-built ones.
+- **What it does:**
+  - Tuniti users get the `admin` role (already configured).
+  - Internal team (Ross) gets `super_admin`.
+  - Each new admin page is built with `super_admin` access only; admin role gets the page added later when officially released.
+  - Release log (`docs/release-log.md`) records every grant with date, what was released, and rationale.
+  - Help page (`/admin/help`) is role-aware (already built) — Tuniti only sees guidance for what they can access.
+- **Why it matters:** A six-month build that goes live big-bang is brittle. A six-month build that releases in slices, each with feedback, lands far better. Plus, when Tuniti asks for something already built, "yes, that's coming" + flip a flag = no extra dev cost.
+- **If we don't do it:** Tuniti sees half-built features, asks why X doesn't work, scope-creeps trying to get them to coherent. Or we hide everything until 6 months in and release everything at once with no feedback runway.
+
+**Technical description**
+
+- **Architecture context:** Existing `roles × pages × actions` permission matrix supports this without extra infrastructure. Just discipline around what gets granted to `admin` when.
+- **Proposed approach:**
+  1. **Policy:** when building a new admin page, the migration grants `super_admin` only. Adding to `admin` is a separate, deliberate step recorded in the release log.
+  2. **Migration 043 (this commit)** strips the inadvertent grants of opportunities/pipeline/quotes/quotes_rate_override from `admin` — those are still in build, not yet officially released to Tuniti.
+  3. **`docs/release-log.md`** initialised with the current "what Tuniti can see" snapshot.
+  4. **Process:** when Ross decides to release a feature to Tuniti, the agent (a) writes a tiny migration granting admin the relevant page, (b) appends a release-log entry with date + rationale, (c) optionally messages Tuniti via WhatsApp / email when FR-P is live.
+- **Dependencies / risks:**
+  - Discipline-based, not enforcement-based. A future agent could accidentally grant admin to a new page without thinking. Mitigation: documented as a Standing Order in `CLAUDE.md` (TCH-project section to add); reviewers check during commit review.
+  - Tuniti could in theory URL-hack to a gated page — but server-side `requirePagePermission()` blocks this. Server enforcement is the real rail; nav hiding is just UX.
+- **Acceptance criteria:**
+  - `admin` role permissions reflect only "officially released" pages.
+  - Release log shows the current state and updates on every release event.
+  - Help page renders only the released sections to a Tuniti-role user.
+
+---
+
+### FR-S — Caregiver portal (mobile-first PWA)
+
+**Business description**
+
+- **Outcome:** Caregivers have a phone-friendly portal where they see their schedule, accept/decline shifts, check in/out at patient locations, view earnings + payment history, and report incidents. Installable as a Progressive Web App so it lives on their home screen like a native app — no App Store / Play Store overhead.
+- **What it does:**
+  - Login (caregiver-role users authenticate with phone + password OR magic-link via WhatsApp).
+  - Schedule view — upcoming shifts, accepted shifts, completed shifts.
+  - Shift detail — patient info (anonymised where appropriate), care notes, location with map link, accept/decline buttons.
+  - Check-in / check-out flow (FR-Q) — GPS-verified.
+  - Availability toggle (Uber-style) — Available / Unavailable for new shift offers.
+  - Earnings — current period + history, with breakdown by shift.
+  - Loan ledger view (FR-6.4 once built) — outstanding balance, repayment schedule.
+  - Incident reporting form — type, description, photo upload, severity. Routes to manager queue.
+  - Profile self-service — contact details, banking info, availability profile (per Phase 3).
+- **Why it matters:** Caregivers do not have laptops. The proposal commits to mobile-first portals (Phase 3 + 5 + 7 features all assume one). FR-S is the surface those features live on. Without it, none of Phase 3.6, 5.4, 7.1, 7.3 work.
+- **If we don't do it:** All caregiver-facing features (FR-Q, availability toggle, shift accept, incident reporting) have no home. Phases 3, 5, 7 of the proposal can't ship.
+
+**Technical description**
+
+- **Architecture context:** Same PHP backend as the admin portal; a separate URL space at `/caregiver/*` (or subdomain `caregivers.tch.intelligentae.co.uk`). Progressive Web App = manifest.json + service worker for installability + offline capability.
+- **Proposed approach:**
+  1. New `caregiver` role permissions on a new page family `caregiver_*`.
+  2. Login flow: caregivers authenticate with phone + password (or magic-link via WhatsApp once FR-P is live). Linked to existing `users.linked_caregiver_id` mechanism.
+  3. Templates under `templates/caregiver/` with mobile-first CSS (max-width 480px primary, scales up).
+  4. PWA manifest.json + service-worker.js — installable on iOS Safari (Add to Home Screen) and Android Chrome.
+  5. Each Phase-3/5/7 caregiver-facing feature lands here as a tab or page.
+  6. Distance / GPS APIs use `navigator.geolocation` with permission consent.
+- **Dependencies / risks:**
+  - Browser GPS accuracy varies; FR-Q has tolerance for this.
+  - PWA install UX is OS-specific (Android prompts well, iOS requires manual Add-to-Home-Screen). Onboarding instructions in the user guide.
+  - Offline support adds complexity — start with online-only, add offline for shift check-in (can't lose check-ins).
+  - Phase ordering: build the shell (login + schedule view) early so other FRs land into it.
+- **Acceptance criteria:**
+  - Caregiver logs in on their phone, installs to home screen, sees their week's schedule.
+  - Can accept / decline shifts, check in / out (FR-Q), toggle availability.
+  - Earnings view matches what payroll computes.
+  - Profile changes are subject to manager approval (per Phase 3.4).
+
+---
+
 ## 5. Explicitly out of scope (for now)
 
 These came up in the discussion and are deliberately deferred.
