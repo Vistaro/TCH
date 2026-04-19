@@ -121,7 +121,12 @@ if ($detailId > 0) {
     <div class="person-card">
         <div class="person-card-header">
             <div class="person-card-title">
-                <h2><?= htmlspecialchars($enq['full_name']) ?></h2>
+                <h2>
+                    <?= htmlspecialchars($enq['full_name']) ?>
+                    <?php if (!empty($enq['is_test_data'])): ?>
+                        <span style="background:#fbbf24;color:#78350f;padding:2px 8px;border-radius:4px;font-size:0.6em;font-weight:700;letter-spacing:0.05em;vertical-align:middle;">TEST</span>
+                    <?php endif; ?>
+                </h2>
                 <div class="person-card-tch-id">Enquiry #<?= (int)$enq['id'] ?></div>
                 <div class="person-card-meta">
                     <?= htmlspecialchars(ucfirst($enq['enquiry_type'])) ?> &middot;
@@ -294,7 +299,12 @@ require APP_ROOT . '/templates/layouts/admin.php';
                 <?php foreach ($rows as $r): ?>
                     <tr>
                         <td><?= htmlspecialchars(date('Y-m-d H:i', strtotime($r['created_at']))) ?></td>
-                        <td><strong><?= htmlspecialchars($r['full_name']) ?></strong></td>
+                        <td>
+                            <strong><?= htmlspecialchars($r['full_name']) ?></strong>
+                            <?php if (!empty($r['is_test_data'])): ?>
+                                <span style="background:#fbbf24;color:#78350f;padding:1px 5px;border-radius:3px;font-size:0.65rem;font-weight:700;letter-spacing:0.05em;margin-left:0.3rem;">TEST</span>
+                            <?php endif; ?>
+                        </td>
                         <td><?= htmlspecialchars($r['phone'] ?? '') ?></td>
                         <td><?= htmlspecialchars($r['care_type'] ?? '') ?></td>
                         <td><?= htmlspecialchars($r['urgency'] ?? '') ?></td>

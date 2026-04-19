@@ -167,7 +167,12 @@ require APP_ROOT . '/templates/layouts/admin.php';
     ?>
         <tr style="cursor:pointer;<?= $closed ? 'opacity:0.75;' : '' ?>"
             onclick="window.location='<?= APP_URL ?>/admin/opportunities/<?= (int)$r['id'] ?>'">
-            <td><code style="color:#6c757d;font-size:0.8rem;"><?= htmlspecialchars($r['opp_ref']) ?></code></td>
+            <td>
+                <code style="color:#6c757d;font-size:0.8rem;"><?= htmlspecialchars($r['opp_ref']) ?></code>
+                <?php if (!empty($r['is_test_data'])): ?>
+                    <span style="background:#fbbf24;color:#78350f;padding:1px 5px;border-radius:3px;font-size:0.65rem;font-weight:700;letter-spacing:0.05em;vertical-align:middle;">TEST</span>
+                <?php endif; ?>
+            </td>
             <td><strong><?= htmlspecialchars($r['title']) ?></strong></td>
             <td>
                 <span style="background:<?= $stageColour ?>;color:#fff;padding:2px 8px;border-radius:10px;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;">

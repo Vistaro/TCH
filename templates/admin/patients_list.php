@@ -1,4 +1,6 @@
 <?php
+require_once APP_ROOT . '/includes/geo.php';
+
 $pageTitle = 'Patients';
 $activeNav = 'patients';
 
@@ -9,6 +11,7 @@ $showArchived = !empty($_GET['show_archived']);
 
 $sql = "SELECT pt.person_id, pt.patient_name, pt.client_id,
                p.tch_id, p.full_name, p.archived_at,
+               p.latitude, p.longitude, p.is_test_data,
                c_person.full_name AS client_name, c.account_number,
                (SELECT COUNT(*) FROM daily_roster dr WHERE dr.client_id = pt.person_id) AS shift_count,
                (SELECT MAX(dr2.roster_date) FROM daily_roster dr2 WHERE dr2.client_id = pt.person_id) AS last_shift
@@ -41,6 +44,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     <thead><tr>
         <th class="center">TCH ID</th><th>Patient Name</th><th>Display Name</th>
         <th>Client (Billed To)</th><th class="center">Account</th>
+        <th class="center" data-filterable="false">Distance</th>
         <th class="number">Shifts</th><th class="center">Last Shift</th>
     </tr></thead>
     <tbody>
@@ -54,6 +58,9 @@ require APP_ROOT . '/templates/layouts/admin.php';
             <a href="<?= APP_URL ?>/admin/patients/<?= (int)$r['person_id'] ?>" onclick="event.stopPropagation();">
                 <?= htmlspecialchars($r['patient_name'] ?: $r['full_name']) ?>
             </a>
+            <?php if (!empty($r['is_test_data'])): ?>
+                <span style="background:#fbbf24;color:#78350f;padding:1px 5px;border-radius:3px;font-size:0.65rem;font-weight:700;letter-spacing:0.05em;margin-left:0.3rem;">TEST</span>
+            <?php endif; ?>
             <?php if ($r['archived_at']): ?><span style="font-size:0.75rem;color:#856404;">(archived)</span><?php endif; ?>
         </td>
         <td style="color:#666;"><?= $r['patient_name'] && $r['patient_name'] !== $r['full_name'] ? htmlspecialchars($r['full_name']) : '' ?></td>
@@ -63,6 +70,15 @@ require APP_ROOT . '/templates/layouts/admin.php';
             </a>
         </td>
         <td class="center"><code><?= htmlspecialchars($r['account_number'] ?? '') ?></code></td>
+        <td class="center">
+            <?php
+            $distKm = distanceFromTunitiKm(
+                $r['latitude']  !== null ? (float)$r['latitude']  : null,
+                $r['longitude'] !== null ? (float)$r['longitude'] : null
+            );
+            echo renderDistanceBadge($distKm);
+            ?>
+        </td>
         <td class="number"><?= (int)$r['shift_count'] ?></td>
         <td class="center"><?= $r['last_shift'] ? htmlspecialchars($r['last_shift']) : '—' ?></td>
     </tr>
@@ -70,7 +86,7 @@ require APP_ROOT . '/templates/layouts/admin.php';
     </tbody>
     <tfoot>
         <tr class="totals-row">
-            <td colspan="5">Total — <?= count($rows) ?> patient<?= count($rows) !== 1 ? 's' : '' ?></td>
+            <td colspan="6">Total — <?= count($rows) ?> patient<?= count($rows) !== 1 ? 's' : '' ?></td>
             <td class="number"><?= number_format($totShifts) ?></td>
             <td></td>
         </tr>

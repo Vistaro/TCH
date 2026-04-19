@@ -146,6 +146,9 @@ $isClosed = $opp['status'] === 'closed' || (int)$opp['is_closed_won'] === 1 || (
 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;gap:1rem;flex-wrap:wrap;">
     <div>
         <code style="color:#6c757d;font-size:0.85rem;"><?= htmlspecialchars($opp['opp_ref']) ?></code>
+        <?php if (!empty($opp['is_test_data'])): ?>
+            <span style="background:#fbbf24;color:#78350f;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;letter-spacing:0.05em;margin-left:0.4rem;">TEST</span>
+        <?php endif; ?>
         <h2 style="margin:0.2rem 0;"><?= htmlspecialchars($opp['title']) ?></h2>
         <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
             <span style="background:<?= $stageColour ?>;color:#fff;padding:3px 10px;border-radius:10px;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">

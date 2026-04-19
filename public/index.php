@@ -409,6 +409,12 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/enquiries_create.php';
         break;
 
+    // ─── Dev Tools (super_admin only) ──────────────────────────────────
+    case 'admin/dev-tools/test-data':
+        requirePagePermission('dev_tools_test_data', 'edit');
+        require APP_ROOT . '/templates/admin/dev_tools_test_data.php';
+        break;
+
     // ─── User management ───────────────────────────────────────────────
     case 'admin/users':
         requirePagePermission('users', 'read');

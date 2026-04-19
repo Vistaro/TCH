@@ -148,6 +148,11 @@ if ($user && empty($user['avatar_path'])) {
                 <?php endif; ?>
             <?php endif; ?>
 
+            <?php if (userCan('dev_tools_test_data', 'read')): ?>
+                <li class="nav-heading">Dev Tools</li>
+                <li><a href="<?= APP_URL ?>/admin/dev-tools/test-data" class="<?= ($activeNav ?? '') === 'dev-tools-test-data' ? 'active' : '' ?>">&#9632; Test Data</a></li>
+            <?php endif; ?>
+
             <li class="nav-separator">
                 <a href="<?= APP_URL ?>/admin/help" class="<?= ($activeNav ?? '') === 'help' ? 'active' : '' ?>">&#9632; User Guide</a>
             </li>

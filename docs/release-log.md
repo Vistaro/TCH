@@ -15,6 +15,25 @@ Read top-down. Newest releases at the top.
 
 ---
 
+## 2026-04-19 — Enquiries inbox + Roster + Care Scheduling + Care Approval
+
+Released to: `admin`
+
+First real exercise of the release-gating workflow. Four surfaces opened up so Tuniti can start working leads and operations end-to-end within the system, not via spreadsheets.
+
+| Page | Actions granted | Why this slice |
+|---|---|---|
+| `enquiries` | read + create + edit | She has ~29 client enquiries visible only to us; needs to work them and log phone/walk-ins manually |
+| `roster` | read | Patient-centric monthly grid — headline from the 4-day sprint; real operational visibility |
+| `engagements` | read + create + edit | Primary scheduling surface — assign caregivers to contracts. Bill-payer guardrail protects against missing clients |
+| `roster_input` | read + edit | Approve delivered shifts so they feed billing |
+
+**What stays gated:** opportunities / pipeline / quotes / quotes_rate_override (internal sales tools), contracts (released when she starts actively quoting), unbilled_care + back-office pages.
+
+Migration: `045_release_to_tuniti_inbox_roster_scheduling.sql` · Commit: (see git log for hash after commit)
+
+---
+
 ## 2026-04-19 — Baseline snapshot
 
 Establishing the release log; recording what `admin` role *currently* has access to today, before any further grants.
