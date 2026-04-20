@@ -43,6 +43,131 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     $flash = $res['msg']; $flashType = 'error';
 }
 
+// ── Save care-needs profile (UPSERT on patient_care_needs) ────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+        && ($_POST['action'] ?? '') === 'save_care_needs'
+        && $canEdit && userCan('patient_care_needs', 'edit')) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) $redirectWithFlash($personId, 'Invalid form submission.', 'error');
+
+    $fields = ['medical_conditions','allergies','medications','dnr_status','dnr_notes',
+               'mobility_notes','hygiene_notes','cognitive_notes','emotional_notes',
+               'dietary_notes','recreational_notes','language_notes','care_summary'];
+    $validDnr = ['unknown','no_dnr','dnr_in_place'];
+    $values = [];
+    foreach ($fields as $f) {
+        $v = trim((string)($_POST[$f] ?? ''));
+        if ($f === 'dnr_status') $v = in_array($v, $validDnr, true) ? $v : 'unknown';
+        else                     $v = $v !== '' ? $v : null;
+        $values[$f] = $v;
+    }
+    $reviewDate = $_POST['last_reviewed_date'] ?? null;
+    $reviewDate = $reviewDate && $reviewDate !== '' ? $reviewDate : null;
+    $uid = (int)($_SESSION['user_id'] ?? 0) ?: null;
+
+    $db->prepare(
+        "INSERT INTO patient_care_needs
+            (person_id, medical_conditions, allergies, medications, dnr_status, dnr_notes,
+             mobility_notes, hygiene_notes, cognitive_notes, emotional_notes,
+             dietary_notes, recreational_notes, language_notes, care_summary,
+             last_reviewed_date, last_reviewed_by_user_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE
+             medical_conditions = VALUES(medical_conditions),
+             allergies          = VALUES(allergies),
+             medications        = VALUES(medications),
+             dnr_status         = VALUES(dnr_status),
+             dnr_notes          = VALUES(dnr_notes),
+             mobility_notes     = VALUES(mobility_notes),
+             hygiene_notes      = VALUES(hygiene_notes),
+             cognitive_notes    = VALUES(cognitive_notes),
+             emotional_notes    = VALUES(emotional_notes),
+             dietary_notes      = VALUES(dietary_notes),
+             recreational_notes = VALUES(recreational_notes),
+             language_notes     = VALUES(language_notes),
+             care_summary       = VALUES(care_summary),
+             last_reviewed_date = VALUES(last_reviewed_date),
+             last_reviewed_by_user_id = VALUES(last_reviewed_by_user_id)"
+    )->execute([
+        $personId,
+        $values['medical_conditions'], $values['allergies'], $values['medications'],
+        $values['dnr_status'], $values['dnr_notes'],
+        $values['mobility_notes'], $values['hygiene_notes'],
+        $values['cognitive_notes'], $values['emotional_notes'],
+        $values['dietary_notes'], $values['recreational_notes'],
+        $values['language_notes'], $values['care_summary'],
+        $reviewDate, $uid,
+    ]);
+
+    logActivity('care_needs_saved', 'patient_view', 'patient_care_needs', $personId,
+        'Care-needs profile updated', null, $values);
+    $redirectWithFlash($personId, 'Care-needs profile saved.', 'success');
+}
+
+// ── Save / add emergency contact ──────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+        && ($_POST['action'] ?? '') === 'save_emergency_contact'
+        && $canEdit && userCan('patient_emergency_contacts', 'edit')) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) $redirectWithFlash($personId, 'Invalid form submission.', 'error');
+
+    $contactId = (int)($_POST['contact_id'] ?? 0);
+    $fullName = trim((string)($_POST['ec_full_name'] ?? ''));
+    if ($fullName === '') $redirectWithFlash($personId, 'Contact name required.', 'error');
+
+    $relationship = trim((string)($_POST['ec_relationship'] ?? '')) ?: null;
+    $phone        = trim((string)($_POST['ec_phone'] ?? '')) ?: null;
+    $altPhone     = trim((string)($_POST['ec_alt_phone'] ?? '')) ?: null;
+    $email        = trim((string)($_POST['ec_email'] ?? '')) ?: null;
+    $isPrimary    = !empty($_POST['ec_is_primary']) ? 1 : 0;
+    $hasPoa       = !empty($_POST['ec_has_power_of_attorney']) ? 1 : 0;
+    $notes        = trim((string)($_POST['ec_notes'] ?? '')) ?: null;
+    $sortOrder    = max(0, min(999, (int)($_POST['ec_sort_order'] ?? 10)));
+
+    if ($isPrimary) {
+        // Demote any other primary for this patient
+        $db->prepare("UPDATE patient_emergency_contacts SET is_primary = 0 WHERE person_id = ? AND id <> ?")
+           ->execute([$personId, $contactId]);
+    }
+
+    if ($contactId > 0) {
+        $db->prepare(
+            "UPDATE patient_emergency_contacts
+                SET full_name = ?, relationship = ?, phone = ?, alt_phone = ?,
+                    email = ?, is_primary = ?, has_power_of_attorney = ?, notes = ?, sort_order = ?
+              WHERE id = ? AND person_id = ?"
+        )->execute([$fullName, $relationship, $phone, $altPhone, $email,
+                    $isPrimary, $hasPoa, $notes, $sortOrder, $contactId, $personId]);
+    } else {
+        $db->prepare(
+            "INSERT INTO patient_emergency_contacts
+                (person_id, full_name, relationship, phone, alt_phone, email,
+                 is_primary, has_power_of_attorney, notes, sort_order)
+             VALUES (?,?,?,?,?,?,?,?,?,?)"
+        )->execute([$personId, $fullName, $relationship, $phone, $altPhone, $email,
+                    $isPrimary, $hasPoa, $notes, $sortOrder]);
+        $contactId = (int)$db->lastInsertId();
+    }
+
+    logActivity('emergency_contact_saved', 'patient_view', 'patient_emergency_contacts',
+        $contactId, 'Saved emergency contact: ' . $fullName);
+    $redirectWithFlash($personId, 'Emergency contact saved.', 'success');
+}
+
+// ── Delete emergency contact ──────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+        && ($_POST['action'] ?? '') === 'delete_emergency_contact'
+        && $canEdit && userCan('patient_emergency_contacts', 'delete')) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) $redirectWithFlash($personId, 'Invalid form submission.', 'error');
+
+    $contactId = (int)($_POST['contact_id'] ?? 0);
+    if ($contactId > 0) {
+        $db->prepare("DELETE FROM patient_emergency_contacts WHERE id = ? AND person_id = ?")
+           ->execute([$contactId, $personId]);
+        logActivity('emergency_contact_deleted', 'patient_view', 'patient_emergency_contacts',
+            $contactId, 'Deleted emergency contact #' . $contactId);
+    }
+    $redirectWithFlash($personId, 'Emergency contact deleted.', 'success');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST'
         && ($_POST['action'] ?? '') === 'upload_photo' && $canEdit) {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) $redirectWithFlash($personId, 'Invalid form submission.', 'error');
@@ -757,6 +882,322 @@ require APP_ROOT . '/templates/layouts/admin.php';
 
     </div>
 </div>
+
+<?php
+// ─────────────────────────────────────────────────────────────
+// Patient care-needs profile (Phase 4.4)
+// ─────────────────────────────────────────────────────────────
+$canSeeCareNeeds = userCan('patient_care_needs', 'read');
+$canEditCareNeeds = userCan('patient_care_needs', 'edit');
+if ($canSeeCareNeeds):
+    $cn = $db->prepare("SELECT * FROM patient_care_needs WHERE person_id = ?");
+    $cn->execute([$personId]);
+    $careNeeds = $cn->fetch(PDO::FETCH_ASSOC) ?: [];
+    $editCareNeeds = !empty($_GET['edit']) && $_GET['edit'] === 'care_needs' && $canEditCareNeeds;
+    $dnr = $careNeeds['dnr_status'] ?? 'unknown';
+?>
+<details class="card" style="margin-top:1.5rem;" <?= empty($careNeeds) ? '' : 'open' ?>>
+    <summary style="cursor:pointer;padding:0.75rem 1rem;background:#f8f9fa;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0;">
+            Care needs
+            <?php if ($dnr === 'dnr_in_place'): ?>
+                <span style="background:#dc3545;color:#fff;padding:2px 8px;border-radius:3px;font-size:0.7em;font-weight:700;letter-spacing:0.05em;margin-left:0.4rem;vertical-align:middle;">DNR</span>
+            <?php endif; ?>
+            <?php if (empty($careNeeds)): ?>
+                <span style="font-weight:400;font-size:0.82rem;color:#6c757d;margin-left:0.5rem;">(not yet captured)</span>
+            <?php elseif (!empty($careNeeds['last_reviewed_date'])): ?>
+                <span style="font-weight:400;font-size:0.82rem;color:#6c757d;margin-left:0.5rem;">(last reviewed <?= _esc($careNeeds['last_reviewed_date']) ?>)</span>
+            <?php endif; ?>
+        </h3>
+        <?php if ($canEditCareNeeds && !$editCareNeeds): ?>
+            <a href="?patient_id=<?= $personId ?>&edit=care_needs" onclick="event.stopPropagation();" class="btn btn-outline btn-sm">Edit</a>
+        <?php endif; ?>
+    </summary>
+
+    <div style="padding:1rem 1.2rem;">
+    <?php if ($editCareNeeds): ?>
+        <form method="POST">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="save_care_needs">
+
+            <details open style="margin-bottom:0.6rem;border:1px solid #e2e8f0;border-radius:4px;">
+                <summary style="padding:0.4rem 0.8rem;background:#fff5f5;cursor:pointer;font-weight:600;color:#842029;">
+                    Medical &amp; critical
+                </summary>
+                <div style="padding:0.8rem;">
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Medical conditions</span>
+                        <textarea name="medical_conditions" rows="3" class="form-control"><?= _esc($careNeeds['medical_conditions'] ?? '') ?></textarea>
+                    </label>
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Allergies</span>
+                        <textarea name="allergies" rows="2" class="form-control" placeholder="Drug / food / environmental. Flag severity if life-threatening."><?= _esc($careNeeds['allergies'] ?? '') ?></textarea>
+                    </label>
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Medications</span>
+                        <textarea name="medications" rows="3" class="form-control" placeholder="Drug + dose + frequency. Does not substitute for a script."><?= _esc($careNeeds['medications'] ?? '') ?></textarea>
+                    </label>
+                    <div style="display:grid;grid-template-columns:1fr 2fr;gap:0.6rem;">
+                        <label>
+                            <span style="font-size:0.85rem;color:#495057;">DNR status</span>
+                            <select name="dnr_status" class="form-control">
+                                <option value="unknown"      <?= $dnr === 'unknown'      ? 'selected' : '' ?>>Unknown</option>
+                                <option value="no_dnr"       <?= $dnr === 'no_dnr'       ? 'selected' : '' ?>>No DNR</option>
+                                <option value="dnr_in_place" <?= $dnr === 'dnr_in_place' ? 'selected' : '' ?>>DNR in place</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span style="font-size:0.85rem;color:#495057;">DNR notes (if in place)</span>
+                            <input type="text" name="dnr_notes" class="form-control" maxlength="500"
+                                   value="<?= _esc($careNeeds['dnr_notes'] ?? '') ?>">
+                        </label>
+                    </div>
+                </div>
+            </details>
+
+            <details style="margin-bottom:0.6rem;border:1px solid #e2e8f0;border-radius:4px;">
+                <summary style="padding:0.4rem 0.8rem;background:#f1f5f9;cursor:pointer;font-weight:600;">Physical &amp; functional</summary>
+                <div style="padding:0.8rem;">
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Mobility</span>
+                        <textarea name="mobility_notes" rows="2" class="form-control" placeholder="Walking aids, wheelchair, bed-bound, fall risk."><?= _esc($careNeeds['mobility_notes'] ?? '') ?></textarea>
+                    </label>
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Hygiene</span>
+                        <textarea name="hygiene_notes" rows="2" class="form-control" placeholder="Continence, bathing, dressing assistance."><?= _esc($careNeeds['hygiene_notes'] ?? '') ?></textarea>
+                    </label>
+                </div>
+            </details>
+
+            <details style="margin-bottom:0.6rem;border:1px solid #e2e8f0;border-radius:4px;">
+                <summary style="padding:0.4rem 0.8rem;background:#f1f5f9;cursor:pointer;font-weight:600;">Cognitive &amp; emotional</summary>
+                <div style="padding:0.8rem;">
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Cognitive</span>
+                        <textarea name="cognitive_notes" rows="2" class="form-control" placeholder="Dementia stage, confusion, behaviours to expect."><?= _esc($careNeeds['cognitive_notes'] ?? '') ?></textarea>
+                    </label>
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Emotional</span>
+                        <textarea name="emotional_notes" rows="2" class="form-control" placeholder="Anxiety, depression, triggers, calming strategies."><?= _esc($careNeeds['emotional_notes'] ?? '') ?></textarea>
+                    </label>
+                </div>
+            </details>
+
+            <details style="margin-bottom:0.6rem;border:1px solid #e2e8f0;border-radius:4px;">
+                <summary style="padding:0.4rem 0.8rem;background:#f1f5f9;cursor:pointer;font-weight:600;">Preferences</summary>
+                <div style="padding:0.8rem;">
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Dietary</span>
+                        <textarea name="dietary_notes" rows="2" class="form-control"><?= _esc($careNeeds['dietary_notes'] ?? '') ?></textarea>
+                    </label>
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Recreational</span>
+                        <textarea name="recreational_notes" rows="2" class="form-control" placeholder="Hobbies, favourite music, routines."><?= _esc($careNeeds['recreational_notes'] ?? '') ?></textarea>
+                    </label>
+                    <label style="display:block;margin-bottom:0.6rem;">
+                        <span style="font-size:0.85rem;color:#495057;">Language preference</span>
+                        <textarea name="language_notes" rows="2" class="form-control" placeholder="Preferred languages for carer interaction."><?= _esc($careNeeds['language_notes'] ?? '') ?></textarea>
+                    </label>
+                </div>
+            </details>
+
+            <label style="display:block;margin-bottom:0.6rem;">
+                <span style="font-size:0.85rem;color:#495057;">Top-line care summary (what the quoter / scheduler reads first)</span>
+                <textarea name="care_summary" rows="3" class="form-control"><?= _esc($careNeeds['care_summary'] ?? '') ?></textarea>
+            </label>
+
+            <label style="display:block;margin-bottom:0.8rem;max-width:300px;">
+                <span style="font-size:0.85rem;color:#495057;">Last reviewed date</span>
+                <input type="date" name="last_reviewed_date" class="form-control"
+                       value="<?= _esc($careNeeds['last_reviewed_date'] ?? '') ?>">
+            </label>
+
+            <div style="display:flex;gap:0.5rem;">
+                <button type="submit" class="btn btn-primary">Save care needs</button>
+                <a href="?patient_id=<?= $personId ?>" class="btn btn-outline">Cancel</a>
+            </div>
+        </form>
+    <?php elseif (empty($careNeeds)): ?>
+        <p style="color:#6c757d;font-style:italic;">No care-needs profile captured yet.
+            <?php if ($canEditCareNeeds): ?>
+                <a href="?patient_id=<?= $personId ?>&edit=care_needs">Add one</a>.
+            <?php endif; ?>
+        </p>
+    <?php else: ?>
+        <?php if (!empty($careNeeds['care_summary'])): ?>
+            <p style="background:#f0fdf4;border-left:3px solid #15803d;padding:0.5rem 0.8rem;margin:0 0 0.8rem 0;white-space:pre-wrap;"><?= _esc($careNeeds['care_summary']) ?></p>
+        <?php endif; ?>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;font-size:0.9rem;">
+            <?php
+            $cnRender = function (string $label, ?string $val, string $colour = '#1e293b') {
+                if (empty(trim((string)$val))) return;
+                echo '<div><strong style="color:' . $colour . ';">' . htmlspecialchars($label) . ':</strong><br>';
+                echo '<span style="white-space:pre-wrap;">' . htmlspecialchars($val) . '</span></div>';
+            };
+            $cnRender('Medical conditions', $careNeeds['medical_conditions'] ?? null, '#842029');
+            $cnRender('Allergies',          $careNeeds['allergies']          ?? null, '#842029');
+            $cnRender('Medications',        $careNeeds['medications']        ?? null, '#842029');
+            $cnRender('Mobility',           $careNeeds['mobility_notes']     ?? null);
+            $cnRender('Hygiene',            $careNeeds['hygiene_notes']      ?? null);
+            $cnRender('Cognitive',          $careNeeds['cognitive_notes']    ?? null);
+            $cnRender('Emotional',          $careNeeds['emotional_notes']    ?? null);
+            $cnRender('Dietary',            $careNeeds['dietary_notes']      ?? null);
+            $cnRender('Recreational',       $careNeeds['recreational_notes'] ?? null);
+            $cnRender('Language',           $careNeeds['language_notes']     ?? null);
+            if (($careNeeds['dnr_status'] ?? 'unknown') === 'dnr_in_place') {
+                echo '<div><strong style="color:#842029;">DNR in place:</strong><br>';
+                echo '<span style="white-space:pre-wrap;">' . _esc($careNeeds['dnr_notes']) . '</span></div>';
+            }
+            ?>
+        </div>
+    <?php endif; ?>
+    </div>
+</details>
+<?php endif; // canSeeCareNeeds ?>
+
+<?php
+// ─────────────────────────────────────────────────────────────
+// Emergency contacts (Phase 4.5)
+// ─────────────────────────────────────────────────────────────
+$canSeeEC  = userCan('patient_emergency_contacts', 'read');
+$canEditEC = userCan('patient_emergency_contacts', 'edit');
+if ($canSeeEC):
+    $contacts = $db->prepare(
+        "SELECT * FROM patient_emergency_contacts
+          WHERE person_id = ?
+       ORDER BY is_primary DESC, sort_order, id"
+    );
+    $contacts->execute([$personId]);
+    $contacts = $contacts->fetchAll(PDO::FETCH_ASSOC);
+    $editECId = !empty($_GET['edit']) && $_GET['edit'] === 'ec'
+                ? (int)($_GET['contact_id'] ?? 0) : null;
+    $addingEC = !empty($_GET['edit']) && $_GET['edit'] === 'ec_new' && $canEditEC;
+    $editingContact = null;
+    if ($editECId !== null && $editECId > 0) {
+        foreach ($contacts as $c) if ((int)$c['id'] === $editECId) { $editingContact = $c; break; }
+    }
+?>
+<details class="card" style="margin-top:1rem;" <?= empty($contacts) ? '' : 'open' ?>>
+    <summary style="cursor:pointer;padding:0.75rem 1rem;background:#f8f9fa;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0;">
+            Emergency contacts
+            <span style="font-weight:400;font-size:0.82rem;color:#6c757d;margin-left:0.5rem;">
+                (<?= count($contacts) ?>)
+            </span>
+        </h3>
+        <?php if ($canEditEC && !$addingEC && !$editingContact): ?>
+            <a href="?patient_id=<?= $personId ?>&edit=ec_new" onclick="event.stopPropagation();" class="btn btn-primary btn-sm">+ Add contact</a>
+        <?php endif; ?>
+    </summary>
+
+    <div style="padding:1rem 1.2rem;">
+    <?php if ($addingEC || $editingContact): $c = $editingContact ?? []; ?>
+        <form method="POST" style="background:#f8fafc;border:1px solid #e2e8f0;padding:0.8rem 1rem;border-radius:4px;margin-bottom:0.8rem;">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="save_emergency_contact">
+            <input type="hidden" name="contact_id" value="<?= (int)($c['id'] ?? 0) ?>">
+            <h4 style="margin-top:0;"><?= $editingContact ? 'Edit' : 'Add' ?> emergency contact</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+                <label><span style="font-size:0.85rem;">Full name <span style="color:#dc3545;">*</span></span>
+                    <input type="text" name="ec_full_name" required maxlength="200" class="form-control"
+                           value="<?= _esc($c['full_name'] ?? '') ?>"></label>
+                <label><span style="font-size:0.85rem;">Relationship</span>
+                    <input type="text" name="ec_relationship" maxlength="50" class="form-control"
+                           placeholder="spouse, son, daughter, GP, neighbour"
+                           value="<?= _esc($c['relationship'] ?? '') ?>"></label>
+                <label><span style="font-size:0.85rem;">Phone</span>
+                    <input type="text" name="ec_phone" maxlength="30" class="form-control"
+                           value="<?= _esc($c['phone'] ?? '') ?>"></label>
+                <label><span style="font-size:0.85rem;">Alt. phone</span>
+                    <input type="text" name="ec_alt_phone" maxlength="30" class="form-control"
+                           value="<?= _esc($c['alt_phone'] ?? '') ?>"></label>
+                <label><span style="font-size:0.85rem;">Email</span>
+                    <input type="email" name="ec_email" maxlength="150" class="form-control"
+                           value="<?= _esc($c['email'] ?? '') ?>"></label>
+                <label><span style="font-size:0.85rem;">Sort order (lower = first)</span>
+                    <input type="number" name="ec_sort_order" min="0" max="999" class="form-control"
+                           value="<?= _esc($c['sort_order'] ?? '10') ?>"></label>
+            </div>
+            <label style="display:block;margin-top:0.6rem;">
+                <input type="checkbox" name="ec_is_primary" value="1" <?= !empty($c['is_primary']) ? 'checked' : '' ?>>
+                Primary contact — first to call in an incident (only one per patient)
+            </label>
+            <label style="display:block;">
+                <input type="checkbox" name="ec_has_power_of_attorney" value="1" <?= !empty($c['has_power_of_attorney']) ? 'checked' : '' ?>>
+                Has power of attorney — can make care decisions on patient's behalf
+            </label>
+            <label style="display:block;margin-top:0.6rem;">
+                <span style="font-size:0.85rem;">Notes</span>
+                <textarea name="ec_notes" rows="2" maxlength="500" class="form-control"><?= _esc($c['notes'] ?? '') ?></textarea>
+            </label>
+            <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
+                <button type="submit" class="btn btn-primary">Save contact</button>
+                <a href="?patient_id=<?= $personId ?>" class="btn btn-outline">Cancel</a>
+                <?php if ($editingContact && userCan('patient_emergency_contacts', 'delete')): ?>
+                    <form method="POST" style="display:inline;margin-left:auto;" onsubmit="return confirm('Delete this contact? Cannot be undone here.');">
+                        <?= csrfField() ?>
+                        <input type="hidden" name="action" value="delete_emergency_contact">
+                        <input type="hidden" name="contact_id" value="<?= (int)$c['id'] ?>">
+                        <button type="submit" class="btn" style="background:#dc3545;color:#fff;">Delete</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+        </form>
+    <?php endif; ?>
+
+    <?php if (empty($contacts) && !$addingEC): ?>
+        <p style="color:#6c757d;font-style:italic;">No emergency contacts on file.</p>
+    <?php else: ?>
+        <table class="report-table tch-data-table" style="font-size:0.9rem;">
+            <thead><tr>
+                <th>Name</th>
+                <th>Relationship</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th class="center">Flags</th>
+                <th class="center" data-filterable="false"></th>
+            </tr></thead>
+            <tbody>
+                <?php foreach ($contacts as $c): ?>
+                    <tr>
+                        <td>
+                            <strong><?= _esc($c['full_name']) ?></strong>
+                            <?php if (!empty($c['is_primary'])): ?>
+                                <span style="background:#15803d;color:#fff;padding:1px 6px;border-radius:3px;font-size:0.7em;margin-left:0.3rem;">PRIMARY</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= _esc($c['relationship']) ?: '—' ?></td>
+                        <td>
+                            <?php if (!empty($c['phone'])): ?>
+                                <a href="tel:<?= _esc($c['phone']) ?>"><?= _esc($c['phone']) ?></a>
+                            <?php endif; ?>
+                            <?php if (!empty($c['alt_phone'])): ?>
+                                <div style="font-size:0.8rem;color:#6c757d;">alt: <?= _esc($c['alt_phone']) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if (!empty($c['email'])): ?>
+                                <a href="mailto:<?= _esc($c['email']) ?>"><?= _esc($c['email']) ?></a>
+                            <?php else: ?>—<?php endif; ?>
+                        </td>
+                        <td class="center">
+                            <?php if (!empty($c['has_power_of_attorney'])): ?>
+                                <span style="background:#7c3aed;color:#fff;padding:1px 6px;border-radius:3px;font-size:0.7em;">POA</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="center">
+                            <?php if ($canEditEC): ?>
+                                <a href="?patient_id=<?= $personId ?>&edit=ec&contact_id=<?= (int)$c['id'] ?>" class="btn btn-outline btn-sm">Edit</a>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    <?php endif; ?>
+    </div>
+</details>
+<?php endif; // canSeeEC ?>
 
 <?php renderActivityTimeline('persons', $personId, $canEdit); ?>
 
