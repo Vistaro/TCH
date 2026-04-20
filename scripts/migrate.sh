@@ -127,10 +127,15 @@ if [[ "$SHA" == "unknown" ]]; then
     echo "      WARNING: AGENT_GIT_SHA not set — manifest will say 'unknown'." >&2
 fi
 
-# Retention: keep last 5 per env
-ls -t "$SNAP_DIR"/*-${ENV}.sql.gz 2>/dev/null | tail -n +6 | while read -r old; do
-    rm -f "$old" "${old%.sql.gz}.manifest.txt"
-    echo "      Retention: pruned $(basename "$old")"
+# Retention: keep last 5 MIGRATION snapshots per env.
+# Strict pattern <ts>-<migration-id>-<env>.sql.gz — matches the files
+# this script produces. Ad-hoc dumps with other filename shapes (e.g.
+# 20260420T092243Z-PRE-PUSH-v0925-prod.sql.gz) are exempt from pruning.
+ls -t "$SNAP_DIR" 2>/dev/null \
+    | grep -E "^[0-9]{8}T[0-9]{6}Z-[0-9]+-${ENV}\.sql\.gz$" \
+    | tail -n +6 | while read -r old; do
+        rm -f "$SNAP_DIR/$old" "${SNAP_DIR}/${old%.sql.gz}.manifest.txt"
+        echo "      Retention: pruned $old"
 done
 
 echo "[2/3] Applying $MIG_FILE to $DB_NAME..."
