@@ -4,6 +4,86 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+## [v0.9.25] — 2026-04-20 (PROD) — Sales pipeline, Quote builder, Geo foundation, PM structure
+
+Big release consolidating ~8 days of DEV work. Headline themes:
+
+- **Commercial engine foundation** — FR-L (sales pipeline + Kanban),
+  FR-C (quote builder), FR-E (rate-override), FR-F Phase 1 (quote
+  PDF print view). All built behind the release-gating rail — Tuniti
+  doesn't see these yet. Internal tooling for us to test + refine.
+- **Released to Tuniti** — enquiries inbox (plus + New Enquiry form),
+  roster view, care scheduling, care approval. First real exercise
+  of FR-R release-gating workflow.
+- **Geo foundation** — FR-N Phase 1: lat/lng schema on persons,
+  distance helpers, distance column on patient list (colour-coded
+  by operating radius — green inside 15km, amber inside 25km, red
+  beyond). Tuniti GPS coords wired through. Geocoding API in Phase 2.
+- **PM structure formalised** — `docs/PROJECT.md` as single source of
+  truth, `docs/release-log.md` as the Tuniti-facing release ledger,
+  six new FRs drafted (N geo, O LeadTrekker, P WhatsApp comms,
+  Q WhatsApp+GPS shift workflow, R release-gating policy,
+  S caregiver portal). Now 19 FRs A-S in the plan.
+- **Migration runner + deploy script** — `scripts/migrate.sh` +
+  `scripts/deploy.sh`. Portfolio-wide pattern from governance.
+  First time the agent runs migrations directly via SSH (paired
+  git-SHA + DB-snapshot rollback units).
+- **Test-data dev tools** — super-admin only, env-gated against PROD.
+  Seeds realistic synthetic enquiries + opportunities; wipe button
+  removes all is_test_data=1 rows. Pattern lifted from Nexus-CRM.
+- **User manual** — `/admin/help` living guide, role-aware.
+- **Client account numbers backfilled** — 12 rows with NULL
+  account_number given TCH-C#### series numbers.
+
+### Migrations shipped (all applied on PROD 2026-04-20)
+
+| Mig | What | Rollback |
+|---|---|---|
+| 039 | opportunities + sales_stages tables + pipeline/opportunities pages | DROP tables + DELETE pages |
+| 040 | contracts.opportunity_id nullable FK | DROP FK + column |
+| 041 | contract_lines.rate_override_reason + quotes page registry | DROP column + DELETE pages |
+| 042 | Backfill NULL client account_numbers (no-op on PROD if no NULLs) | Revert via snapshot |
+| 043 | Strip admin grants on opportunities/pipeline/quotes (FR-R gating) | Re-INSERT role_permissions rows |
+| 044 | is_test_data columns on 5 tables + dev_tools pages | DROP columns + DELETE pages |
+| 045 | Grant admin on enquiries/roster/engagements/roster_input | DELETE role_permissions rows |
+| 046 | persons.latitude/longitude/geocoded_at + operations settings | DROP columns + DELETE settings |
+
+All migrations additive. Per-migration snapshots paired in
+`~/backups/pre-migration/` on the PROD server.
+
+### Code shipped
+
+- FR-L sales pipeline (5 templates, gated from admin role)
+- FR-C quote builder + list + detail (3 templates, gated)
+- FR-E rate override baked into quote builder
+- FR-F Phase 1 quote PDF print view (gated)
+- `/admin/help` role-aware user guide
+- `/admin/enquiries/new` manual enquiry create form (visible to admin)
+- `/admin/dev-tools/test-data` (super_admin only)
+- Patients list gains Distance column
+- TEST badges on enquiries + opportunities everywhere
+- Archived: `names.php` + `names_assign.php` → `_archive/`
+
+### PM doc changes
+
+- New: `docs/PROJECT.md`, `docs/release-log.md`, `docs/hub-drafts/`
+- Extended: `docs/TCH_Quote_And_Portal_Plan.md` with FR-N through FR-S
+- Slimmed: `HANDOFF.md` to a per-session cover sheet
+
+### Rollback (full v0.9.25 revert)
+
+1. Restore the pre-PROD-push DB snapshot at
+   `~/backups/pre-migration/20260420T092344Z-039-prod.sql.gz`
+   (or any per-migration snapshot from 039-046 as needed).
+2. `git reset --hard <v0.9.24-sha>` on main (requires Ross).
+3. `rsync` the pre-v0925 code backup back to
+   `~/public_html/tch/`.
+
+No user-facing data loss — Tuniti not yet live per governance's
+2026-04-18 note "not yet in end-user use".
+
+---
+
 ### Migration runner + 039/040/041 applied on DEV — 2026-04-18
 
 Per governance's adopted pattern (portfolio-wide skeleton sent by
