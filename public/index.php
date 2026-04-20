@@ -415,6 +415,11 @@ switch ($route) {
         require APP_ROOT . '/templates/admin/dev_tools_test_data.php';
         break;
 
+    case 'admin/caregiver-loans':
+        requirePagePermission('caregiver_loans', 'read');
+        require APP_ROOT . '/templates/admin/caregiver_loans.php';
+        break;
+
     // ─── User management ───────────────────────────────────────────────
     case 'admin/users':
         requirePagePermission('users', 'read');

@@ -137,6 +137,9 @@ if ($user && empty($user['avatar_path'])) {
                 <?php if (userCan('products', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/products" class="<?= ($activeNav ?? '') === 'products' ? 'active' : '' ?>">&#9632; Products</a></li>
                 <?php endif; ?>
+                <?php if (userCan('caregiver_loans', 'read')): ?>
+                    <li><a href="<?= APP_URL ?>/admin/caregiver-loans" class="<?= ($activeNav ?? '') === 'caregiver-loans' ? 'active' : '' ?>">&#9632; Caregiver Loans</a></li>
+                <?php endif; ?>
                 <?php if (userCan('config_activity_types', 'read')): ?>
                     <li><a href="<?= APP_URL ?>/admin/config/activity-types" class="<?= ($activeNav ?? '') === 'config-activity-types' ? 'active' : '' ?>">&#9632; Activity Types</a></li>
                 <?php endif; ?>

@@ -1,0 +1,11 @@
+# Force LF line endings for shell scripts + SQL + PHP regardless of
+# committer OS. Prevents CRLF leaking into files that run on the Linux
+# hosting server (where `set -euo pipefail\r` etc. break).
+#
+# Added 2026-04-20 after the CRLF-in-migrate.sh breakage during
+# caregiver-loans migration.
+
+*.sh  text eol=lf
+*.sql text eol=lf
+*.php text eol=lf
+*.md  text eol=lf
