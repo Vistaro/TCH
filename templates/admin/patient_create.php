@@ -162,6 +162,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'postal_code'    => $form['postal_code'] ?: null,
                             'country'        => $form['country'] ?: 'South Africa',
                         ]);
+                        // FR-N Phase 2 auto-geocode on initial save. Silent on failure —
+                        // backfill page picks up anything missed.
+                        require_once APP_ROOT . '/includes/geocode.php';
+                        geocodePersonAndSave($db, $newId, force: true);
                     }
 
                     $me = currentEffectiveUser();

@@ -154,6 +154,7 @@ if ($user && empty($user['avatar_path'])) {
             <?php if (userCan('dev_tools_test_data', 'read')): ?>
                 <li class="nav-heading">Dev Tools</li>
                 <li><a href="<?= APP_URL ?>/admin/dev-tools/test-data" class="<?= ($activeNav ?? '') === 'dev-tools-test-data' ? 'active' : '' ?>">&#9632; Test Data</a></li>
+                <li><a href="<?= APP_URL ?>/admin/dev-tools/geocode-backfill" class="<?= ($activeNav ?? '') === 'dev-tools-geocode' ? 'active' : '' ?>">&#9632; Geocode Backfill</a></li>
             <?php endif; ?>
 
             <li class="nav-separator">

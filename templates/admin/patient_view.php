@@ -274,7 +274,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     $db->prepare("UPDATE persons SET " . implode(',', $set) . " WHERE id = ?")
        ->execute($params);
 
-    if ($section === 'address') savePrimaryAddress($personId, $newValues);
+    if ($section === 'address') {
+        savePrimaryAddress($personId, $newValues);
+        // Re-geocode on any address change. Fire-and-forget — Nominatim
+        // is rate-limited so this call can take up to ~1s but doesn't
+        // block the redirect completing.
+        require_once APP_ROOT . '/includes/geocode.php';
+        geocodePersonAndSave($db, $personId, force: true);
+    }
 
     logActivity('edit', 'patient_view', 'persons', $personId,
         'Updated ' . $section . ' (' . count($changed) . ' field' . (count($changed)===1?'':'s') . ')',
