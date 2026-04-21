@@ -1,46 +1,59 @@
 # Handoff — TCH
 
-> **As of 2026-04-19, project state lives in [`docs/PROJECT.md`](docs/PROJECT.md), not here.**
-> This file is now a thin per-session cover sheet. Read PROJECT.md first for the real state.
+> **Project state lives in [`docs/PROJECT.md`](docs/PROJECT.md), not here.**
+> This file is a thin per-session cover sheet. Read PROJECT.md first.
 
 ---
 
-## Last session (2026-04-19) — what changed
+## Last session (2026-04-20) — what changed
 
-Project moved to formal PM tracking after Ross's call for "more than vision + proposal-vs-delivered". New living docs:
+Ross said "do all 4" and went away. Auto-mode delivered four cohesive chunks:
 
-- **`docs/PROJECT.md`** — single source of truth. Master scope vs delivery, backlog (3 buckets), in-flight, risk register, release-gating policy.
-- **`docs/release-log.md`** — append-only ledger of what's been released to Tuniti users (`admin` role). Initialised with current state.
-- **`docs/TCH_Quote_And_Portal_Plan.md`** — six new FRs added (N geo+travel, O LeadTrekker, P WhatsApp comms, Q WhatsApp+GPS shift, R release-gating policy, S caregiver portal). Now 19 FRs total (A–S).
+- **Phase A — plumbing.** `scripts/migrate.sh` retention tightened so ad-hoc
+  dumps aren't pruned by the per-env "last 5" rule. `.gitattributes` added
+  to force LF line endings on shell/SQL/PHP (caught a CRLF breakage mid-session).
+- **Phase B — caregiver loan ledger (Phase 6.4).** Migration 047 +
+  `/admin/caregiver-loans`: event-sourced advance/repayment ledger,
+  per-caregiver balance table, record-event form. super_admin only.
+- **Phase C — FR-N Phase 2 geocoding.** `includes/geocode.php` (Nominatim,
+  1 req/s throttle), auto-geocode hook on patient save + create,
+  `/admin/dev-tools/geocode-backfill` for catch-up sweeps. Patient list
+  Distance column (from Phase 1) becomes live as data populates.
+- **Phase D — patient care-needs profile + emergency contacts (Phase 4.4).**
+  Migration 048 + two new card sections on patient detail. Medical /
+  physical / cognitive / preferences / summary categories + DNR badge.
+  Many-per-patient emergency contacts with PRIMARY + POA flags.
 
-Schema:
-- **Migration 043** — strips inadvertent grants of opportunities/pipeline/quotes/quotes_rate_override from `admin` role per release-gating. Tuniti users no longer see the in-build sales/quote tooling. Run on DEV.
-
-Code on dev (deployed via `scripts/deploy.sh dev`):
-- All FR-L (sales pipeline + Kanban), FR-C (quote builder), FR-E (rate override), FR-F Phase 1 (PDF print view) live and working — but hidden from `admin` role per FR-R.
-- `/admin/help` user guide live, role-aware (Tuniti only sees guidance for what they can access).
-- `/admin/enquiries/new` manual enquiry create form live.
-- Backfilled 12 missing client account numbers (mig 042).
-
-Tooling:
-- `scripts/migrate.sh` (governance's portfolio skeleton) and `scripts/deploy.sh` (rsync/tar-over-ssh fallback) both proven.
+5 commits, ~1,300 lines, 2 dev migrations, 4 new admin surfaces.
+All new pages super_admin-only — zero change to what Tuniti sees.
 
 ---
 
-## Open at session end
+## Open at session end — 4 items
 
-- **Mig 043 needs deploying to PROD** when Ross greenlights — it removes admin-role grants on opportunities/pipeline/quotes which currently aren't on PROD anyway (032/033 onward never ran on PROD per HANDOFF history). Effectively low-risk on PROD until the FR-L/C code itself is shipped to PROD.
-- **Governance prod sequence on `tch-post-outage-2026-04-16` thread** — 034/035 + D/D' rsync still awaiting Ross's explicit ship-it call.
-- **5 UX issues flagged in `docs/sessions/2026-04-18-autonomous-cleanup.md`** still need Ross's eyeballs — mobile Kanban (Hub bug filed), save-and-send button (ToDo 20), backward stage moves (ToDo 21), help-page RBAC at portal-launch.
+See `docs/PROJECT.md` §6 and `docs/TCH_Ross_Todo.md` #22/#23/#20/#21.
+
+1. **Forth Host malware paths** — Ross needs to pull 2 file paths from
+   `cp.forthhost.com`. Blocking the triage.
+2. **PROD ship v0.9.26** — today's 4 phases ready to go when greenlit.
+3. **"Save & Send" on quote builder** — awaiting Tuniti-usage feedback.
+4. **Backward stage moves on opp detail** — awaiting Ross's call.
+
+---
+
+## Dev vs PROD
+
+| | Code | Migrations | Notes |
+|---|---|---|---|
+| **DEV** | `9f50430` | 034–048 all applied | +test data + Phase A-D live |
+| **PROD** | `130ca42` / v0.9.25 | 034–046 all applied | Phases A-D awaiting ship |
 
 ---
 
 ## Next session entry pattern
 
-1. Read `docs/PROJECT.md` §6 (in-flight) — what was being worked on.
-2. Read `docs/PROJECT.md` §7 (risks) — anything fresh.
-3. Read `docs/release-log.md` — what Tuniti can currently see.
-4. Read this file (HANDOFF.md) for the last-session-state cover.
-5. Pick up where the previous session left off.
-
-If a new instruction comes in from Ross at session start, route through normal flow and update `PROJECT.md` as work progresses.
+1. `docs/PROJECT.md` §6 — read the 4 open items first.
+2. `docs/PROJECT.md` §7 — check risk register.
+3. `docs/release-log.md` — what Tuniti can see.
+4. This file.
+5. Pick up where left off.

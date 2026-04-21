@@ -237,17 +237,18 @@ Drafted into `docs/TCH_Quote_And_Portal_Plan.md` (appendix). Each in three-layer
 
 ---
 
-## 6. In-flight (current session)
+## 6. Start of next session — open items
 
-Active build. Updated as work progresses.
+**The 4 things waiting on Ross when we resume:**
 
-| Item | Owner | Status | Started |
-|---|---|---|---|
-| PROJECT.md (this doc) creation | Agent | In progress | 2026-04-19 |
-| Mig 043 (release-gating cleanup) | Agent | In progress | 2026-04-19 |
-| FR-N…S draft into plan doc | Agent | Queued | — |
-| release-log.md initialisation | Agent | Queued | — |
-| Governance message (PM + release-gating pattern) | Agent | Queued | — |
+| # | Item | Owner | Notes |
+|---|------|-------|-------|
+| 1 | **Forth Host malware paths** | Ross → Agent | Log into `cp.forthhost.com`, pull the 2 flagged file paths, paste them so the owning project's agent can triage. Bottleneck on Ross's access. See `forth-malware-2026-04-20` thread + Ross_Todo #22. |
+| 2 | **PROD ship v0.9.26** | Ross greenlight → Agent ships | Dev is at `9f50430` with Phases A–D from the 2026-04-20 session (migrate.sh retention fix, caregiver loan ledger, Nominatim geocoding, patient care-needs + emergency contacts). None visible to Tuniti post-ship — all super_admin only. Same 8-step chain as v0.9.25; only migs 047 + 048 to apply. See Ross_Todo #23. |
+| 3 | **Save-and-send button** | Ross decision | ToDo #20 — pending Tuniti's actual workflow feedback. ~15 min to implement when approved. |
+| 4 | **Backward stage moves** | Ross decision | ToDo #21 — pending review of Kanban usage. 3 options documented. ~5 min to implement. |
+
+Nothing else in-flight. Dev is clean, PROD is clean at v0.9.25.
 
 ---
 
