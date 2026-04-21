@@ -719,6 +719,19 @@ Items below are ToDos because scope is agreed with Ross (2026-04-15 conversation
 
 ---
 
+## v0.9.26 post-ship follow-ups (added 2026-04-21)
+
+Two checklist gaps accepted at ship time per Ross (option ii —
+ship anyway, file as ToDos). Both super_admin-only, so no
+Tuniti-visible impact; picking them up next session.
+
+| # | Item | Priority | Notes |
+|---|------|----------|-------|
+| TODO-testdata-047-048 | **Extend `/admin/dev-tools/test-data` to seed `caregiver_loans`, `patient_care_needs`, `patient_emergency_contacts`** | LOW | Pattern-match existing seeders in `templates/admin/dev_tools_test_data.php`. Respect `is_test_data = 1` marker. Only Ross hits these surfaces (super_admin-only until FR-R releases), so priority is low. Enables testing of caregiver-loans ledger + patient care-needs UX without hand-entering data. |
+| TODO-help-047-048 | **Add `/admin/help` blocks for caregiver loans + patient care-needs + emergency contacts** | LOW | Blocks gated by `userCan('caregiver_loans','read')`, `userCan('patient_care_needs','read')`, `userCan('patient_emergency_contacts','read')`. Admin users won't see them (no permission); super_admin will. Refresh the footer's last-updated stamp. Pattern exists in `templates/admin/help.php`. |
+
+---
+
 ## Access Details (for reference)
 
 - **Site:** https://tch.intelligentae.co.uk/

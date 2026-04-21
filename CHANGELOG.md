@@ -4,6 +4,38 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### Project governance + sync-incident recovery — 2026-04-21 (dev)
+
+- **`CLAUDE.md`** (new, project root) — project-local standing orders
+  layering on top of global `C:\ClaudeCode\CLAUDE.md`. Defines the
+  mandatory six-step PROD-push checklist (pre-migration DB snapshot;
+  DEV-refresh prompt; test-data coverage gate; Tuniti-role gating
+  diff; `/admin/help` currency; What's New parity). Sets ship-
+  presentation shape, post-ship rules, and session-local conventions
+  (ignore `.claude/settings.local.json`; `docs/sessions/` hosts
+  governance-message backups).
+- **`docs/TCH_Ross_Todo.md`** — two follow-ups appended under a new
+  "v0.9.26 post-ship follow-ups" section. Both super_admin-only,
+  accepted as gaps at ship time per Ross:
+  - `TODO-testdata-047-048` — extend `/admin/dev-tools/test-data`
+    to seed `caregiver_loans`, `patient_care_needs`,
+    `patient_emergency_contacts`.
+  - `TODO-help-047-048` — add `/admin/help` blocks for caregiver
+    loans + patient care-needs + emergency contacts, gated by
+    `userCan()` per code.
+- **`docs/sessions/2026-04-21-input-integrity-incident-governance-escalation.md`**
+  (new) — git-backed copy of the 17:00Z message filed to Governance
+  documenting the phantom-ls-output + vanished-Write incident on the
+  agent-messages mailbox during OneDrive sync race.
+- **`docs/sessions/2026-04-21-governance-tch-recovery-plan.md`**
+  (new) — git-backed copy of the 17:20Z recovery plan proposal
+  (two-phase: fast-forward origin/dev + quarantine OneDrive `.git/`).
+  Governance approved 17:50Z with amendment to quarantine location.
+
+Rollback: these are documentation + governance-metadata only; `rm`
+the four files and revert `CHANGELOG.md` + `docs/TCH_Ross_Todo.md`.
+No runtime impact.
+
 ## [v0.9.25] — 2026-04-20 (PROD) — Sales pipeline, Quote builder, Geo foundation, PM structure
 
 Big release consolidating ~8 days of DEV work. Headline themes:
