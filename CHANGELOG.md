@@ -4,37 +4,122 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
-### Project governance + sync-incident recovery — 2026-04-21 (dev)
+## [v0.9.26] — 2026-04-21 (PROD) — Caregiver loan ledger + Patient care-needs + Nominatim geocoding
 
-- **`CLAUDE.md`** (new, project root) — project-local standing orders
-  layering on top of global `C:\ClaudeCode\CLAUDE.md`. Defines the
-  mandatory six-step PROD-push checklist (pre-migration DB snapshot;
-  DEV-refresh prompt; test-data coverage gate; Tuniti-role gating
-  diff; `/admin/help` currency; What's New parity). Sets ship-
-  presentation shape, post-ship rules, and session-local conventions
-  (ignore `.claude/settings.local.json`; `docs/sessions/` hosts
-  governance-message backups).
-- **`docs/TCH_Ross_Todo.md`** — two follow-ups appended under a new
-  "v0.9.26 post-ship follow-ups" section. Both super_admin-only,
-  accepted as gaps at ship time per Ross:
-  - `TODO-testdata-047-048` — extend `/admin/dev-tools/test-data`
-    to seed `caregiver_loans`, `patient_care_needs`,
-    `patient_emergency_contacts`.
-  - `TODO-help-047-048` — add `/admin/help` blocks for caregiver
-    loans + patient care-needs + emergency contacts, gated by
-    `userCan()` per code.
-- **`docs/sessions/2026-04-21-input-integrity-incident-governance-escalation.md`**
-  (new) — git-backed copy of the 17:00Z message filed to Governance
-  documenting the phantom-ls-output + vanished-Write incident on the
-  agent-messages mailbox during OneDrive sync race.
-- **`docs/sessions/2026-04-21-governance-tch-recovery-plan.md`**
-  (new) — git-backed copy of the 17:20Z recovery plan proposal
-  (two-phase: fast-forward origin/dev + quarantine OneDrive `.git/`).
-  Governance approved 17:50Z with amendment to quarantine location.
+Short release consolidating the 2026-04-20 auto-mode Phase A–D
+delivery plus today's governance + sync-recovery housekeeping.
+All new admin surfaces are **super_admin-only** — Tuniti's `admin`
+role sees nothing new in this ship (release-gated per FR-R until
+Ross reviews each surface for release).
 
-Rollback: these are documentation + governance-metadata only; `rm`
-the four files and revert `CHANGELOG.md` + `docs/TCH_Ross_Todo.md`.
-No runtime impact.
+### Migrations shipped (applied on PROD 2026-04-21)
+
+| Mig | What | Rollback |
+|---|---|---|
+| 047 | `caregiver_loans` table (event-sourced advance/repayment ledger) + super_admin grant on the pre-registered `caregiver_loans` page | `DROP TABLE caregiver_loans;` + `DELETE FROM role_permissions WHERE page_id = (SELECT id FROM pages WHERE code='caregiver_loans');` |
+| 048 | `patient_care_needs` (one-row-per-patient TEXT profile) + `patient_emergency_contacts` (many-per-patient) + two new page registrations + super_admin grants | `DROP TABLE patient_emergency_contacts; DROP TABLE patient_care_needs; DELETE FROM pages WHERE code IN ('patient_care_needs','patient_emergency_contacts'); role_permissions cascades` |
+
+Both migrations purely additive. Per-migration snapshots paired in
+`~/backups/pre-migration/` on the PROD server (migration-id + git-SHA
+manifest). Retention keeps last 5 per env.
+
+### Code shipped
+
+- **`/admin/caregiver-loans`** (new, super_admin-only) — event-sourced
+  ledger replacing ad-hoc spreadsheet tracking. Four dashboard cards
+  (outstanding / all-time advanced / all-time repaid / caregivers with
+  loans), colour-coded per-caregiver balance table, drill-down to
+  event log, record-event form with advance/repayment type +
+  optional payroll month. Running balance computed read-side
+  (sum(advance) - sum(repayment)). First concrete delivery on
+  Phase 6.4 of the Tuniti proposal.
+- **Patient detail** (`/admin/patients/{id}`, new sections) — two
+  new cards under super_admin gating:
+  - **Care needs profile**: 12 categories (medical, allergies,
+    medications, DNR, mobility, hygiene, cognitive, emotional,
+    dietary, recreational, language, care-summary) with
+    last-reviewed-by + date. Single-row TEXT-field schema per
+    DECISIONS.md 2026-04-21 entry — pragmatic now, escape hatch
+    to normalised tables later.
+  - **Emergency contacts**: many-per-patient with primary + POA
+    flags. Auto-demotes prior primary when a new one is set.
+- **`includes/geocode.php`** (new) — Nominatim (OpenStreetMap) public
+  API integration. 1 req/sec file-lock throttle honouring the
+  Nominatim usage policy. `geocodeAddress()`,
+  `geocodePersonAndSave()` (idempotent), `listPersonsNeedingGeocode()`.
+  Auto-hooked on patient save to populate `persons.latitude/longitude`.
+  Closes the "Distance column shows all —" taste from v0.9.25
+  Phase 1.
+- **`scripts/migrate.sh`** — retention regex tightened from loose
+  `*-<env>.sql.gz` glob to strict
+  `^[0-9]{8}T[0-9]{6}Z-[0-9]+-<env>\.sql\.gz$`. Ad-hoc dumps
+  (manual mysqldumps, pre-push baselines) now sit in
+  `~/backups/pre-migration/` unaffected by retention pruning.
+- **`.gitattributes`** (new) — force LF line endings on shell
+  scripts (CRLF-in-shell bit the session mid-run).
+
+### Doc + governance changes
+
+- **`CLAUDE.md`** (new, project root) — project-local standing
+  orders layering on top of global `C:\ClaudeCode\CLAUDE.md`.
+  Defines the mandatory six-step PROD-push checklist (DB snapshot,
+  DEV-refresh prompt, test-data coverage, Tuniti-role gating diff,
+  `/admin/help` currency, What's New parity). Shape of the ship
+  presentation + session-local conventions.
+- **`ARCHITECTURE.md`** — documented new includes (opportunities,
+  geo, geocode, settings) + all new tables from migs 039–048 +
+  `is_test_data` marker + `scripts/` section.
+- **`DECISIONS.md`** — 2026-04-21 entry on single-row-per-patient
+  TEXT-field schema choice for `patient_care_needs`.
+- **`HANDOFF.md`** + **`docs/PROJECT.md`** — refreshed for the
+  2026-04-20 delivery and next-session entry pattern (Forth
+  triage + PROD ship as the two immediate items).
+- **`docs/TCH_Ross_Todo.md`** — two v0.9.26 post-ship follow-ups
+  filed under option (ii) ship-with-gaps-as-todos:
+  `TODO-testdata-047-048` (extend dev-tools/test-data for the
+  new tables) and `TODO-help-047-048` (add `/admin/help` blocks
+  for the new super_admin pages). Both super_admin-only =
+  cosmetic-for-Ross, nil impact on Tuniti.
+- **`docs/sessions/2026-04-21-*.md`** (x2) — git-backed session
+  notes from today's OneDrive sync-incident recovery (phantom-ls
+  + vanished-Write diagnosis + Governance recovery plan +
+  approval). Kept in repo as insurance against future `/restore`
+  + robocopy `/MIR` data-loss events.
+
+### Tuniti-visibility (release-gating state)
+
+- **Released to `admin` role in this ship:** nothing.
+- **Still gated (unchanged from v0.9.25):** pipeline, opportunities,
+  quotes, quotes_rate_override, contracts, unbilled_care, plus
+  all config + back-office pages.
+- **New in this ship, super_admin-only:** caregiver_loans,
+  patient_care_needs, patient_emergency_contacts.
+- `docs/release-log.md` unchanged — no grants to record.
+
+### Known post-ship gaps (accepted, filed as ToDos)
+
+- `/admin/dev-tools/test-data` has no seeder for the three new
+  tables (see `TODO-testdata-047-048`).
+- `/admin/help` has no blocks documenting the three new
+  super_admin surfaces (see `TODO-help-047-048`).
+
+Both LOW priority, both only affect Ross (super_admin-only surfaces).
+
+### Rollback (full v0.9.26 revert)
+
+1. Server-side: `mysql ... < ~/backups/pre-migration/<ts>-048-prod.sql`
+   then `<ts>-047-prod.sql` to restore pre-migration schema.
+2. Local: `git revert <v0.9.26 range>` then `git push origin main`
+   then `bash scripts/deploy.sh prod` to roll the webroot back.
+3. Manual per-table rollback SQL in the migration-files'
+   `-- Rollback:` headers if backup unavailable.
+
+Commits rolled into this release:
+`513370f` migrate.sh retention fix · `db57d6f` caregiver loan
+ledger + `.gitattributes` · `0f872e8` Nominatim geocoding ·
+`9f50430` patient care-needs + emergency contacts ·
+`725f736` handoff doc queue · `1ab8e2e` wrap-session doc refresh ·
+`fc794fc` project-local CLAUDE.md + session governance notes.
 
 ## [v0.9.25] — 2026-04-20 (PROD) — Sales pipeline, Quote builder, Geo foundation, PM structure
 
