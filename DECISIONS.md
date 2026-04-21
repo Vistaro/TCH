@@ -9,6 +9,12 @@ Append-only. One entry per non-obvious design choice. Format:
 **Because:** …
 ```
 
+## 2026-04-21 — `patient_care_needs` as single-row TEXT-field schema, not normalised
+
+**Chose:** One row per patient in `patient_care_needs` with TEXT columns per care category (medical_conditions, allergies, medications, mobility, hygiene, cognitive, emotional, dietary, recreational, language, care_summary) + a single DNR ENUM + notes.
+**Over:** Fully normalised tables (`patient_allergies`, `patient_medications`, each with structured fields like severity / dose / frequency / reaction), linked N:1 to patient.
+**Because:** We don't yet know what structured queries Tuniti actually needs — "patients allergic to X" reports aren't a live requirement. TEXT is faithful to how Tuniti captures this information today (paper + WhatsApp notes). The fields are semantically distinct and labelled in the UI, which preserves most of the benefit of normalisation for human reading while avoiding the schema work + data-migration churn when we don't yet know the shape of the queries. Normalise later if (a) we need drug-interaction reporting, (b) we need structured allergy severity matching in the matching engine (FR-5.1), or (c) Tuniti starts asking for filters on specific fields. Documented in mig 048 comments + on the `patient_care_needs` card component so the next dev doesn't reach for refactoring without understanding the deliberate pragmatism.
+
 ## 2026-04-18 — `/admin/help` bound to `dashboard.read`, not its own RBAC page
 **Chose:** Route the user-guide page at `/admin/help` through the generic `dashboard.read` permission. Every logged-in admin sees the guide regardless of their specific page grants.
 **Over:** Registering a dedicated `help.read` page in the `pages` / `role_permissions` registry so each role's access is managed independently.

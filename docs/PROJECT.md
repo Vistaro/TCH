@@ -239,16 +239,16 @@ Drafted into `docs/TCH_Quote_And_Portal_Plan.md` (appendix). Each in three-layer
 
 ## 6. Start of next session — open items
 
-**The 4 things waiting on Ross when we resume:**
+**Ross's instruction on 2026-04-21 wrap:** first action next session is the Forth triage.
 
 | # | Item | Owner | Notes |
 |---|------|-------|-------|
-| 1 | **Forth Host malware paths** | Ross → Agent | Log into `cp.forthhost.com`, pull the 2 flagged file paths, paste them so the owning project's agent can triage. Bottleneck on Ross's access. See `forth-malware-2026-04-20` thread + Ross_Todo #22. |
-| 2 | **PROD ship v0.9.26** | Ross greenlight → Agent ships | Dev is at `9f50430` with Phases A–D from the 2026-04-20 session (migrate.sh retention fix, caregiver loan ledger, Nominatim geocoding, patient care-needs + emergency contacts). None visible to Tuniti post-ship — all super_admin only. Same 8-step chain as v0.9.25; only migs 047 + 048 to apply. See Ross_Todo #23. |
-| 3 | **Save-and-send button** | Ross decision | ToDo #20 — pending Tuniti's actual workflow feedback. ~15 min to implement when approved. |
-| 4 | **Backward stage moves** | Ross decision | ToDo #21 — pending review of Kanban usage. 3 options documented. ~5 min to implement. |
+| 🔴 1 | **Forth malware triage — FIRST** | Agent (via SSH) | Governance confirmed 2026-04-21 11:00 the 2 flagged paths are TCH's own `db-backups/tch/prod-webroot-pre-0920-20260413-160734.tgz` and `...pre-0917-20260413-105958.tgz`. Scanner hits a PHP file inside the archive with webshell-shape signature (cookie + user-agent + file_get_contents + tempnam + file_put_contents + unlink) — almost certainly legitimate `includes/onboarding_upload.php`. Unpack one archive read-only → grep for signature → verdict + explanation for Ross to send Forth support. Full guidance in mailbox message `2026-04-21-1100-governance-to-tch-forth-flagged-files-are-your-backup-archives.md`. Urgency: PHP mail off account-wide; affects Nexus-CRM (live). |
+| 🟡 2 | **PROD ship v0.9.26** | Ross greenlight → Agent ships | Dev at `725f736` with Phases A–D from 2026-04-20 (migrate.sh retention fix, caregiver loan ledger, Nominatim geocoding, patient care-needs + emergency contacts). None Tuniti-visible post-ship — all super_admin only. Same 8-step chain as v0.9.25; only migs 047 + 048 to apply. See Ross_Todo #23. |
+| 🟢 3 | **Save-and-send button** | Ross decision | ToDo #20 — pending Tuniti's actual workflow feedback. ~15 min to implement when approved. |
+| 🟢 4 | **Backward stage moves** | Ross decision | ToDo #21 — pending review of Kanban usage. 3 options documented. ~5 min to implement. |
 
-Nothing else in-flight. Dev is clean, PROD is clean at v0.9.25.
+Dev is clean (0 ahead / 0 behind), PROD is at v0.9.25, no blockers on TCH's side of the fence.
 
 ---
 

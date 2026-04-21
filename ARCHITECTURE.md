@@ -276,6 +276,101 @@ request**.
   dropdowns, E.164 phone helpers (`splitE164`, `joinE164`).
 - **`includes/mailer.php`** — SMTP via server config; used for
   password setup, invite emails, bug reporter confirmations.
+- **`includes/opportunities.php`** — sales pipeline helpers
+  (FR-L). `nextOppRef()`, `fetchSalesStages()`,
+  `fetchOpportunity()`, `advanceOpportunityStage()` (shared between
+  Kanban AJAX path and detail-page button path).
+- **`includes/geo.php`** — distance math + operating-radius zones
+  (FR-N Phase 1). `haversineKm()`, `distanceFromTunitiKm()`,
+  `distanceBand()`, `renderDistanceBadge()`.
+- **`includes/geocode.php`** — Nominatim geocoder (FR-N Phase 2)
+  with 1 req/sec rate-limit throttle.
+  `geocodeAddress()`, `geocodePersonAndSave()`,
+  `listPersonsNeedingGeocode()`. Called on patient address save
+  and from the admin backfill page.
+- **`includes/settings.php`** — typed getters for `system_settings`
+  rows. `getSetting()`, `tunitiOfficeCoords()`.
+
+## Sales pipeline + quote builder tables (added v0.9.25 migs 039-041)
+
+```
+opportunities       — sales-pipeline record; one per qualified deal.
+                      opp_ref 'OPP-YYYY-NNNN', title, stage_id,
+                      source (+ source_enquiry_id FK nullable),
+                      client_id + patient_person_id (nullable until
+                      qualified), owner_user_id, expected value/date,
+                      contract_id (back-pointer to the quote/contract
+                      built from this opp), status (open/closed/
+                      archived), reason_lost, closed_at. is_test_data
+                      flag for synthetic data.
+sales_stages        — lookup table (NOT ENUM). Each stage carries
+                      probability_percent, is_closed_won,
+                      is_closed_lost, is_active, sort_order. Seeded
+                      with 6 default stages; Ross-editable.
+```
+
+Quotes reuse `contracts` + `contract_lines` (status='draft' IS a
+quote). Added to contracts: `quote_reference`, `sent_at`,
+`accepted_at`, `acceptance_method`, `acceptance_note`,
+`opportunity_id` (back-link to the opportunity that spawned it).
+`contract_lines` gains `rate_override_reason` — audit trail when a
+quoter sets a rate different from the product default (requires the
+`quotes_rate_override.edit` permission).
+
+## Caregiver loan ledger (mig 047)
+
+```
+caregiver_loans     — event-sourced ledger: one row per advance or
+                      repayment. Running balance per caregiver
+                      computed as SUM(advances) − SUM(repayments).
+                      No edit/delete on events — log a compensating
+                      event instead.
+```
+
+## Patient care-needs + emergency contacts (mig 048)
+
+```
+patient_care_needs            — one row per patient, TEXT columns
+                                per category (medical_conditions,
+                                allergies, medications, mobility,
+                                hygiene, cognitive, emotional,
+                                dietary, recreational, language,
+                                care_summary). dnr_status ENUM
+                                (unknown/no_dnr/dnr_in_place) +
+                                dnr_notes. last_reviewed_date.
+                                Pragmatic single-row; normalise
+                                to lookup tables if structured
+                                reporting ever needed.
+patient_emergency_contacts    — many-per-patient. Name, relationship,
+                                phone, alt_phone, email. is_primary
+                                + has_power_of_attorney flags;
+                                sort_order for display.
+```
+
+## Test-data dev tools (mig 044)
+
+All 5 entity tables carry `is_test_data TINYINT(1) DEFAULT 0`
+(enquiries, opportunities, persons, clients, patients). The dev-tools
+surface at `/admin/dev-tools/test-data` (super_admin only + env-gated
+against PROD) seeds synthetic data flagged = 1 and wipes flagged
+rows on demand. Real data (flag = 0) is never touched because every
+WHERE filters on `is_test_data = 1`.
+
+## Operations runners (`scripts/`)
+
+- **`scripts/migrate.sh <env> <id>`** — server-side migration runner.
+  Takes a pre-migration `mysqldump` snapshot paired with the
+  committing git SHA (manifest file beside the dump). Refuses to
+  migrate if the snapshot is empty. Keeps last 5 migration snapshots
+  per env — strict `<ts>-<id>-<env>.sql.gz` pattern so ad-hoc dumps
+  are retention-exempt.
+- **`scripts/deploy.sh <env>`** — rsync/tar-over-ssh code deploy.
+  Prefers rsync when available; falls back to tar-over-ssh for
+  Windows git-bash. PROD deploys gated by
+  `AGENT_SHIP_APPROVED=yes`.
+- **`scripts/verify-prod-migrations.sh`** — read-only schema probe
+  to confirm which migrations are applied on PROD without needing
+  local DB creds.
 
 ## External integrations
 
