@@ -4,6 +4,30 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### Post-ship wrap-up — 2026-04-21 (dev)
+
+- **`HANDOFF.md`** refreshed for the 2026-04-21 pm session: cross-device
+  sync-incident recovery summary, post-v0.9.26 DEV/PROD state table
+  (both at `c348ba2`, migs 034–048 applied), 6 open items for next
+  session in priority order (Forth triage; DEV-refresh pipeline;
+  v0.9.26 super_admin follow-ups; deploy.sh SSH-key-path fix; quote
+  save-and-send; backward stage moves).
+- **`docs/TCH_Ross_Todo.md`** — two additional follow-ups filed under
+  the v0.9.26 post-ship section:
+  - `TODO-devdb-sanitise` (HIGH) — write `scripts/dev-db-sanitise.sql`
+    + run first PROD→DEV refresh; includes GDPR Art. 9 sweep for the
+    new `patient_care_needs` TEXT fields.
+  - `TODO-deploy-ssh-key-path` (MEDIUM) — `scripts/deploy.sh` hard-codes
+    `$HOME/.ssh/intelligentae_deploy_ed25519`; needs env-var override
+    or fallback to `_global/keys/`.
+- **`docs/sessions/2026-04-21-incident-close-conditions.md`** (new) —
+  git-backed copy of the 18:10Z incident-close-conditions message to
+  Governance (three residual risks: `.git`-exclusion practice
+  verification, `/restore` MIR hazard, git-blind freshness check).
+  Content preserved regardless of mailbox sync state.
+
+Rollback: documentation + backlog only, nil runtime impact.
+
 ## [v0.9.26] — 2026-04-21 (PROD) — Caregiver loan ledger + Patient care-needs + Nominatim geocoding
 
 Short release consolidating the 2026-04-20 auto-mode Phase A–D
