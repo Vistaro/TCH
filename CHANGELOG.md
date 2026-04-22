@@ -4,6 +4,26 @@ All notable changes to the TCH Placements project.
 
 ## [Unreleased]
 
+### Session wrap — Forth triage done, DEV redeployed — 2026-04-21 pm → 2026-04-22 00:05 (dev)
+
+- **`docs/sessions/2026-04-21-forth-triage-verdict.md`** (new) —
+  git-backed copy of the Forth false-positive verdict filed to
+  Governance at 20:55Z. Full token-cascade method, PhpSpreadsheet
+  `Drawing.php` analysis, retention-audit table, Ross paste-back
+  text for Forth support.
+- **`HANDOFF.md`** — timestamp advanced to 2026-04-22 00:05 and item
+  1 (Forth triage) moved from 🔴 to ✅ with verdict summary.
+  Governance concurrence message (2130Z) logged; account-home
+  items poll disclaimed.
+- **DEV server redeployed** — local tree pushed to
+  `~/public_html/dev-TCH/dev/` via `bash scripts/deploy.sh dev`.
+  DEV and PROD webroots now commit-parity (both at code equivalent
+  of `c348ba2` v0.9.26). Smoke tests green on
+  `/admin/caregiver-loans`, `/admin/patients/1`,
+  `/admin/dev-tools/test-data`.
+
+Rollback: documentation + DEV-only. Nil PROD impact.
+
 ### Post-ship wrap-up — 2026-04-21 (dev)
 
 - **`HANDOFF.md`** refreshed for the 2026-04-21 pm session: cross-device

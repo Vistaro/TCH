@@ -1,4 +1,4 @@
-# Handoff — TCH — 2026-04-21 18:00
+# Handoff — TCH — 2026-04-22 00:05
 
 > **Project state lives in [`docs/PROJECT.md`](docs/PROJECT.md), not here.**
 > This file is a thin per-session cover sheet. Read PROJECT.md first.
@@ -56,21 +56,32 @@ priority #2 next session (see below).
 
 ## Open at session end — 6 items
 
-### 🔴 1. Forth Host malware triage — STILL FIRST ACTION NEXT SESSION
+### ✅ 1. Forth Host malware triage — DONE, verdict filed
 
-Carried forward from the morning's handoff; not yet actioned. Governance
-confirmed 2026-04-21 11:00 that the 2 files Forth flagged are TCH's own
-backup archives at
-`/home/sites/9a/7/72a61afa93/db-backups/tch/prod-webroot-pre-09*-20260413-*.tgz`.
-Signature shape (`$_COOKIE` + `HTTP_USER_AGENT` + `file_get_contents` +
-`tempnam` + `file_put_contents` + `unlink`) is consistent with the
-legitimate upload handler `includes/onboarding_upload.php`. Next
-session: SSH, extract archive to scratch, `grep -rl` for six-token
-signature, verify each hit is legitimate, draft whitelist explanation
-for Forth support. ~15 min if false positive.
+Triaged during the 2026-04-21 pm extension (after the sync incident
+closed). **Verdict: FALSE POSITIVE.** Flagged file is
+`vendor/phpoffice/phpspreadsheet/src/PhpSpreadsheet/Worksheet/Drawing.php`
+from the PhpSpreadsheet Composer library (~13M downloads, MIT,
+phpoffice org). Four of six scanner tokens match, but the two
+attacker-control tokens (`$_COOKIE` + `HTTP_USER_AGENT`) are absent —
+no webshell use-case. Triage method + paste-back text for Forth
+support preserved at `docs/sessions/2026-04-21-forth-triage-verdict.md`.
 
-PHP mail still disabled account-wide at Forth until rescan. Affects
-Nexus-CRM (live). TCH pre-live, unaffected.
+Governance concurred with the verdict (2130Z, `2026-04-21-2130-governance-to-tch-forth-verdict-accepted.md`)
+and endorsed the paste-back text with two minor tightening
+suggestions (add MIT licence + phpoffice org attribution; ask for
+broader `vendor/phpoffice/phpspreadsheet/**` whitelist rather than
+the specific path).
+
+**Open action on Ross, not the agent:** paste the endorsed text into
+the Forth ticket via `cp.forthhost.com`. Next session monitors for
+Forth's reply. Once Forth whitelists + rescans, PHP mail re-enables
+account-wide (Nexus-CRM unblocks).
+
+**Separately disclaimed:** four account-home items Governance polled
+on (`fix_fr38.php`, `fix_never.php`, `laravel-crm-2.1.6/`, `crm_app/`)
+— all HIGH-confidence not-TCH's. Reply filed at
+`2026-04-22-0001-tch-to-governance-account-home-poll-reply.md`.
 
 ### 🔴 2. Write `scripts/dev-db-sanitise.sql` + refresh DEV from PROD
 
@@ -129,10 +140,14 @@ from morning handoff.
 
 ## Next session should
 
-1. **Forth triage first** — item 1.
-2. **DEV-refresh pipeline** — item 2 (write sanitise script, run
-   first refresh). This is the first live exercise of the post-ship
-   DEV-refresh rule in the new project-local CLAUDE.md.
+1. **Monitor Forth response** — watch mailbox for Dylan's reply after
+   Ross sends the paste-back. Archive the thread once PHP mail is
+   re-enabled. No active work from the agent unless Forth needs
+   follow-up.
+2. **Write `scripts/dev-db-sanitise.sql` + first DEV refresh from
+   PROD** — HIGH. Item 2. First live exercise of the post-ship
+   DEV-refresh rule in CLAUDE.md. GDPR Art. 9 sweep across
+   `patient_care_needs` TEXT fields required.
 3. **Pick the next strategic build** from PROJECT.md §4a: FR-O
    LeadTrekker, FR-S caregiver portal shell, FR-N Phase 3
    (operating-radius hard blocks on scheduling).
@@ -141,10 +156,10 @@ from morning handoff.
 
 ## Next session entry pattern
 
-1. `docs/PROJECT.md` §6 — open items (6 items above).
+1. `docs/PROJECT.md` §6 — open items (5 items above, plus ✅ Forth).
 2. `docs/PROJECT.md` §7 — risks.
 3. `docs/release-log.md` — what Tuniti can see (unchanged
    post-v0.9.26; no admin grants in this ship).
-4. `CLAUDE.md` (new) — the six-step PROD-push checklist.
+4. `CLAUDE.md` — the six-step PROD-push checklist.
 5. This file.
-6. Forth triage → DEV refresh → next strategic build.
+6. Forth response check → DEV refresh → next strategic build.
